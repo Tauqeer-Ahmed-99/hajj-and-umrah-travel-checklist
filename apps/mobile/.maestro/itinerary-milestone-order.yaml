@@ -1,0 +1,41 @@
+appId: in.nmtsolutions.travel
+---
+# Continue on the Hajj itinerary after itinerary-organizer.yaml, same run parameter.
+- scrollUntilVisible:
+    element: "Add Hajj milestone"
+- tapOn: "Add Hajj milestone"
+- tapOn:
+    id: itinerary-title
+- inputText: "Mina plan ${MAESTRO_ITINERARY_RUN}"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Save entry"
+- tapOn: "Save entry"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Move Mina plan ${MAESTRO_ITINERARY_RUN} earlier"
+- tapOn: "Move Mina plan ${MAESTRO_ITINERARY_RUN} earlier"
+- assertVisible: "New position: 1. Other entries keep their relative order."
+- scrollUntilVisible:
+    element: "Save order"
+- tapOn: "Save order"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "1. Mina plan ${MAESTRO_ITINERARY_RUN}"
+- assertVisible: "Organizer’s plan. Religious completion is not recorded here."
+- scrollUntilVisible:
+    element: "Remove Mina plan ${MAESTRO_ITINERARY_RUN}"
+- tapOn: "Remove Mina plan ${MAESTRO_ITINERARY_RUN}"
+- scrollUntilVisible:
+    element: "Confirm removal"
+- tapOn: "Confirm removal"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "1. Airport ${MAESTRO_ITINERARY_RUN}"
+- assertNotVisible: "Mina plan ${MAESTRO_ITINERARY_RUN}"

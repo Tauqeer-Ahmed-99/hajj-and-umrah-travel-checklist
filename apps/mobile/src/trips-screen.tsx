@@ -25,12 +25,14 @@ import {
   type Destination,
 } from "./trip-navigation";
 import { FamilyForm, TravelerForm, TripForm } from "./trip-forms";
+import { ItineraryOverview, ItineraryScreen } from "./itinerary-screen";
 
 type Route =
   | { screen: "list" }
   | { screen: "new-trip" }
   | { screen: "trip"; tripId: string; destination: Destination }
   | { screen: "new-family"; tripId: string }
+  | { screen: "itinerary"; tripId: string }
   | { screen: "family"; tripId: string; familyId: string }
   | { screen: "new-traveler"; tripId: string; familyId: string };
 
@@ -99,6 +101,14 @@ export function TripsScreen({
         onSaved={(tripId) => openTrip(tripId)}
       />
     );
+  if (route.screen === "itinerary")
+    return (
+      <ItineraryScreen
+        key={route.tripId}
+        tripId={route.tripId}
+        onBack={() => openTrip(route.tripId)}
+      />
+    );
   if (route.screen === "new-family")
     return (
       <FamilyForm
@@ -153,6 +163,9 @@ export function TripsScreen({
         setRoute({ screen: "new-family", tripId: route.tripId })
       }
       onAccount={onAccount}
+      onItinerary={() =>
+        setRoute({ screen: "itinerary", tripId: route.tripId })
+      }
     />
   );
 }
@@ -316,6 +329,7 @@ function TripHome({
   onAddFamily,
   onAccount,
   preferenceError,
+  onItinerary,
 }: {
   tripId: string;
   destination: Destination;
@@ -325,6 +339,7 @@ function TripHome({
   onAddFamily: () => void;
   onAccount: () => void;
   preferenceError: string;
+  onItinerary: () => void;
 }) {
   const api = useTripRequest();
   const [detail, setDetail] = useState<TripDetail | null>(null);
@@ -388,6 +403,7 @@ function TripHome({
           </Copy>
           {destination === "Overview" ? (
             <>
+              <ItineraryOverview tripId={tripId} onOpen={onItinerary} />
               <Section title="Journey dates">
                 <Copy>Departure: {detail.trip.startDate}</Copy>
                 <Copy>Return: {detail.trip.endDate}</Copy>
