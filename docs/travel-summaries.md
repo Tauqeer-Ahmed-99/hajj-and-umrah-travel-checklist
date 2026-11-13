@@ -144,31 +144,61 @@ Implementation references: installed Next route-handler docs at
 
 ## Final combined results
 
-Runtime integration merged: `e61c344413982ed3c3fc55962cd89176282009c5`
-(outbound packing #8), into the implementation at merge `a5128fd`. The only merge
-conflict was the contracts export list; both packing and summaries exports were
-retained. Navigation retains packing alongside summaries and the earlier
-destinations. Latest integration `92478d79cfcd1150ebe361356dd883f38db54a02`
-adds only the intended Vercel account verification note in `docs/account-flow.md`;
-it introduces no runtime change requiring another full run.
+Source `39613d38cb70eb7598959b6b9ebeb0a888fdaf24` includes packing #8 and
+latest integration `92478d79cfcd1150ebe361356dd883f38db54a02`. The earlier
+contracts export conflict retained both packing and summaries. Fresh integration
+merge `0dcb03492cddb126b1a9b19e91bee89b209a2171` was clean; navigation retains
+packing, summaries and every earlier destination. Manifests/lockfile are unchanged
+and the existing 672-package installation was reused.
 
-- Direct Node runner, `node --import tsx --test --test-concurrency=1
-tests/*.test.ts` from `apps/api`: **81 passed, 1 failed, 0 skipped**, normal
-  process exit in 351.8 seconds. All seven #18 scenarios passed with packing
-  migration 011 and the existing permissions/acquisition guards present.
-- The unchanged reminder scenario "important accepted assignments and trip
-  changes dispatch according to preferences without private payloads or retry
-  duplicates" failed at `apps/api/tests/reminders.test.ts:494`: the immediate
-  provider push-count assertion observed 1 rather than 2. Its focused rerun with
-  the direct Node runner and `--test-name-pattern='important accepted assignments'`
-  passed **1/1**. The implementation changes none of the notification dispatch,
-  event, reminder test or fixture files. Concurrent asynchronous dispatch timing
-  is a possible explanation, not a proven diagnosis. **A wholly green full-suite
-  run is not claimed.** Investigate the existing assertion/dispatch timing
-  separately if it recurs.
-- Workspace TypeScript, Next production API build, final Android JS bundling
-  (`--no-bytecode`, 1063 modules), changed-file Prettier and `git diff --check`
-  passed. The API build includes the summary route alongside all prior routes.
-- No dependency/lockfile, environment variable, migration or fixture changes
-  belong to #18. Device/hosted/native gaps described above remain open. No real
-  data was sent/exported, and no service, push, PR or publication was performed.
+The initial source run passed all seven summaries scenarios, types, API build and
+Android JavaScript export, but finished **81/82** overall: the reminder scenario
+"important accepted assignments and trip changes dispatch according to preferences
+without private payloads or retry duplicates" observed one push instead of two.
+A passing focused rerun did not resolve that failure.
+
+The merger pinned that exact overlap through authenticated HTTP, real disposable
+PostgreSQL and a held external push-provider request. Both the original and reduced
+scratch loops reproduced **1 != 2**. While manual dispatch returned 200, the public
+notification API reported the trip-change delivery as `sending`; the earlier
+assignment was `provider_accepted`. Releasing only the provider gate produced the
+second push and `provider_accepted`; another dispatch did not duplicate it. Thus
+the failing test treated completion of one dispatcher as completion of a job
+already claimed by Next's post-response dispatcher. This reproduced a test-harness
+synchronization error, with no evidence of a lost product event in this scenario.
+
+The existing reminder scenario now retains that provider overlap as a regression.
+It releases the held provider on the I/O turn after the manual invocation responds,
+then waits through `GET /api/notifications` until no current delivery is `pending`
+or `sending` before making the original exact count/payload assertions. The wait
+is bounded and fails on unfinished work; it neither retries sends nor substitutes
+a fixed sleep. Other enabled reminder count assertions use the same status wait.
+The fixture releases held requests during cleanup. Production event/dispatch code
+and its asynchronous behavior are unchanged; the PG18 Windows sync fixture and
+direct Node runner are preserved.
+
+Red/green command from `apps/api`:
+`node --import tsx --test --test-concurrency=1 --test-name-pattern='important accepted assignments' tests/reminders.test.ts`.
+With the pinned provider overlap and before status synchronization, it failed at
+the exact **1 != 2** assertion (14.0 seconds). With synchronization, it passed
+**1/1** (18.4 seconds). The complete reminder file then passed **8/8** (34.3
+seconds). Scratch diagnosis artifacts are outside the repository; no debug
+instrumentation belongs to the integrated source.
+
+Final integration verification:
+
+- `node --import tsx --test --test-concurrency=1 tests/*.test.ts` from `apps/api`:
+  **82 passed, 0 failed, 0 skipped**, normal exit in **287.5 seconds**. This
+  includes all seven summary scenarios and the existing eight reminder scenarios
+  with the controlled overlap regression; the scenario count was not inflated.
+- `npm run typecheck` and `npm run build:api` passed. The production route list
+  includes the summary route alongside the prior routes.
+- `npx expo export --platform android --no-bytecode` passed, bundling **1034
+  modules** to the shared task's temporary output directory.
+- Changed-file Prettier and `git diff --check` passed. Generated Next declarations
+  were restored; no debug instrumentation remains in the repository.
+
+Device/hosted/native gaps described above remain open. Local provider acceptance
+is not proof of Android delivery. No dependency, environment variable or migration
+was added; no real data was shared, and no service, issue, push, PR, binary or OTA
+publication was performed.
