@@ -1,0 +1,19 @@
+appId: in.nmtsolutions.travel
+---
+# Requires a configured native preview with a Google account on the device.
+# Start signed out. This flow cancels without choosing an account.
+- launchApp
+- tapOn: "Continue with Google"
+- back
+- extendedWaitUntil:
+    visible: "Google sign-in did not finish. Try again or use an email code."
+    timeout: 30000
+- assertVisible: "Send email code"
+- tapOn:
+    id: email-input
+- inputText: ${MAESTRO_EMAIL}
+- hideKeyboard
+- tapOn: "Send email code"
+- extendedWaitUntil:
+    visible: "Verify email"
+    timeout: 30000

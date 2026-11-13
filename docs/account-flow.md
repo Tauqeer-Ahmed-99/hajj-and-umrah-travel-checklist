@@ -1,5 +1,10 @@
 # Account flow (#2)
 
+Native Google sign-in is now implemented by #3. See
+[Google setup and acceptance](google-sign-in.md) for its optional mobile
+configuration, additive `profileDefaults` response, verified-identity continuity
+checks, and the external/native acceptance that remains unverified.
+
 This slice implements email-code signup/sign-in, profile completion, saved profile
 retrieval, session restoration, logout, and device/light/dark appearance. It does
 not implement the rest of specification #1 or claim a production release.
@@ -142,6 +147,21 @@ ID `8c2739c3-9d23-4c92-a50a-836d3ea3a94c`, in `eas-project.json`.
 enabled updates, its actual update URL, and the fingerprint runtime policy.
 This establishes the project configuration only: no EAS build, signing setup,
 OTA publication, or device update check has been performed.
+
+The same integration setup created Vercel project `nmt-solutions/nmt-travel-api`
+with Next.js root `apps/api`, Node 24, install command `cd ../.. && npm ci`, and
+build command `npm run build`. It also provisioned Neon Free resource
+`nmt-travel-db` in Singapore (`sin1`), with Neon authentication and realtime
+disabled. The actual PostgreSQL migration command succeeded against that database.
+Only the consumed `DATABASE_URL` is retained in the project's environment and the
+ignored local API configuration; unused provider-generated aliases were removed.
+
+No API deployment has been made. Vercel's automatic GitHub connection failed
+because its signed-in account lacks write/admin access to this repository; direct
+CLI deployment remains available. Clerk provisioning is awaiting the account
+owner's required browser acceptance of its Vercel Marketplace terms. Clerk keys,
+production DNS/OAuth, a private R2 bucket, signing, and device verification remain
+unfinished. These resources do not establish the rest of specification #1.
 
 1. Create/configure Neon PostgreSQL and run the migration against the chosen
    database. Verify recovery/backup settings separately; local persistence tests

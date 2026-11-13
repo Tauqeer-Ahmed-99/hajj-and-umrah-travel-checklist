@@ -17,7 +17,14 @@ export async function GET(request: Request) {
       `SELECT ${columns} FROM members WHERE clerk_user_id = $1`,
       [identity.clerkUserId],
     );
-    return json({ profile: result.rows[0] ?? null, email: identity.email });
+    const profile = result.rows[0] ?? null;
+    return json({
+      profile,
+      email: identity.email,
+      ...(!profile && Object.keys(identity.profileDefaults).length
+        ? { profileDefaults: identity.profileDefaults }
+        : {}),
+    });
   } catch (error) {
     return failure(error);
   }

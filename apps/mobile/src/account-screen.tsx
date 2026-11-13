@@ -36,6 +36,7 @@ export function AccountScreen() {
   const request = useRef<AbortController | null>(null);
   const generation = useRef(0);
   const signedOut = useRef(false);
+  const initializedDraft = useRef(false);
 
   const load = useCallback(async () => {
     if (signedOut.current) return;
@@ -63,6 +64,15 @@ export function AccountScreen() {
         );
       const result = await accountRequest(token, controller.signal);
       if (current === generation.current) {
+        if (!result.profile && !initializedDraft.current) {
+          initializedDraft.current = true;
+          setDraft({
+            firstName: "",
+            lastName: "",
+            username: "",
+            ...result.profileDefaults,
+          });
+        }
         setAccount(result);
         setSaveUncertain(false);
       }

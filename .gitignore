@@ -16,3 +16,5 @@ apps/mobile/ios/
 *.keystore
 .test-data/
 .local/
+
+.vercel/
