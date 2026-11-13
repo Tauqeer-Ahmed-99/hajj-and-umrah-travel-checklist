@@ -218,3 +218,43 @@ Also repeat #15's account-switch, interrupted publication, tombstone/full-storag
 same-save retry and shared-only privacy journeys for both leg keys. The integrated
 `expo-network` dependency needs a compatible native binary; this task publishes
 none.
+
+## Final combined verification
+
+Integration `a44bc27f0321060ca0f6faf994820e7b945f069d` (#9 and #15 over the
+verified #18/reminder baseline) merged at
+`6a2a727e4ba193eea54cf0fd26acf0f05f7a44eb`. Conflict resolution retained both
+sharing capability/visibility controls and leg-specific return forms, safe shared
+save receipts and the central connection guard. The worktree dependency refresh
+installed 673 packages from the integrated lockfile; #10 itself adds none.
+
+The actual combined API tree passed `npm test`: **98/98 authenticated HTTP/real
+PostgreSQL scenarios**, no failures/skips/cancellations/forced exit, normal process
+exit in **425.937 seconds**. All nine return scenarios passed, including the
+retirement correction green result. The suite also passed existing outbound,
+sharing, summary, reminder-overlap, acquisition, identity, invitation and file
+regressions. The direct Node runner and PG18 Windows fixture are byte-for-byte
+unchanged from integration.
+
+After that run, native inspection found that selecting the already-active leg
+could clear a live view without starting another read. Commit `2fb0117` guards
+that action and labels the independently verified return requirement/availability
+in shared views. No API, migration, contract or test changed after the 98-scenario
+run. Final workspace TypeScript and Android JS export were rerun for this UI
+change and passed. The final export command, from `apps/mobile`, was
+`npx expo export --platform android --no-bytecode --output-dir .expo/return-verification`
+(1,076 modules). This is an ignored local JS bundle, not a binary or publication.
+
+`npm run build:api` passed the final production Next build, including return,
+shared and summary routes, without service credentials. Repository formatting and
+`git diff --check` passed; generated Next declarations match their tracked form.
+Latest integration was merged again and already up to date. Only this verification
+note follows the tested runtime changes.
+
+Maestro is unavailable in this environment. The two new native journeys remain
+prepared and unrun. The provided integration context reports no attached device;
+no native/provider pass is claimed here. Physical possession, TalkBack/large text,
+Android network events, cold-start cache persistence/revocation, real accounts,
+hosted migration/deployment, Hermes/signing/installation/upgrade and EAS runtime
+compatibility remain live gates. No service operation, real message/export,
+issue closure, push, PR, binary or OTA publication occurred.
