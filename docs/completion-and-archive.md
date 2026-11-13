@@ -199,3 +199,41 @@ of two test files without the repository's sequential flag produced a competing
 Next dev-server error; it is excluded from acceptance evidence. The corrected
 sequential completion/itinerary run passed 9/9 before later legacy/guide coverage.
 No Node-native mocks are substituted for device evidence.
+
+## Final combined evidence
+
+The prepared worktree started clean on `t3/complete-trip-archive-lessons`, with
+HEAD identical to integration `2434253f7a778eb8c1c1bcbd62d4b29a2b0f95d8`.
+Implementation commit `99c6c25` was followed by merge
+`fc767918d2ef12d6f67ae8cd612a4d8e75017c5c`, incorporating latest integration
+`5f05bae8cc4446490d6b6b90aacf39cede5d6b96` and its independent #19 attachments.
+The merge had no conflicts. Attachment entry points in itinerary/Bags and private
+file authorization/cache exclusions are retained. SQL017/018/020 are not edited
+by #20. At this verification tip #17 has not yet landed; its scope is not replaced
+or duplicated here.
+
+Checks on that actual combined runtime tree:
+
+- `npm test`: **109/109 authenticated HTTP/PostgreSQL scenarios passed**, no
+  failures, skips, cancellations or forced exit, in 565.3 seconds. This includes
+  all five #20 scenarios plus #19 file authorization and the prior return,
+  sharing, summaries, reminders, itinerary, identity and permission regressions.
+  Only external providers are controlled. PostgreSQL migrations apply twice in
+  the fixture; direct Node and Windows PG18 synchronous I/O remain unchanged.
+- `npm run typecheck`: all workspace checks passed.
+- `npm run build:api`: production Next build passed, including completion,
+  arrival review, archive lookup and the merged attachment routes, without new
+  service configuration. It restored generated Next type references to their
+  tracked production form after the test server run.
+- Android `expo export --platform android --no-bytecode`: passed, **1,084
+  modules**; output is ignored at `apps/mobile/.expo/completion-verification`.
+  This proves JavaScript bundling only, not native/Hermes/release acceptance.
+- Repository `npm run format:check` and `git diff --check` passed. No dependency,
+  lockfile or environment variable changed.
+
+The worktree is
+`C:/Users/tauqu/.t3/worktrees/hajj-and-umrah-travel-checklist/t3-8801a855-ac0f7700ce285ab1`.
+Only this evidence changed after the combined checks; the tested runtime tree is
+retained. The handback commit records these results on the task-owned branch.
+Native/device and hosted-provider gates above remain unrun; no operational
+acceptance, issue closure or publication is claimed.
