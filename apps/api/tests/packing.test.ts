@@ -121,7 +121,14 @@ test("named physical bags persist separately from manual outbound readiness with
     { requestId: randomUUID(), leg: "return", status: "ready" },
     "POST",
   );
-  assert.equal(unverifiedReturn.status, 422);
+  assert.equal(unverifiedReturn.status, 200);
+  assert.equal(unverifiedReturn.data.leg, "return");
+  assert.deepEqual(unverifiedReturn.data.items, []);
+  assert.equal(
+    (await fixture.request(journey.packing, journey.owner.token)).data.bags[0]
+      .legs[0].status,
+    "ready",
+  );
 });
 
 async function supply(

@@ -67,6 +67,7 @@ export const sharedBag = bag.omit({
   identifyingNote: true,
 });
 export const sharedContentResponse = z.object({
+  leg: z.enum(["outbound", "return"]),
   items: z.array(
     z.object({
       entry: sharedEntry,

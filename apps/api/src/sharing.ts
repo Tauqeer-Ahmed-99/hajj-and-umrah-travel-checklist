@@ -22,6 +22,7 @@ export async function sharedState(
   db: PoolClient,
   memberId: string,
   tripId: string,
+  leg: "outbound" | "return" = "outbound",
   activityEntryId?: string,
 ): Promise<SharedContent> {
   await requireTripAccess(db, memberId, tripId);
@@ -49,7 +50,11 @@ export async function sharedState(
     );
     for (const value of familyBags.rows) {
       const { carrierTravelerId, identifyingNote, ...safeBag } = value;
-      bags.push({ ...safeBag, ...capability });
+      bags.push({
+        ...safeBag,
+        legs: safeBag.legs.filter((row) => row.leg === leg),
+        ...capability,
+      });
     }
     const visibleBags = new Set(familyBags.rows.map((b) => b.id));
     const publicSince = await db.query<{ id: string; shared_at: Date }>(
@@ -61,8 +66,8 @@ export async function sharedState(
     );
     const visibleEntries = new Set(entries.rows.map((e) => e.id));
     const events = await db.query<PackingEvent>(
-      `SELECT id,leg,entry_id AS "entryId",bag_ids AS "bagIds",action,at,actor,changes,false AS "canUndo" FROM packing_history WHERE family_id = $1 AND ($2::uuid IS NULL OR entry_id = $2) ORDER BY sequence DESC LIMIT 200`,
-      [family.id, activityEntryId ?? null],
+      `SELECT id,leg,entry_id AS "entryId",bag_ids AS "bagIds",action,at,actor,changes,false AS "canUndo" FROM packing_history WHERE family_id = $1 AND leg = $2 AND ($3::uuid IS NULL OR entry_id = $3) ORDER BY sequence DESC LIMIT 200`,
+      [family.id, leg, activityEntryId ?? null],
     );
     for (const event of events.rows) {
       const permittedAt = (id: string) =>
@@ -112,7 +117,7 @@ export async function sharedState(
       [family.id, activityEntryId ?? null],
     );
     history.push(...edits.rows);
-    const packed = await packingItems(db, family.id);
+    const packed = await packingItems(db, family.id, leg);
     for (const value of entries.rows) {
       const { categoryId, ...entry } = value;
       const packing = packed.find((p) => p.entryId === entry.id);
@@ -151,6 +156,7 @@ export async function sharedState(
     }
   }
   return {
+    leg,
     items,
     bags,
     history: history
@@ -158,8 +164,12 @@ export async function sharedState(
       .slice(0, 200),
   };
 }
-export function readShared(memberId: string, tripId: string) {
-  return transaction((db) => sharedState(db, memberId, tripId));
+export function readShared(
+  memberId: string,
+  tripId: string,
+  leg: "outbound" | "return" = "outbound",
+) {
+  return transaction((db) => sharedState(db, memberId, tripId, leg));
 }
 export function setVisibility(
   memberId: string,

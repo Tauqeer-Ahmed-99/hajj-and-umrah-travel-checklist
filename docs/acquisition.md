@@ -1,5 +1,10 @@
 # Quantity-based acquisition (#7)
 
+[#10 return preparation](return-preparation.md) adds independent return possession
+and requirement review. Destination acquisitions still use the actions below;
+they become return packing stock only after fresh possession confirmation. The
+shared family lock also rejects legacy changes that invalidate return records.
+
 Each family checklist item owns one acquisition ledger. Tasks retain their own
 progress and return `acquisition: null`; they require no inventory or bags.
 Migration `009-acquisition.sql` adds this ledger to existing checklist entries,

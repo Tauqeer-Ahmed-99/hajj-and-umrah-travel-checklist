@@ -12,7 +12,7 @@ export function readOverviewActivity(
 ): Promise<OverviewActivity> {
   return transaction(async (db) => {
     await requireTripAccess(db, memberId, tripId);
-    const shared = await sharedState(db, memberId, tripId, entryId);
+    const shared = await sharedState(db, memberId, tripId, leg, entryId);
     const result = await db.query<{ familyId: string }>(
       `SELECT e.family_id AS "familyId" FROM checklist_entries e JOIN families f ON f.id = e.family_id JOIN family_members fm ON fm.family_id = f.id AND fm.member_id = $3 WHERE f.trip_id = $1 AND e.id = $2 AND e.removed_at IS NULL AND e.leg IN ($4, 'both')`,
       [tripId, entryId, memberId, leg],

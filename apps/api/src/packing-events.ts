@@ -10,6 +10,7 @@ export async function recordPacking(
   after: object,
   before: object = {},
   details: {
+    leg?: "outbound" | "return";
     entryId?: string;
     command?: PackingMove;
     undoes?: string;
@@ -31,7 +32,7 @@ export async function recordPacking(
   if (!Object.keys(changes).length) return;
   await db.query(
     `INSERT INTO packing_history (family_id, leg, bag_ids, action, actor, changes, entry_id, command, undoes, id)
-    SELECT $1,'outbound',$2,$3,jsonb_build_object('id',id,'firstName',first_name,'lastName',last_name,'username',username),$5,$6,$7,$8,coalesce($9::uuid,gen_random_uuid()) FROM members WHERE id = $4`,
+    SELECT $1,$10,$2,$3,jsonb_build_object('id',id,'firstName',first_name,'lastName',last_name,'username',username),$5,$6,$7,$8,coalesce($9::uuid,gen_random_uuid()) FROM members WHERE id = $4`,
     [
       familyId,
       bagIds,
@@ -42,6 +43,7 @@ export async function recordPacking(
       details.command ? JSON.stringify(details.command) : null,
       details.undoes ?? null,
       details.id ?? null,
+      details.leg ?? "outbound",
     ],
   );
 }
@@ -54,11 +56,12 @@ export async function invalidateDepartureChecks(
   entryId: string | null,
   bagIds: string[] = [],
   clearLocation = false,
+  leg: "outbound" | "return" = "outbound",
 ) {
   const checks = await db.query<DepartureCheck>(
-    `SELECT ${checkColumns} FROM departure_checks WHERE family_id = $1 AND leg = 'outbound' AND removed_at IS NULL
+    `SELECT ${checkColumns} FROM departure_checks WHERE family_id = $1 AND leg = $5 AND removed_at IS NULL
     AND (entry_id = $2::uuid OR bag_id = ANY($3::uuid[])) AND (checked OR $4)`,
-    [familyId, entryId, bagIds, clearLocation],
+    [familyId, entryId, bagIds, clearLocation, leg],
   );
   for (const check of checks.rows) {
     const location =
@@ -79,7 +82,7 @@ export async function invalidateDepartureChecks(
       check.location?.kind === "bag" ? [check.location.id] : [],
       { checkId: check.id, label: check.label, checked: false, location },
       { checked: check.checked, location: check.location },
-      { entryId: check.entryId ?? undefined },
+      { leg, entryId: check.entryId ?? undefined },
     );
   }
 }

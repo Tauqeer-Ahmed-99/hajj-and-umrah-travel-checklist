@@ -1,5 +1,10 @@
 # Cached trip data (#15)
 
+[#10 return preparation](return-preparation.md) extends this reader with explicit
+outbound/return packing and shared snapshot keys, plus a separate private return
+reconciliation view. Its mutations use the same connection guard described below.
+The original outbound-only slice and its verification are retained here.
+
 **Open cached trips** is available during profile restoration, after a failed
 profile refresh, from Account and from Your trips. It uses #14's restored Clerk
 account and remembered completed-member profile. New sign-in and profile

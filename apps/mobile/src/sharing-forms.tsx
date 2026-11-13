@@ -290,7 +290,11 @@ export function SharedBagForm(props: FormProps & { bag: SharedBag }) {
   );
 }
 export function SharedMoveForm(
-  props: FormProps & { item: Item; bags: SharedBag[] },
+  props: FormProps & {
+    item: Item;
+    bags: SharedBag[];
+    leg: "outbound" | "return";
+  },
 ) {
   const item = props.item.packing!;
   const [requestId] = useState(randomUUID);
@@ -318,8 +322,8 @@ export function SharedMoveForm(
       <Heading>Pack shared {item.title}</Heading>
       <Copy>
         Private carrying locations can be changed only in the owning family's
-        Bags screen. This action changes confirmed outbound locations and leaves
-        acquisition quantities unchanged.
+        Bags screen. This action changes confirmed {props.leg} locations and
+        leaves acquisition quantities unchanged.
       </Copy>
       <ChecklistChoices
         label="Move from"
@@ -392,7 +396,7 @@ export function SharedMoveForm(
           void save.submit({
             requestId,
             kind: "move",
-            leg: "outbound",
+            leg: props.leg,
             entryId: item.entryId,
             from: location(from),
             to: location(to),

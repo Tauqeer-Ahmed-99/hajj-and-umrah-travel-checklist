@@ -135,7 +135,7 @@ export function readOverview(
     const trip = await requireTripAccess(db, memberId, tripId);
     await db.query("SELECT id FROM trips WHERE id = $1 FOR SHARE", [tripId]);
     // The central projection holds stable family locks and redacts private locations/history.
-    const shared = await sharedState(db, memberId, tripId);
+    const shared = await sharedState(db, memberId, tripId, query.leg);
     const own = await db.query<{ id: string }>(
       "SELECT family_id AS id FROM family_members WHERE trip_id = $1 AND member_id = $2 ORDER BY family_id",
       [tripId, memberId],
