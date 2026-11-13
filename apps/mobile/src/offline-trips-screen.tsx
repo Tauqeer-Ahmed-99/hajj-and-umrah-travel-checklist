@@ -11,6 +11,7 @@ import {
   tripPhaseLabels,
   checklistTaskLabels,
   bagStatusLabels,
+  completionResponse,
   type TravelReferences,
 } from "@nmt/contracts";
 import { Action, Copy, Heading, Notice, Screen } from "./ui";
@@ -23,10 +24,18 @@ import {
   type TripSnapshot,
 } from "./trip-cache";
 import { subscribeTripCache, useTripConnection } from "./trip-cache-state";
+import { CompletionRead } from "./completion-screen";
 
 type Route = {
   tripId: string;
-  screen: "trip" | "itinerary" | "checklist" | "packing" | "shared" | "return";
+  screen:
+    | "trip"
+    | "itinerary"
+    | "checklist"
+    | "packing"
+    | "shared"
+    | "return"
+    | "completion";
   familyId?: string;
   leg?: "outbound" | "return";
 };
@@ -100,6 +109,10 @@ export function OfflineTripsScreen({
   const itineraryRecord = records.find((r) => r.path === `${path}/itinerary`);
   const itinerary = itineraryRecord
     ? itineraryResponse.parse(itineraryRecord.data)
+    : null;
+  const completionRecord = records.find((r) => r.path === `${path}/completion`);
+  const completion = completionRecord
+    ? completionResponse.parse(completionRecord.data)
     : null;
   const checklistRecord = records.find(
     (r) => r.path === `${familyPath}/checklist`,
@@ -183,6 +196,11 @@ export function OfflineTripsScreen({
             const trip = tripResponse.parse(record.data).trip;
             return (
               <ChecklistSection title={trip.name} key={trip.id}>
+                {records.some(
+                  (r) =>
+                    r.path === `${record.path}/completion` &&
+                    completionResponse.parse(r.data).archivedAt,
+                ) && <Copy>Archived trip reference</Copy>}
                 <Freshness record={record} />
                 <Action
                   title={`Cached ${trip.name}`}
@@ -205,6 +223,11 @@ export function OfflineTripsScreen({
               {detail.trip.destinations.map((destination, index) => (
                 <Copy key={index}>{destination}</Copy>
               ))}
+              <Action
+                title="Cached completion and archive"
+                secondary
+                onPress={() => setRoute({ ...route, screen: "completion" })}
+              />
               <Action
                 title="Cached itinerary and contacts"
                 secondary
@@ -255,6 +278,51 @@ export function OfflineTripsScreen({
               ))}
             </>
           )}
+        </>
+      )}
+      {route?.screen === "completion" && (
+        <>
+          <Heading>Cached completion and archive</Heading>
+          <Freshness record={completionRecord} />
+          {completion && <CompletionRead value={completion} />}
+          <Copy>
+            Arrival review is not cached here. Collection and unresolved
+            belongings remain in each separately refreshed permitted family or
+            shared snapshot.
+          </Copy>
+          <Action
+            title="Read cached itinerary and contacts"
+            secondary
+            onPress={() => setRoute({ ...route, screen: "itinerary" })}
+          />
+          <Action
+            title="Read cached shared items and bags"
+            secondary
+            onPress={() => setRoute({ ...route, screen: "shared" })}
+          />
+          <Action title="Open saved guides" secondary onPress={onGuides} />
+          {detail?.families.map((family) => (
+            <ChecklistSection key={family.id} title={family.name}>
+              <Action
+                title={`Read cached checklist for ${family.name}`}
+                secondary
+                onPress={() =>
+                  setRoute({
+                    ...route,
+                    screen: "checklist",
+                    familyId: family.id,
+                  })
+                }
+              />
+              <Action
+                title={`Read cached bag legs for ${family.name}`}
+                secondary
+                onPress={() =>
+                  setRoute({ ...route, screen: "packing", familyId: family.id })
+                }
+              />
+            </ChecklistSection>
+          ))}
         </>
       )}
       {route?.screen === "itinerary" && (
@@ -435,16 +503,37 @@ export function OfflineTripsScreen({
               {check.checkedAt ? ` (${check.checkedAt})` : ""}
             </Copy>
           ))}
+          <ChecklistSection title="Recorded packing activity">
+            <Copy muted>
+              Activity retained for this selected leg at the last refresh.
+            </Copy>
+            {packing?.history.map((event) => (
+              <Copy key={event.id}>
+                {event.leg}: {event.action.replaceAll("_", " ")} ·{" "}
+                {event.actor.firstName} {event.actor.lastName} (@
+                {event.actor.username}) · {new Date(event.at).toLocaleString()}
+              </Copy>
+            ))}
+          </ChecklistSection>
         </>
       )}
       {route?.screen === "shared" && (
         <>
           <Heading>Cached shared items and bags</Heading>
+          <ChecklistChoices
+            label="Shared travel leg"
+            options={[
+              { value: "outbound", label: "Outbound" },
+              { value: "return", label: "Return" },
+            ]}
+            value={leg}
+            onChange={(leg) => setRoute({ ...route, leg })}
+          />
           <Freshness record={sharedRecord} />
           <Notice>
             Only the trip-shared projection is shown. Private carrying
             locations, carrier identities and bag identifying notes remain
-            hidden. Outbound locations are the last confirmed view.
+            hidden. These are the last confirmed {leg} locations.
           </Notice>
           {shared?.items.length === 0 && shared.bags.length === 0 && (
             <Copy>No shared items or bags in this cached view.</Copy>
@@ -513,6 +602,18 @@ export function OfflineTripsScreen({
               </Copy>
             </ChecklistSection>
           ))}
+          <ChecklistSection title="Recorded shared activity">
+            <Copy muted>
+              Only permitted shared activity is retained for this selected leg.
+            </Copy>
+            {shared?.history.map((event) => (
+              <Copy key={event.id}>
+                {event.leg}: {event.action.replaceAll("_", " ")} ·{" "}
+                {event.actor.firstName} {event.actor.lastName} (@
+                {event.actor.username}) · {new Date(event.at).toLocaleString()}
+              </Copy>
+            ))}
+          </ChecklistSection>
         </>
       )}
       <Action

@@ -1,0 +1,59 @@
+appId: in.nmtsolutions.travel
+---
+# Prepared, unrun. Start on a fresh organizer-owned fixture trip's Overview.
+# Seed independent outbound/return contents, unverified belongings and collected
+# return bags using return-reconciliation.yaml; preserve their exact API reads.
+- scrollUntilVisible:
+    element: "Completion and archive"
+- tapOn: "Completion and archive"
+- extendedWaitUntil:
+    visible: "Completion and archive"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Home-arrival review"
+- assertVisible: "Only family records.*"
+- scrollUntilVisible:
+    element: "Review and confirm Completed"
+- tapOn: "Review and confirm Completed"
+- tapOn: "I confirm"
+- scrollUntilVisible:
+    element: "Confirm Completed"
+- tapOn: "Confirm Completed"
+- extendedWaitUntil:
+    visible: "Completed saved.*"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Record a lesson"
+- tapOn: "Record a lesson"
+- tapOn:
+    id: "completion-lesson"
+- inputText: "${ARCHIVE_LESSON}"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Save lesson"
+- tapOn: "Save lesson"
+- extendedWaitUntil:
+    visible: "Lesson saved."
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Archive completed trip"
+- tapOn: "Archive completed trip"
+- tapOn: "I confirm"
+- scrollUntilVisible:
+    element: "Archive completed trip"
+- tapOn: "Archive completed trip"
+- extendedWaitUntil:
+    visible: "Trip archived.*"
+    timeout: 30000
+- stopApp
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible: "Completion and archive"
+    timeout: 30000
+- assertVisible: "Phase: Completed"
+- scrollUntilVisible:
+    element: "${ARCHIVE_LESSON}"
+- assertVisible: "${ARCHIVE_LESSON}"
+# Read both bag legs and compare exact canonical IDs/history via API/second account.
+# Repeat in light/dark, max font/display scaling and with TalkBack. See runbook.
