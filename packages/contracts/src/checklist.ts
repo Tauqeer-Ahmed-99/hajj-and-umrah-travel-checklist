@@ -1,4 +1,10 @@
 import { z } from "zod";
+import {
+  acquisitionQuantity,
+  acquisitionSnapshot,
+  mutationDetails,
+} from "./acquisition";
+export * from "./acquisition";
 export * from "./checklist-starters";
 
 const title = z.string().trim().min(1, "Enter a name.").max(120);
@@ -34,14 +40,10 @@ export const checklistTaskLabels: Record<
   done: "Done",
   not_needed: "Not needed",
 };
-const quantity = z
-  .number()
-  .positive("Use a quantity greater than zero.")
-  .max(1_000_000)
-  .refine(
-    (value) => Math.abs(value * 1000 - Math.round(value * 1000)) < 0.000001,
-    "Use up to three decimal places.",
-  );
+const quantity = acquisitionQuantity.refine(
+  (value) => value > 0,
+  "Use a quantity greater than zero.",
+);
 export const checklistEntryFields = z.strictObject({
   categoryId: z.uuid(),
   title,
@@ -107,6 +109,7 @@ export const checklistEntryInput = checklistEntryFields
     }
   });
 export const checklistEntry = checklistEntryFields.extend({
+  acquisition: acquisitionSnapshot.nullable(),
   id: z.uuid(),
   familyId: z.uuid(),
   kind: z.enum(["item", "task"]),
@@ -114,8 +117,10 @@ export const checklistEntry = checklistEntryFields.extend({
 export const checklistEntryResponse = z.object({ entry: checklistEntry });
 export const checklistEntryPatch = checklistEntryFields
   .partial()
+  .extend(mutationDetails.shape)
   .refine(
-    (value) => Object.keys(value).length > 0,
+    (value) =>
+      Object.keys(value).some((key) => key !== "requestId" && key !== "reason"),
     "Change at least one field.",
   );
 export const checklistCategoryInput = z.strictObject({
@@ -146,6 +151,15 @@ export const checklistResponse = z.object({
   entries: z.array(checklistEntry),
   canEdit: z.boolean(),
 });
+export const acquisitionViewsResponse = z.object({
+  shopping: z.array(checklistEntry),
+  expectedDelivery: z.array(checklistEntry),
+  overdueReceipt: z.array(checklistEntry),
+  essentialOutstanding: z.array(checklistEntry),
+  canEdit: z.boolean(),
+  asOf: z.iso.date(),
+});
+export type AcquisitionViews = z.infer<typeof acquisitionViewsResponse>;
 export const checklistHistoryResponse = z.object({
   history: z.array(
     z.object({

@@ -1,0 +1,164 @@
+appId: in.nmtsolutions.travel
+---
+# Prepared, not executed. Start on Overview as a completed coordinator/editor
+# in a fresh family with an empty checklist. Runner-only parameters:
+# MAESTRO_CHECKLIST_FAMILY and a unique MAESTRO_CHECKLIST_RUN.
+- tapOn:
+    id: tab-checklist
+- scrollUntilVisible:
+    element: "Checklist for ${MAESTRO_CHECKLIST_FAMILY}"
+- tapOn: "Checklist for ${MAESTRO_CHECKLIST_FAMILY}"
+- extendedWaitUntil:
+    visible: "Add category"
+    timeout: 30000
+- tapOn: "Add category"
+- tapOn:
+    id: checklist-category-name
+- inputText: "Acquisition ${MAESTRO_CHECKLIST_RUN}"
+- hideKeyboard
+- tapOn: "Save category"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- tapOn: "Add item"
+- tapOn:
+    id: checklist-entry-title
+- inputText: "Adapters ${MAESTRO_CHECKLIST_RUN}"
+- scrollUntilVisible:
+    element:
+      id: checklist-quantity
+- tapOn:
+    id: checklist-quantity
+- eraseText
+- inputText: "4"
+- scrollUntilVisible:
+    element:
+      id: checklist-unit
+- tapOn:
+    id: checklist-unit
+- inputText: "adapters"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Essential"
+- tapOn: "Essential"
+- scrollUntilVisible:
+    element: "Save item"
+- tapOn: "Save item"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- tapOn: "Shopping"
+- scrollUntilVisible:
+    element: "Acquisition for Adapters ${MAESTRO_CHECKLIST_RUN}"
+- tapOn: "Acquisition for Adapters ${MAESTRO_CHECKLIST_RUN}"
+- scrollUntilVisible:
+    element:
+      id: acquisition-quantity
+- tapOn:
+    id: acquisition-quantity
+- eraseText
+- inputText: "2"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Save acquisition"
+- tapOn: "Save acquisition"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- tapOn: "Expected delivery"
+- scrollUntilVisible:
+    element: "Acquisition for Adapters ${MAESTRO_CHECKLIST_RUN}"
+- tapOn: "Acquisition for Adapters ${MAESTRO_CHECKLIST_RUN}"
+- scrollUntilVisible:
+    element: "From Ordered: 2"
+- tapOn: "From Ordered: 2"
+- scrollUntilVisible:
+    element: "To Delivered"
+- tapOn: "To Delivered"
+- scrollUntilVisible:
+    element: "Save acquisition"
+- tapOn: "Save acquisition"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Available: 0 adapters"
+- assertVisible: "Available: 0 adapters"
+- scrollUntilVisible:
+    element: "Acquisition for Adapters ${MAESTRO_CHECKLIST_RUN}"
+- tapOn: "Acquisition for Adapters ${MAESTRO_CHECKLIST_RUN}"
+- scrollUntilVisible:
+    element: "From Delivered: 1"
+- tapOn: "From Delivered: 1"
+- scrollUntilVisible:
+    element: "To Received"
+- tapOn: "To Received"
+- scrollUntilVisible:
+    element:
+      id: acquisition-quantity
+- tapOn:
+    id: acquisition-quantity
+- eraseText
+- inputText: "0.5"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "I checked this quantity and have it physically"
+- tapOn: "I checked this quantity and have it physically"
+- scrollUntilVisible:
+    element: "Save acquisition"
+- tapOn: "Save acquisition"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Available: 0.5 adapters"
+- assertVisible: "Available: 0.5 adapters"
+- scrollUntilVisible:
+    element: "Acquisition for Adapters ${MAESTRO_CHECKLIST_RUN}"
+- tapOn: "Acquisition for Adapters ${MAESTRO_CHECKLIST_RUN}"
+- scrollUntilVisible:
+    element: "Correct quantities or requirement"
+- tapOn: "Correct quantities or requirement"
+- scrollUntilVisible:
+    element:
+      id: acquisition-correct-received
+- tapOn:
+    id: acquisition-correct-received
+- eraseText
+- inputText: "0.25"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: acquisition-reason
+- tapOn:
+    id: acquisition-reason
+- inputText: "Corrected checked count"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Save acquisition"
+- tapOn: "Save acquisition"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: "Family checklists"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Checklist for ${MAESTRO_CHECKLIST_FAMILY}"
+- tapOn: "Checklist for ${MAESTRO_CHECKLIST_FAMILY}"
+- scrollUntilVisible:
+    element: "Available: 0.25 adapters"
+- assertVisible: "Available: 0.25 adapters"
+- assertVisible: "Still to arrange: 2.25 adapters"
+- assertVisible: "Awaiting receipt: 1.5 adapters"
+- assertVisible: "Remaining to be ready: 3.75 adapters"
+- scrollUntilVisible:
+    element: "History for Adapters ${MAESTRO_CHECKLIST_RUN}"
+- tapOn: "History for Adapters ${MAESTRO_CHECKLIST_RUN}"
+- scrollUntilVisible:
+    element:
+      text: ".*Corrected checked count.*"
+- assertVisible:
+    text: ".*Corrected checked count.*"

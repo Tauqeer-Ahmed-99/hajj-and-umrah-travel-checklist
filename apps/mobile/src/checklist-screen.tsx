@@ -9,6 +9,7 @@ import {
   type AccessMember,
   type Family,
   type Traveler,
+  type AcquisitionViews,
 } from "@nmt/contracts";
 import { Action, Copy, Heading, Loading, Notice, Screen } from "./ui";
 import { checklistApi, type ChecklistScope } from "./checklist-api";
@@ -21,7 +22,8 @@ import {
   ChecklistRemovalForm,
   ChecklistStarterForm,
 } from "./checklist-forms";
-import { ChecklistSection } from "./checklist-ui";
+import { ChecklistChoices, ChecklistSection } from "./checklist-ui";
+import { AcquisitionForm, AcquisitionSummary } from "./acquisition-form";
 
 export function ChecklistDestination({
   families,
@@ -59,16 +61,19 @@ type Data = {
   travelers: Traveler[];
   members: AccessMember[];
   history: ChecklistHistory;
+  views: AcquisitionViews;
 };
 type Editor =
   | { mode: "category"; initial: ChecklistCategory | null }
   | { mode: "entry"; initial: ChecklistEntry | null; kind: "item" | "task" }
   | { mode: "starter" }
+  | { mode: "acquisition"; entry: ChecklistEntry }
   | {
       mode: "remove";
       kind: "entries" | "categories";
       id: string;
       title: string;
+      requiresReason?: boolean;
     }
   | { mode: "history"; entry?: ChecklistEntry };
 
@@ -101,6 +106,15 @@ const fieldLabels: Record<string, string> = {
   lastReviewedOn: "Last reviewed",
   taskStatus: "Task progress",
   removed: "Removed",
+  ordered: "Ordered",
+  delivered: "Delivered",
+  bought: "Bought",
+  received: "Received",
+  alreadyAvailable: "Already available",
+  expectedDeliveryDate: "Expected delivery",
+  notNeededReason: "Not needed reason",
+  reason: "Reason",
+  physicalConfirmed: "Physically checked",
 };
 function historyValue(field: string, value: unknown, data: Data): string {
   if (value === null || value === "") return "None";
@@ -140,17 +154,26 @@ export function ChecklistScreen({
   const [data, setData] = useState<Data | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [saved, setSaved] = useState(false);
+  const [view, setView] = useState<
+    | "all"
+    | "shopping"
+    | "expectedDelivery"
+    | "overdueReceipt"
+    | "essentialOutstanding"
+  >("all");
   const scope = { tripId, familyId };
   const load = useCallback(async () => {
     setData(null);
     const result = await api.run(async (token, signal) => {
-      const [checklist, detail, roster, members, history] = await Promise.all([
-        checklistApi.read({ tripId, familyId }, token, signal),
-        tripApi.read(tripId, token, signal),
-        tripApi.travelers(tripId, familyId, token, signal),
-        invitationApi.members(tripId, familyId, token, signal),
-        checklistApi.history({ tripId, familyId }, token, signal),
-      ]);
+      const [checklist, detail, roster, members, history, views] =
+        await Promise.all([
+          checklistApi.read({ tripId, familyId }, token, signal),
+          tripApi.read(tripId, token, signal),
+          tripApi.travelers(tripId, familyId, token, signal),
+          invitationApi.members(tripId, familyId, token, signal),
+          checklistApi.history({ tripId, familyId }, token, signal),
+          checklistApi.acquisitionViews({ tripId, familyId }, token, signal),
+        ]);
       const family = detail.families.find((family) => family.id === familyId);
       return family
         ? {
@@ -159,6 +182,7 @@ export function ChecklistScreen({
             travelers: roster.travelers,
             members: members.members,
             history: history.history,
+            views,
           }
         : null;
     });
@@ -194,6 +218,8 @@ export function ChecklistScreen({
     if (editor.mode === "category")
       return <ChecklistCategoryForm {...props} initial={editor.initial} />;
     if (editor.mode === "starter") return <ChecklistStarterForm {...props} />;
+    if (editor.mode === "acquisition")
+      return <AcquisitionForm {...props} entry={editor.entry} />;
     if (editor.mode === "remove")
       return (
         <ChecklistRemovalForm
@@ -201,6 +227,7 @@ export function ChecklistScreen({
           kind={editor.kind}
           id={editor.id}
           title={editor.title}
+          requiresReason={editor.requiresReason}
         />
       );
     return (
@@ -308,6 +335,11 @@ export function ChecklistScreen({
     setEditor(value);
   };
   const priority = { essential: 0, high: 1, normal: 2, low: 3 };
+  const entries = !data
+    ? []
+    : view === "all"
+      ? data.checklist.entries
+      : data.views[view];
   return (
     <Screen>
       <Action title="Back to family checklists" secondary onPress={onBack} />
@@ -331,9 +363,30 @@ export function ChecklistScreen({
       {data && (
         <>
           <Copy>
-            Family-private preparation. Required quantities do not confirm
-            availability or packing.
+            Family-private preparation. Only physically checked supplies count
+            as available. Availability does not confirm packing.
           </Copy>
+          <ChecklistChoices
+            label="Preparation view"
+            value={view}
+            onChange={setView}
+            options={[
+              { value: "all", label: "All entries" },
+              { value: "shopping", label: "Shopping" },
+              { value: "expectedDelivery", label: "Expected delivery" },
+              { value: "overdueReceipt", label: "Overdue receipt" },
+              { value: "essentialOutstanding", label: "Essential outstanding" },
+            ]}
+          />
+          {view === "overdueReceipt" && (
+            <Copy muted>
+              Expected before {data.views.asOf} (UTC) and still awaiting
+              receipt.
+            </Copy>
+          )}
+          {view !== "all" && entries.length === 0 && (
+            <Copy>No items need attention in this view.</Copy>
+          )}
           {!data.checklist.canEdit && (
             <Notice>
               Read-only family access. A coordinator or editor can change this
@@ -377,110 +430,129 @@ export function ChecklistScreen({
               starter suggestions.
             </Copy>
           )}
-          {data.checklist.categories.map((group) => (
-            <ChecklistSection key={group.id} title={group.name}>
-              {data.checklist.canEdit && (
-                <>
-                  <Action
-                    title={`Edit category ${group.name}`}
-                    secondary
-                    onPress={() => edit({ mode: "category", initial: group })}
-                  />
-                  <Action
-                    title={`Remove category ${group.name}`}
-                    secondary
-                    onPress={() =>
-                      edit({
-                        mode: "remove",
-                        kind: "categories",
-                        id: group.id,
-                        title: group.name,
-                      })
-                    }
-                  />
-                </>
-              )}
-              {data.checklist.entries.filter(
-                (entry) => entry.categoryId === group.id,
-              ).length === 0 && <Copy muted>No entries in this category.</Copy>}
-              {data.checklist.entries
-                .filter((entry) => entry.categoryId === group.id)
-                .sort((a, b) => priority[a.priority] - priority[b.priority])
-                .map((entry) => {
-                  const responsible = data.members.find(
-                    (member) => member.id === entry.responsibleMemberId,
-                  );
-                  return (
-                    <ChecklistSection key={entry.id} title={entry.title}>
-                      <Copy>
-                        {entry.priority[0].toUpperCase() +
-                          entry.priority.slice(1)}{" "}
-                        priority
-                      </Copy>
-                      <Copy>
-                        {entry.kind === "task"
-                          ? `Task: ${checklistTaskLabels[entry.taskStatus!]}`
-                          : `Required: ${entry.requiredQuantity} ${entry.unit}`}
-                      </Copy>
-                      <Copy>For: {beneficiaries(entry, data.travelers)}</Copy>
-                      <Copy>
-                        Responsible:{" "}
-                        {responsible
-                          ? `${responsible.firstName} ${responsible.lastName} @${responsible.username}`
-                          : "Former family member; reassign when ready"}
-                      </Copy>
-                      <Copy muted>
-                        {entry.leg === "both"
-                          ? "Outbound and return"
-                          : entry.leg === "return"
-                            ? "Return"
-                            : "Outbound"}
-                        {entry.dueDate ? `; due ${entry.dueDate}` : ""}
-                      </Copy>
-                      {!!entry.notes && <Copy>{entry.notes}</Copy>}
-                      {!!entry.source && (
-                        <Copy muted>Source: {entry.source}</Copy>
-                      )}
-                      {!!entry.lastReviewedOn && (
-                        <Copy muted>Last reviewed: {entry.lastReviewedOn}</Copy>
-                      )}
-                      {data.checklist.canEdit && (
-                        <>
-                          <Action
-                            title={`Edit ${entry.title}`}
-                            secondary
-                            onPress={() =>
-                              edit({
-                                mode: "entry",
-                                initial: entry,
-                                kind: entry.kind,
-                              })
-                            }
-                          />
-                          <Action
-                            title={`Remove ${entry.title}`}
-                            secondary
-                            onPress={() =>
-                              edit({
-                                mode: "remove",
-                                kind: "entries",
-                                id: entry.id,
-                                title: entry.title,
-                              })
-                            }
-                          />
-                        </>
-                      )}
-                      <Action
-                        title={`History for ${entry.title}`}
-                        secondary
-                        onPress={() => edit({ mode: "history", entry })}
-                      />
-                    </ChecklistSection>
-                  );
-                })}
-            </ChecklistSection>
-          ))}
+          {data.checklist.categories
+            .filter(
+              (group) =>
+                view === "all" ||
+                entries.some((entry) => entry.categoryId === group.id),
+            )
+            .map((group) => (
+              <ChecklistSection key={group.id} title={group.name}>
+                {data.checklist.canEdit && view === "all" && (
+                  <>
+                    <Action
+                      title={`Edit category ${group.name}`}
+                      secondary
+                      onPress={() => edit({ mode: "category", initial: group })}
+                    />
+                    <Action
+                      title={`Remove category ${group.name}`}
+                      secondary
+                      onPress={() =>
+                        edit({
+                          mode: "remove",
+                          kind: "categories",
+                          id: group.id,
+                          title: group.name,
+                        })
+                      }
+                    />
+                  </>
+                )}
+                {entries.filter((entry) => entry.categoryId === group.id)
+                  .length === 0 && (
+                  <Copy muted>No entries in this category.</Copy>
+                )}
+                {entries
+                  .filter((entry) => entry.categoryId === group.id)
+                  .sort((a, b) => priority[a.priority] - priority[b.priority])
+                  .map((entry) => {
+                    const responsible = data.members.find(
+                      (member) => member.id === entry.responsibleMemberId,
+                    );
+                    return (
+                      <ChecklistSection key={entry.id} title={entry.title}>
+                        <Copy>
+                          {entry.priority[0].toUpperCase() +
+                            entry.priority.slice(1)}{" "}
+                          priority
+                        </Copy>
+                        <AcquisitionSummary entry={entry} />
+                        <Copy>
+                          {entry.kind === "task"
+                            ? `Task: ${checklistTaskLabels[entry.taskStatus!]}`
+                            : `Required: ${entry.requiredQuantity} ${entry.unit}`}
+                        </Copy>
+                        <Copy>For: {beneficiaries(entry, data.travelers)}</Copy>
+                        <Copy>
+                          Responsible:{" "}
+                          {responsible
+                            ? `${responsible.firstName} ${responsible.lastName} @${responsible.username}`
+                            : "Former family member; reassign when ready"}
+                        </Copy>
+                        <Copy muted>
+                          {entry.leg === "both"
+                            ? "Outbound and return"
+                            : entry.leg === "return"
+                              ? "Return"
+                              : "Outbound"}
+                          {entry.dueDate ? `; due ${entry.dueDate}` : ""}
+                        </Copy>
+                        {!!entry.notes && <Copy>{entry.notes}</Copy>}
+                        {!!entry.source && (
+                          <Copy muted>Source: {entry.source}</Copy>
+                        )}
+                        {!!entry.lastReviewedOn && (
+                          <Copy muted>
+                            Last reviewed: {entry.lastReviewedOn}
+                          </Copy>
+                        )}
+                        {data.checklist.canEdit && (
+                          <>
+                            {entry.kind === "item" && (
+                              <Action
+                                title={`Acquisition for ${entry.title}`}
+                                onPress={() =>
+                                  edit({ mode: "acquisition", entry })
+                                }
+                              />
+                            )}
+                            <Action
+                              title={`Edit ${entry.title}`}
+                              secondary
+                              onPress={() =>
+                                edit({
+                                  mode: "entry",
+                                  initial: entry,
+                                  kind: entry.kind,
+                                })
+                              }
+                            />
+                            <Action
+                              title={`Remove ${entry.title}`}
+                              secondary
+                              onPress={() =>
+                                edit({
+                                  mode: "remove",
+                                  kind: "entries",
+                                  id: entry.id,
+                                  title: entry.title,
+                                  requiresReason: entry.kind === "item",
+                                })
+                              }
+                            />
+                          </>
+                        )}
+                        <Action
+                          title={`History for ${entry.title}`}
+                          secondary
+                          onPress={() => edit({ mode: "history", entry })}
+                        />
+                      </ChecklistSection>
+                    );
+                  })}
+              </ChecklistSection>
+            ))}
           <Action
             title="Refresh checklist"
             secondary

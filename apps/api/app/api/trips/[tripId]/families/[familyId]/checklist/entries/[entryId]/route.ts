@@ -1,4 +1,4 @@
-import { checklistEntryPatch } from "@nmt/contracts";
+import { checklistEntryPatch, mutationDetails } from "@nmt/contracts";
 import {
   checklistHttp,
   checklistInput,
@@ -37,7 +37,16 @@ export function DELETE(request: Request, context: ChecklistContext) {
   return checklistHttp(
     request,
     context,
-    (member, { tripId, familyId, entryId }) =>
-      removeChecklistRecord(member, tripId, familyId, entryId!, "entry"),
+    async (member, { tripId, familyId, entryId }) =>
+      removeChecklistRecord(
+        member,
+        tripId,
+        familyId,
+        entryId!,
+        "entry",
+        request.headers.has("content-type")
+          ? await checklistInput(request, mutationDetails)
+          : {},
+      ),
   );
 }
