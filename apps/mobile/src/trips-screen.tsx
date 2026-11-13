@@ -29,6 +29,7 @@ import { InvitationInbox } from "./invitation-inbox";
 import { MembershipScreen } from "./membership-screen";
 import { ItineraryOverview, ItineraryScreen } from "./itinerary-screen";
 import { GuidesScreen } from "./guides-screen";
+import { ChecklistDestination, ChecklistScreen } from "./checklist-screen";
 
 type Route =
   | { screen: "list" }
@@ -38,6 +39,7 @@ type Route =
   | { screen: "trip"; tripId: string; destination: Destination }
   | { screen: "new-family"; tripId: string }
   | { screen: "itinerary"; tripId: string }
+  | { screen: "checklist"; tripId: string; familyId: string }
   | { screen: "family"; tripId: string; familyId: string }
   | { screen: "new-traveler"; tripId: string; familyId: string };
 
@@ -140,6 +142,16 @@ export function TripsScreen({
         onBack={() => openTrip(route.tripId)}
       />
     );
+  if (route.screen === "checklist")
+    return (
+      <ChecklistScreen
+        key={`${route.tripId}:${route.familyId}`}
+        tripId={route.tripId}
+        familyId={route.familyId}
+        memberId={profile.id}
+        onBack={() => openTrip(route.tripId, "Checklist")}
+      />
+    );
   if (route.screen === "new-family")
     return (
       <FamilyForm
@@ -221,6 +233,9 @@ export function TripsScreen({
       onAccess={() => setRoute({ screen: "access", tripId: route.tripId })}
       onItinerary={() =>
         setRoute({ screen: "itinerary", tripId: route.tripId })
+      }
+      onChecklist={(familyId) =>
+        setRoute({ screen: "checklist", tripId: route.tripId, familyId })
       }
     />
   );
@@ -390,6 +405,7 @@ function TripHome({
   preferenceError,
   onAccess,
   onItinerary,
+  onChecklist,
 }: {
   tripId: string;
   destination: Destination;
@@ -401,6 +417,7 @@ function TripHome({
   preferenceError: string;
   onAccess: () => void;
   onItinerary: () => void;
+  onChecklist: (familyId: string) => void;
 }) {
   const api = useTripRequest();
   const [detail, setDetail] = useState<TripDetail | null>(null);
@@ -413,10 +430,6 @@ function TripHome({
   }, [api.run, tripId]);
   useForegroundRefresh(load);
   const placeholders = {
-    Checklist: [
-      "Checklist is not available yet",
-      "This trip’s checklist has not been set up. Items and readiness totals will appear here when checklist preparation is available.",
-    ],
     Bags: [
       "Bags are not available yet",
       "Bag planning and packing are not available in this build. No packing or departure readiness has been recorded here.",
@@ -498,10 +511,14 @@ function TripHome({
                 )}
               </Section>
               <Notice>
-                Preparation and packing readiness are not available in this
-                build.
+                Purchase and packing readiness are not available in this build.
               </Notice>
             </>
+          ) : destination === "Checklist" ? (
+            <ChecklistDestination
+              families={detail.families}
+              onOpen={onChecklist}
+            />
           ) : (
             <Section title={placeholders[destination][0]}>
               <Copy>{placeholders[destination][1]}</Copy>
