@@ -31,6 +31,7 @@ import { ItineraryOverview, ItineraryScreen } from "./itinerary-screen";
 import { GuidesScreen } from "./guides-screen";
 import { ChecklistDestination, ChecklistScreen } from "./checklist-screen";
 import { BagsDestination, PackingScreen } from "./packing-screen";
+import { RemindersScreen } from "./reminders-screen";
 
 type Route =
   | { screen: "list" }
@@ -40,6 +41,7 @@ type Route =
   | { screen: "trip"; tripId: string; destination: Destination }
   | { screen: "new-family"; tripId: string }
   | { screen: "itinerary"; tripId: string }
+  | { screen: "reminders"; tripId: string }
   | { screen: "checklist"; tripId: string; familyId: string }
   | { screen: "bags"; tripId: string; familyId: string }
   | { screen: "family"; tripId: string; familyId: string }
@@ -134,6 +136,15 @@ export function TripsScreen({
               })
             : openTrip(route.tripId)
         }
+      />
+    );
+  if (route.screen === "reminders")
+    return (
+      <RemindersScreen
+        key={route.tripId}
+        tripId={route.tripId}
+        memberId={profile.id}
+        onBack={() => openTrip(route.tripId)}
       />
     );
   if (route.screen === "itinerary")
@@ -244,6 +255,9 @@ export function TripsScreen({
       onAccess={() => setRoute({ screen: "access", tripId: route.tripId })}
       onItinerary={() =>
         setRoute({ screen: "itinerary", tripId: route.tripId })
+      }
+      onReminders={() =>
+        setRoute({ screen: "reminders", tripId: route.tripId })
       }
       onChecklist={(familyId) =>
         setRoute({ screen: "checklist", tripId: route.tripId, familyId })
@@ -419,6 +433,7 @@ function TripHome({
   preferenceError,
   onAccess,
   onItinerary,
+  onReminders,
   onChecklist,
   onBags,
 }: {
@@ -432,6 +447,7 @@ function TripHome({
   preferenceError: string;
   onAccess: () => void;
   onItinerary: () => void;
+  onReminders: () => void;
   onChecklist: (familyId: string) => void;
   onBags: (familyId: string) => void;
 }) {
@@ -491,6 +507,11 @@ function TripHome({
           {destination === "Overview" ? (
             <>
               <ItineraryOverview tripId={tripId} onOpen={onItinerary} />
+              <Action
+                title="Reminders and notifications"
+                secondary
+                onPress={onReminders}
+              />
               <Section title="Journey dates">
                 <Copy>Departure: {detail.trip.startDate}</Copy>
                 <Copy>Return: {detail.trip.endDate}</Copy>

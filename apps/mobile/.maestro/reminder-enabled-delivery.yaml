@@ -1,0 +1,24 @@
+appId: in.nmtsolutions.travel
+---
+# Start on Reminders after allowing permission. Create a personal active reminder
+# 1-2 minutes ahead using reminder-zone-dismiss creation steps, without dismissing.
+# Use a configured development/release binary; Expo Go is not a push check.
+- scrollUntilVisible:
+    element: "Reminders and deadlines: (Off|On)"
+- runFlow:
+    when:
+      visible: "Reminders and deadlines: Off"
+    commands:
+      - tapOn: "Reminders and deadlines: Off"
+- scrollUntilVisible:
+    element: "Refresh notifications"
+- tapOn: "Refresh notifications"
+- extendedWaitUntil:
+    visible: "Device reminders refreshed.*"
+    timeout: 30000
+- pressKey: Home
+- openNotifications
+- extendedWaitUntil:
+    visible: "A preparation reminder needs your attention. Open NMT Travel."
+    timeout: 180000
+- assertVisible: "NMT Travel"

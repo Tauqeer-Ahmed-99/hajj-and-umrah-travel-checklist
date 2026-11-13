@@ -24,6 +24,7 @@ import { requireFamilyAccess, resourceId } from "./permissions";
 import { createOnce, transaction } from "./trips";
 import { HttpError } from "./response";
 import { preservePacking } from "./packing-invariants";
+import { assignmentChanged } from "./notification-events";
 
 const categoryColumns = `id, family_id AS "familyId", name`;
 const entryColumns = `id, family_id AS "familyId", category_id AS "categoryId", kind, title,
@@ -112,11 +113,20 @@ async function history(
       ]),
   );
   if (!Object.keys(changes).length) return;
-  await db.query(
+  const recorded = await db.query<{ id: string }>(
     `INSERT INTO checklist_history (family_id, entity_type, entity_id, action, actor, changes)
-    SELECT $1,$2,$3,$4,jsonb_build_object('id', id, 'firstName', first_name, 'lastName', last_name, 'username', username),$6::jsonb FROM members WHERE id = $5`,
+    SELECT $1,$2,$3,$4,jsonb_build_object('id', id, 'firstName', first_name, 'lastName', last_name, 'username', username),$6::jsonb FROM members WHERE id = $5 RETURNING id`,
     [familyId, entityType, entityId, action, memberId, JSON.stringify(changes)],
   );
+  if (entityType === "entry" && recorded.rows[0])
+    await assignmentChanged(
+      db,
+      memberId,
+      familyId,
+      entityId,
+      recorded.rows[0].id,
+      changes,
+    );
 }
 async function entry(db: PoolClient, familyId: string, entryId: string) {
   resourceId(entryId);

@@ -10,6 +10,7 @@ import type { PoolClient } from "pg";
 import { requireTripAccess, resourceId } from "./permissions";
 import { createOnce, transaction } from "./trips";
 import { HttpError } from "./response";
+import { itineraryChanged } from "./notification-events";
 
 const referenceColumns = `accommodation_address AS "accommodationAddress", transport_reference AS "transportReference", meeting_point AS "meetingPoint", contacts`;
 const entryColumns = `id, trip_id AS "tripId", kind, title, starts_at AS "startsAt", ends_at AS "endsAt", ${referenceColumns}, notes`;
@@ -90,6 +91,7 @@ export function createItineraryEntry(
             input.notes,
           ],
         );
+        await itineraryChanged(db, memberId, tripId);
       },
     );
     const result = await db.query<ItineraryEntry>(
@@ -120,6 +122,7 @@ export function patchItinerary(
       [tripId],
     );
     const fields = Object.keys(input) as (keyof ItineraryPatch)[];
+    const before = await read(db, memberId, tripId);
     await db.query(
       `UPDATE trip_itineraries SET ${fields.map((key, i) => `${referenceFields[key]} = $${i + 2}`).join(", ")} WHERE trip_id = $1`,
       [
@@ -129,6 +132,12 @@ export function patchItinerary(
         ),
       ],
     );
+    if (
+      fields.some(
+        (key) => JSON.stringify(input[key]) !== JSON.stringify(before[key]),
+      )
+    )
+      await itineraryChanged(db, memberId, tripId);
     return read(db, memberId, tripId);
   });
 }
@@ -193,6 +202,12 @@ export function patchItineraryEntry(
         ),
       ],
     );
+    if (
+      fields.some(
+        (key) => JSON.stringify(input[key]) !== JSON.stringify(current[key]),
+      )
+    )
+      await itineraryChanged(db, memberId, tripId);
     return { entry: result.rows[0] };
   });
 }
@@ -204,7 +219,7 @@ export function orderItinerary(
   return transaction(async (db) => {
     await lockItinerary(db, memberId, tripId);
     const current = await db.query<{ id: string }>(
-      "SELECT id FROM itinerary_entries WHERE trip_id = $1",
+      "SELECT id FROM itinerary_entries WHERE trip_id = $1 ORDER BY position, id",
       [tripId],
     );
     if (
@@ -220,6 +235,8 @@ export function orderItinerary(
       `UPDATE itinerary_entries e SET position = ordered.position - 1 FROM unnest($2::uuid[]) WITH ORDINALITY AS ordered(id, position) WHERE e.trip_id = $1 AND e.id = ordered.id`,
       [tripId, entryIds],
     );
+    if (current.rows.some((row, index) => row.id !== entryIds[index]))
+      await itineraryChanged(db, memberId, tripId);
     return read(db, memberId, tripId);
   });
 }
@@ -232,10 +249,11 @@ export function deleteItineraryEntry(
     await lockItinerary(db, memberId, tripId);
     resourceId(entryId);
     // Deleting an already absent entry is safe to repeat after a lost response.
-    await db.query(
+    const removed = await db.query(
       "DELETE FROM itinerary_entries WHERE id = $1 AND trip_id = $2",
       [entryId, tripId],
     );
+    if (removed.rowCount) await itineraryChanged(db, memberId, tripId);
     return read(db, memberId, tripId);
   });
 }

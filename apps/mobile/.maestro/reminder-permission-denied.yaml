@@ -1,0 +1,26 @@
+appId: in.nmtsolutions.travel
+---
+# Fresh Android 13+ notification permission, completed profile, trip Overview.
+- scrollUntilVisible:
+    element: "Reminders and notifications"
+- tapOn: "Reminders and notifications"
+- scrollUntilVisible:
+    element: "Enable notifications on this device"
+- tapOn: "Enable notifications on this device"
+- tapOn: "Don't allow"
+- assertVisible: ".*You can keep using every checklist.*"
+- tapOn: "Enable notifications on this device"
+- assertVisible: ".*Use Android settings.*"
+- scrollUntilVisible:
+    element: "Back to trip"
+    direction: UP
+- tapOn: "Back to trip"
+- assertVisible: "Itinerary and travel details"
+- tapOn: "Itinerary and travel details"
+- assertVisible: "Itinerary"
+- back
+- tapOn: "Checklist"
+- assertVisible: "Family checklists"
+- stopApp
+- launchApp
+- assertNotVisible: "Don't allow"

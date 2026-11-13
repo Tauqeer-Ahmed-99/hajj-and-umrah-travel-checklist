@@ -1,0 +1,67 @@
+appId: in.nmtsolutions.travel
+---
+# Start on a trip Overview as a completed member. Supply unique REMINDER_RUN,
+# future REMINDER_AT / REMINDER_ZONE and RESCHEDULE_AT / RESCHEDULE_ZONE.
+# These are runner parameters, never app configuration.
+- scrollUntilVisible:
+    element: "Reminders and notifications"
+- tapOn: "Reminders and notifications"
+- tapOn: "Add reminder"
+- tapOn:
+    id: reminder-title
+- inputText: "Departure check ${REMINDER_RUN}"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: reminder-time
+- tapOn:
+    id: reminder-time
+- inputText: "${REMINDER_AT}"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: reminder-zone
+- tapOn:
+    id: reminder-zone
+- inputText: "${REMINDER_ZONE}"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Save reminder"
+- tapOn: "Save reminder"
+- extendedWaitUntil:
+    visible: "Reschedule Departure check ${REMINDER_RUN}"
+    timeout: 30000
+- stopApp
+- launchApp
+- scrollUntilVisible:
+    element: "Reminders and notifications"
+- tapOn: "Reminders and notifications"
+- scrollUntilVisible:
+    element: "Reschedule Departure check ${REMINDER_RUN}"
+- tapOn: "Reschedule Departure check ${REMINDER_RUN}"
+- scrollUntilVisible:
+    element:
+      id: reminder-time
+- tapOn:
+    id: reminder-time
+- eraseText: 100
+- inputText: "${RESCHEDULE_AT}"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: reminder-zone
+- tapOn:
+    id: reminder-zone
+- eraseText: 100
+- inputText: "${RESCHEDULE_ZONE}"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Save reminder"
+- tapOn: "Save reminder"
+- extendedWaitUntil:
+    visible: "Dismiss Departure check ${REMINDER_RUN}"
+    timeout: 30000
+- tapOn: "Dismiss Departure check ${REMINDER_RUN}"
+- extendedWaitUntil:
+    visible: ".*Dismissed.*"
+    timeout: 30000

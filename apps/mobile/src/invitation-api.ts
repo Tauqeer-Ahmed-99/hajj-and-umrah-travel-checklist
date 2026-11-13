@@ -1,3 +1,4 @@
+import { acceptedTravelChange } from "./accepted-travel-change";
 import {
   acceptedInvitationResponse,
   accessSavedResponse,
@@ -48,7 +49,9 @@ async function request<T>(
     );
   }
   try {
-    return schema.parse(await response.json());
+    const result = schema.parse(await response.json());
+    if (method !== "GET") acceptedTravelChange();
+    return result;
   } catch {
     throw new TripError(
       "Could not read the response. Refresh to check the saved access.",

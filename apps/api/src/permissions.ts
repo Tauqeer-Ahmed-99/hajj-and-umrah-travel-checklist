@@ -26,7 +26,12 @@ export async function requireMemberIdentity(request: Request) {
       "profile_incomplete",
       "Complete your profile before opening a trip.",
     );
-  return { id: result.rows[0].id, email: identity.email.trim().toLowerCase() };
+  return {
+    id: result.rows[0].id,
+    email: identity.email.trim().toLowerCase(),
+    sessionId: identity.sessionId,
+    clerkUserId: identity.clerkUserId,
+  };
 }
 
 export function resourceId(value: string): string {
