@@ -1,0 +1,28 @@
+appId: in.nmtsolutions.travel
+---
+# Prepared, unrun. First explicitly save GUIDE_COPY_TITLE (PDF) and GUIDE_NOTE_TITLE
+# (text note) in this account. Use a preview with an embedded bundle, not Metro.
+# Confirm Wi-Fi is also off on devices that keep Wi-Fi on in airplane mode.
+- setAirplaneMode: enabled
+- stopApp
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible: "Open saved guides"
+    timeout: 45000
+- tapOn: "Open saved guides"
+- extendedWaitUntil:
+    visible: "Open saved ${GUIDE_COPY_TITLE}"
+    timeout: 30000
+- tapOn: "Open saved ${GUIDE_COPY_TITLE}"
+- extendedWaitUntil:
+    visible: "PDF ready.*"
+    timeout: 30000
+- assertVisible: "Saved offline.*"
+- back
+- scrollUntilVisible:
+    element: "Open saved ${GUIDE_NOTE_TITLE}"
+- tapOn: "Open saved ${GUIDE_NOTE_TITLE}"
+- assertVisible: "${GUIDE_NOTE_CONTENT}"
+- back
+- setAirplaneMode: disabled

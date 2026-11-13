@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { guide, guideFile, guideMediaType, GUIDE_FILE_LIMIT } from "./guides";
+import {
+  guide,
+  guideRecord,
+  guideFile,
+  guideMediaType,
+  GUIDE_FILE_LIMIT,
+} from "./guides";
 
 export const uploadDetails = z.strictObject({
   fileName: z
@@ -35,6 +41,13 @@ export const fileAuthorization = z.object({
 });
 export const openFileInput = z.strictObject({
   version: z.number().int().positive().optional(),
+});
+export const copyAccessInput = z.strictObject({
+  version: z.number().int().positive(),
+});
+export const copyAccessResponse = z.object({
+  guide: guideRecord,
+  latestVersion: z.number().int().positive(),
 });
 export const fileOperationInput = z.strictObject({});
 export const openFileResponse = z.object({

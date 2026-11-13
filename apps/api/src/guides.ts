@@ -123,6 +123,37 @@ export async function saveGuideVersion(
     [id ?? null, guide.id, guide.version, JSON.stringify(guide), changedFields],
   );
 }
+// Metadata only: revalidate both today's audience and the exact saved version.
+// No object signing/provider configuration or new persistence is needed.
+export function guideCopyAccess(
+  memberId: string,
+  tripId: string,
+  guideId: string,
+  version: number,
+) {
+  return transaction(async (db) => {
+    const current = await readGuideInTransaction(db, memberId, tripId, guideId);
+    const snapshot = (
+      await db.query<{ snapshot: GuideRecord }>(
+        "SELECT snapshot FROM guide_versions WHERE guide_id=$1 AND version=$2",
+        [guideId, version],
+      )
+    ).rows[0]?.snapshot;
+    if (!snapshot) unavailable();
+    if (snapshot.audience === "family")
+      await requireFamilyAccess(db, memberId, tripId, current.familyId);
+    if (
+      snapshot.kind === "link" ||
+      (snapshot.kind === "file" && !snapshot.file)
+    )
+      throw new HttpError(
+        409,
+        "copy_unavailable",
+        "Only ready files and text notes can be copied. External links need a connection.",
+      );
+    return { guide: snapshot, latestVersion: current.version };
+  });
+}
 export function createGuide(
   memberId: string,
   tripId: string,

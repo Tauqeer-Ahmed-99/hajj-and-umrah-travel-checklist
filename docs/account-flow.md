@@ -1,5 +1,10 @@
 # Account flow (#2)
 
+#14 adds Clerk's encrypted offline resource restoration and an account-bound
+completed-profile gate solely for explicitly saved guide copies. See
+[offline guide entry, cleanup and acceptance](guide-copies.md). The no-profile-cache
+description below records the original #2 slice; email and drafts remain in memory.
+
 Native Google sign-in is now implemented by #3. See
 [Google setup and acceptance](google-sign-in.md) for its optional mobile
 configuration, additive `profileDefaults` response, verified-identity continuity

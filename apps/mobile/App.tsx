@@ -7,12 +7,15 @@ import {
 } from "react";
 import { ClerkProvider, getClerkInstance, useAuth } from "@clerk/expo";
 import { tokenCache } from "@clerk/expo/token-cache";
+import { resourceCache } from "@clerk/expo/resource-cache";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ThemeProvider } from "./src/theme";
 import { Action, Copy, Heading, Loading, Notice, Screen } from "./src/ui";
 import { AuthScreen } from "./src/auth-screen";
 import { AccountScreen } from "./src/account-screen";
 import { apiOrigin } from "./src/api";
+import { GuideCopyProvider } from "./src/guide-copy-context";
+import { clearGuideCopies } from "./src/guide-copies";
 
 class AuthBoundary extends Component<
   { children: ReactNode },
@@ -50,6 +53,17 @@ function Session() {
     const timer = setTimeout(() => setSlow(true), 15_000);
     return () => clearTimeout(timer);
   }, [isLoaded]);
+  useEffect(() => {
+    if (isLoaded && !isSignedIn) {
+      try {
+        clearGuideCopies();
+      } catch {
+        setFailure(
+          "Private guide cleanup could not finish. Sign in to retry cleanup before opening saved guides.",
+        );
+      }
+    }
+  }, [isLoaded, isSignedIn]);
   async function retry() {
     setRetrying(true);
     setFailure("");
@@ -82,8 +96,10 @@ function Session() {
         {failure && <Notice error>{failure}</Notice>}
       </Screen>
     );
-  return isSignedIn ? (
-    <AccountScreen key={`${userId}:${sessionId}`} />
+  return isSignedIn && userId ? (
+    <GuideCopyProvider key={`${userId}:${sessionId}`} accountId={userId}>
+      <AccountScreen />
+    </GuideCopyProvider>
   ) : (
     <AuthScreen />
   );
@@ -108,6 +124,7 @@ export default function App() {
             <ClerkProvider
               publishableKey={publishableKey}
               tokenCache={tokenCache}
+              __experimental_resourceCache={resourceCache}
             >
               <Session />
             </ClerkProvider>

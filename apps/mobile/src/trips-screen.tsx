@@ -48,9 +48,11 @@ type Route =
 export function TripsScreen({
   profile,
   onAccount,
+  onOffline,
 }: {
   profile: MemberProfile;
   onAccount: () => void;
+  onOffline: () => void;
 }) {
   const [route, setRoute] = useState<Route | null>(null);
   const [preferenceError, setPreferenceError] = useState("");
@@ -203,6 +205,7 @@ export function TripsScreen({
   if (route.screen === "list")
     return (
       <TripList
+        onOffline={onOffline}
         preferenceError={preferenceError}
         onOpen={openTrip}
         onCreate={() => setRoute({ screen: "new-trip" })}
@@ -347,12 +350,14 @@ function TripList({
   onAccount,
   preferenceError,
   onInvitations,
+  onOffline,
 }: {
   onOpen: (id: string) => void;
   onCreate: () => void;
   onAccount: () => void;
   preferenceError: string;
   onInvitations: () => void;
+  onOffline: () => void;
 }) {
   const api = useTripRequest();
   const [trips, setTrips] = useState<Trip[] | null>(null);
@@ -366,6 +371,7 @@ function TripList({
     <Screen>
       <TripLink title="Account" onPress={onAccount} />
       <Heading>Your trips</Heading>
+      <Action title="Open saved guides" secondary onPress={onOffline} />
       <Action title="Your invitations" secondary onPress={onInvitations} />
       <Copy>Keep each journey and its families together.</Copy>
       {preferenceError && <Notice error>{preferenceError}</Notice>}

@@ -95,6 +95,69 @@ const patch = (path: string, token: string, details: object) =>
     "PATCH",
   );
 
+test("copy access revalidates the saved historical note, independently of current sharing or filtered lists", async () => {
+  const owner = await member("copy_owner"),
+    reader = await member("copy_reader");
+  const journey = await trip(owner);
+  await admit(journey, owner, reader, "viewer", journey.familyId, "viewer");
+  const created = await fixture.request(
+    `${journey.path}/guides`,
+    owner.token,
+    { ...note, familyId: journey.familyId },
+    "POST",
+  );
+  const path = `${journey.path}/guides/${created.data.guide.id}`;
+  const access = (token: string | undefined, version = 1) =>
+    fixture.request(`${path}/copy-access`, token, { version }, "POST");
+  const first = await access(reader.token);
+  assert.equal(first.status, 200, fixture.logs());
+  assert.equal(first.data.guide.text, note.text);
+  assert.equal(first.data.guide.version, 1);
+  assert.equal(first.data.latestVersion, 1);
+  assert.equal(first.data.authorization, undefined);
+  await patch(path, owner.token, {
+    audience: "trip",
+    text: "Updated arrival instructions",
+  });
+  assert.equal((await access(reader.token)).data.guide.text, note.text);
+  assert.equal((await access(reader.token)).data.latestVersion, 2);
+  assert.equal(
+    (await fixture.request(`${journey.path}/guides?q=absent`, reader.token))
+      .data.count,
+    0,
+  );
+  assert.equal((await access(reader.token)).status, 200);
+  assert.equal(
+    (
+      await fixture.request(
+        `${journey.path}/families/${journey.familyId}/members/${reader.id}`,
+        owner.token,
+        undefined,
+        "DELETE",
+      )
+    ).status,
+    200,
+  );
+  assert.equal((await fixture.request(path, reader.token)).status, 200);
+  assert.equal((await access(reader.token)).status, 404);
+  assert.equal((await access(reader.token, 2)).status, 200);
+  assert.equal((await access(undefined)).status, 401);
+  assert.equal((await access(owner.token, 999)).status, 404);
+  assert.equal(
+    (
+      await fixture.request(
+        `${path}/copy-access`,
+        owner.token,
+        { version: 0 },
+        "POST",
+      )
+    ).status,
+    422,
+  );
+  await patch(path, owner.token, { audience: "family" });
+  assert.equal((await access(reader.token, 2)).status, 404);
+});
+
 test("a contributor creates a private text guide with attribution and reopens it after restart; retries create one version", async () => {
   const owner = await member("guide_owner");
   const journey = await trip(owner);

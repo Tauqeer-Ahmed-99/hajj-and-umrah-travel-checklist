@@ -1,5 +1,10 @@
 # Private file guides (#13)
 
+Explicit persistent offline copies, note copies, device exports and a reachable
+offline restart entry are now implemented by #14; see [guide copies](guide-copies.md).
+The temporary-only/offline-deferred descriptions below record the original #13
+slice and its evidence; #14 keeps the default Open behavior.
+
 This extends the existing [guide library](guides.md) with PDF, JPEG, PNG and WebP
 files, direct private R2 uploads, retryable incomplete records, sequential file
 versions, and explicit in-app Open. The per-file limit is 20,000,000 bytes (20 MB).

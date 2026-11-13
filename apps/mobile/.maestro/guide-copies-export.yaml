@@ -1,0 +1,30 @@
+appId: in.nmtsolutions.travel
+---
+# Prepared, unrun. Start on a ready guide's reader. Only use harmless disposable
+# fixture bytes. This flow WILL create a real exported file when explicitly run.
+# Open a writable test directory in Android DocumentsUI beforehand. Runner values
+# adapt to device language/provider labels, e.g. Use this folder and Allow.
+- scrollUntilVisible:
+    element: "Download to device"
+- tapOn: "Download to device"
+- extendedWaitUntil:
+    visible: "${GUIDE_USE_FOLDER_LABEL}"
+    timeout: 120000
+# Exercise chooser cancellation first: no export should appear in Files.
+- back
+- extendedWaitUntil:
+    visible: "Download cancelled.*"
+    timeout: 30000
+- tapOn: "Download to device"
+- extendedWaitUntil:
+    visible: "${GUIDE_USE_FOLDER_LABEL}"
+    timeout: 120000
+- tapOn: "${GUIDE_USE_FOLDER_LABEL}"
+- tapOn:
+    text: "${GUIDE_ALLOW_FOLDER_LABEL}"
+    optional: true
+- extendedWaitUntil:
+    visible: "Downloaded version .* to your chosen folder.*"
+    timeout: 120000
+# Inspect exact destination, size and SHA in Files/ADB per the runbook. App success
+# alone does not establish the destination provider's physical persistence.

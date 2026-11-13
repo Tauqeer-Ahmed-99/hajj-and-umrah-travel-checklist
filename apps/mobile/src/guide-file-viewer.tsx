@@ -19,18 +19,28 @@ import { guideFileApi } from "./guide-file-api";
 import { TripError } from "./trip-api";
 import { Action, Copy, Heading, Loading, Notice } from "./ui";
 import { useTheme } from "./theme";
+import {
+  openSavedGuide,
+  subscribeGuideCopies,
+  savedGuideRemoved,
+  type SavedGuide,
+} from "./guide-copies";
+import { useGuideCopies } from "./guide-copy-context";
 
 export function GuideFileViewer({
   tripId,
   id,
   version,
+  savedCopy,
   onBack,
 }: {
   tripId: string;
   id: string;
   version?: number;
+  savedCopy?: SavedGuide;
   onBack(): void;
 }) {
+  const copies = useGuideCopies();
   const api = useTripRequest(90_000),
     { colors, dark } = useTheme();
   const [view, setView] = useState<{
@@ -49,7 +59,7 @@ export function GuideFileViewer({
   close.current = onBack;
   useEffect(() => {
     const listener = AppState.addEventListener("change", (state) => {
-      if (state !== "active") {
+      if (state !== "active" && !savedCopy) {
         current.current?.abort();
         setView(null);
         close.current();
@@ -59,11 +69,19 @@ export function GuideFileViewer({
       close.current();
       return true;
     });
+    const unsubscribe = subscribeGuideCopies(() => {
+      if (
+        copies.controller.signal.aborted ||
+        (savedCopy && savedGuideRemoved(savedCopy))
+      )
+        close.current();
+    });
     return () => {
       listener.remove();
       back.remove();
+      unsubscribe();
     };
-  }, []);
+  }, [savedCopy]);
   useEffect(() => {
     const controller = new AbortController();
     current.current = controller;
@@ -76,6 +94,21 @@ export function GuideFileViewer({
     setRenderError(false);
     setZoom(1);
     setPage({ current: 1, total: 0 });
+    if (savedCopy) {
+      void openSavedGuide(copies, tripId, id)
+        .then((copy) => {
+          if (!controller.signal.aborted)
+            setView({
+              uri: copy.file.uri,
+              type: copy.guide.file!.mediaType,
+              name: copy.guide.file!.fileName,
+            });
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setRenderError(true);
+        });
+      return () => controller.abort(); // Persistent bytes are owned by the copy library.
+    }
     void api.run(async (token, requestSignal) => {
       const abort = () => controller.abort();
       requestSignal.addEventListener("abort", abort, { once: true });
@@ -121,7 +154,7 @@ export function GuideFileViewer({
             ? "pdf"
             : opened.file.mediaType.split("/")[1];
         temporary = new File(cache, `${randomUUID()}.${extension}`);
-        temporary.write(bytes);
+        await temporary.write(bytes);
         if (signal.aborted) {
           temporary.delete();
           return;
@@ -139,7 +172,7 @@ export function GuideFileViewer({
       controller.abort();
       if (temporary?.exists) temporary.delete();
     };
-  }, [tripId, id, version, attempt, api.run]);
+  }, [tripId, id, version, attempt, api.run, savedCopy, copies]);
   return (
     <SafeAreaView
       style={{ flex: 1, backgroundColor: colors.canvas, padding: 16, gap: 12 }}
@@ -147,7 +180,11 @@ export function GuideFileViewer({
       <StatusBar style={dark ? "light" : "dark"} />
       <Action title="Close file" secondary onPress={onBack} />
       <Heading>{view?.name ?? "Guide file"}</Heading>
-      <Copy>Temporary view · Not saved offline</Copy>
+      <Copy>
+        {savedCopy
+          ? `Saved offline · Version ${savedCopy.guide.version}`
+          : "Temporary view · Not saved offline"}
+      </Copy>
       {api.error && <Notice error>{api.error.message}</Notice>}
       {renderError && (
         <Notice error>
