@@ -3,6 +3,7 @@ export * from "./trips";
 export * from "./invitations";
 export * from "./itinerary";
 export * from "./guides";
+export * from "./checklist";
 
 export const profileInput = z.strictObject({
   firstName: z

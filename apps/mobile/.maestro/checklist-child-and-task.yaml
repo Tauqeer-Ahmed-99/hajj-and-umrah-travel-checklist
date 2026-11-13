@@ -1,0 +1,124 @@
+appId: in.nmtsolutions.travel
+---
+# Prepared, not an executed pass. Start on Overview of a fresh trip whose family
+# has the signed-in coordinator and a child traveler. A second member may be
+# assigned if MAESTRO_CHECKLIST_RESPONSIBLE is set to their full displayed label.
+# Runner-only: MAESTRO_CHECKLIST_FAMILY, MAESTRO_CHECKLIST_CHILD (full name),
+# MAESTRO_CHECKLIST_RESPONSIBLE (name plus @username), MAESTRO_CHECKLIST_RUN.
+- tapOn:
+    id: tab-checklist
+- scrollUntilVisible:
+    element: "Checklist for ${MAESTRO_CHECKLIST_FAMILY}"
+- tapOn: "Checklist for ${MAESTRO_CHECKLIST_FAMILY}"
+- extendedWaitUntil:
+    visible: "Add category"
+    timeout: 30000
+- tapOn: "Add category"
+- tapOn:
+    id: checklist-category-name
+- inputText: "Family needs ${MAESTRO_CHECKLIST_RUN}"
+- hideKeyboard
+- tapOn: "Save category"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Add item"
+- tapOn: "Add item"
+- tapOn:
+    id: checklist-entry-title
+- inputText: "Child clothing ${MAESTRO_CHECKLIST_RUN}"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: checklist-quantity
+- tapOn:
+    id: checklist-quantity
+- eraseText
+- inputText: "3"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: checklist-unit
+- tapOn:
+    id: checklist-unit
+- inputText: "sets"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Choose travelers"
+- tapOn: "Choose travelers"
+- scrollUntilVisible:
+    element: "For ${MAESTRO_CHECKLIST_CHILD}"
+- tapOn: "For ${MAESTRO_CHECKLIST_CHILD}"
+- scrollUntilVisible:
+    element: "Responsible: ${MAESTRO_CHECKLIST_RESPONSIBLE}"
+- tapOn: "Responsible: ${MAESTRO_CHECKLIST_RESPONSIBLE}"
+- scrollUntilVisible:
+    element: "Essential"
+- tapOn: "Essential"
+- scrollUntilVisible:
+    element: "Both legs"
+- tapOn: "Both legs"
+- scrollUntilVisible:
+    element: "Save item"
+- tapOn: "Save item"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Required: 3 sets"
+- assertVisible: "Required: 3 sets"
+- assertVisible: "For: ${MAESTRO_CHECKLIST_CHILD}"
+- assertVisible: "Responsible: ${MAESTRO_CHECKLIST_RESPONSIBLE}"
+- scrollUntilVisible:
+    element: "Add non-packing task"
+    direction: UP
+- tapOn: "Add non-packing task"
+- tapOn:
+    id: checklist-entry-title
+- inputText: "Call hotel ${MAESTRO_CHECKLIST_RUN}"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Save task"
+- tapOn: "Save task"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Edit Call hotel ${MAESTRO_CHECKLIST_RUN}"
+- tapOn: "Edit Call hotel ${MAESTRO_CHECKLIST_RUN}"
+- scrollUntilVisible:
+    element: "Done"
+- tapOn: "Done"
+- scrollUntilVisible:
+    element: "Save task"
+- tapOn: "Save task"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Task: Done"
+- assertVisible: "Task: Done"
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: "Family checklists"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Checklist for ${MAESTRO_CHECKLIST_FAMILY}"
+- tapOn: "Checklist for ${MAESTRO_CHECKLIST_FAMILY}"
+- extendedWaitUntil:
+    visible: "Add category"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Required: 3 sets"
+- assertVisible: "Required: 3 sets"
+- scrollUntilVisible:
+    element: "Task: Done"
+- assertVisible: "Task: Done"
+- scrollUntilVisible:
+    element: "History for Call hotel ${MAESTRO_CHECKLIST_RUN}"
+- tapOn: "History for Call hotel ${MAESTRO_CHECKLIST_RUN}"
+- extendedWaitUntil:
+    visible: "Task progress: To do → Done"
+    timeout: 30000
