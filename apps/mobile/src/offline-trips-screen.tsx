@@ -116,7 +116,7 @@ export function OfflineTripsScreen({
                     ? "packing"
                     : "trip",
             familyId: saved.familyId,
-            leg: saved.overview?.leg,
+            leg: saved.leg ?? saved.overview?.leg,
             query: saved.overview
               ? overviewQuery.parse(saved.overview)
               : undefined,

@@ -35,6 +35,7 @@ import {
 } from "./packing-forms";
 import { locationLabel, travelerName } from "./packing-ui";
 import { VisibilityForm } from "./sharing-forms";
+import type { PackingView } from "./trip-navigation";
 
 export function BagsDestination({
   families,
@@ -153,8 +154,23 @@ export function PackingScreen({
   tripId,
   familyId,
   memberId,
+  initialLeg,
+  initialView,
+  initialId,
+  onRemember,
   onBack,
-}: ChecklistScope & { memberId: string; onBack: () => void }) {
+}: ChecklistScope & {
+  memberId: string;
+  onBack: () => void;
+  initialLeg?: "outbound" | "return";
+  initialView?: PackingView;
+  initialId?: string;
+  onRemember?: (
+    leg: "outbound" | "return",
+    view: PackingView,
+    recordId?: string,
+  ) => void;
+}) {
   const api = useTripRequest();
   const [data, setData] = useState<{
     packing: Packing;
@@ -163,11 +179,17 @@ export function PackingScreen({
     canShare: boolean;
   } | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
-  const [leg, setLeg] = useState<"outbound" | "return">("outbound");
+  const [leg, setLeg] = useState<"outbound" | "return">(
+    initialLeg ?? "outbound",
+  );
   const [query, setQuery] = useState("");
-  const [view, setView] = useState<
-    "bags" | "items" | "departure" | "history" | "review" | "checkout"
-  >("bags");
+  const [view, setView] = useState<PackingView>(
+    initialView ?? (initialLeg === "return" ? "review" : "bags"),
+  );
+  const [selectedId, setSelectedId] = useState(initialId);
+  useEffect(() => {
+    onRemember?.(leg, view, selectedId);
+  }, [leg, view, selectedId, onRemember]);
   const [historyItem, setHistoryItem] = useState("all");
   const [saved, setSaved] = useState(false);
   const scope = { tripId, familyId };
@@ -293,6 +315,7 @@ export function PackingScreen({
           setView(next === "return" ? "review" : "bags");
           setLeg(next);
           setQuery("");
+          setSelectedId(undefined);
         }}
       />
       <Copy>
@@ -302,7 +325,10 @@ export function PackingScreen({
       <ChecklistChoices
         label="Packing view"
         value={view}
-        onChange={setView}
+        onChange={(next) => {
+          setView(next);
+          setSelectedId(undefined);
+        }}
         options={[
           ...(leg === "return"
             ? [
@@ -317,6 +343,13 @@ export function PackingScreen({
         ]}
       />
       {saved && <Notice>Saved</Notice>}
+      {selectedId && (
+        <Action
+          title="Show all family packing records"
+          secondary
+          onPress={() => setSelectedId(undefined)}
+        />
+      )}
       {!data && !api.error && <Loading message="Loading family packing…" />}
       {api.error && (
         <>
@@ -369,7 +402,11 @@ export function PackingScreen({
                 </Notice>
               )}
               {data.returnPreparation.items
-                .filter((item) => matches(item.title))
+                .filter(
+                  (item) =>
+                    matches(item.title) &&
+                    (!selectedId || item.entryId === selectedId),
+                )
                 .map((item) => (
                   <ChecklistSection key={item.entryId} title={item.title}>
                     <Copy>
@@ -442,24 +479,28 @@ export function PackingScreen({
                     Propose the return list to start editable checkout checks.
                   </Notice>
                 )}
-                {data.returnPreparation.checkout.map((check) => (
-                  <ChecklistSection key={check.id} title={check.label}>
-                    <Copy>
-                      {check.checked ? "Physically checked" : "Needs checking"}
-                    </Copy>
-                    {check.checkedAt && (
-                      <Copy muted>
-                        Checked: {new Date(check.checkedAt).toLocaleString()}
+                {data.returnPreparation.checkout
+                  .filter((check) => !selectedId || check.id === selectedId)
+                  .map((check) => (
+                    <ChecklistSection key={check.id} title={check.label}>
+                      <Copy>
+                        {check.checked
+                          ? "Physically checked"
+                          : "Needs checking"}
                       </Copy>
-                    )}
-                    {packing.canEdit && (
-                      <Action
-                        title={`Check: ${check.label}`}
-                        onPress={() => open({ mode: "checkout", check })}
-                      />
-                    )}
-                  </ChecklistSection>
-                ))}
+                      {check.checkedAt && (
+                        <Copy muted>
+                          Checked: {new Date(check.checkedAt).toLocaleString()}
+                        </Copy>
+                      )}
+                      {packing.canEdit && (
+                        <Action
+                          title={`Check: ${check.label}`}
+                          onPress={() => open({ mode: "checkout", check })}
+                        />
+                      )}
+                    </ChecklistSection>
+                  ))}
               </>
             )}
           {view === "bags" && (
@@ -477,7 +518,10 @@ export function PackingScreen({
                 </Notice>
               )}
               {packing.bags
-                .filter((bag) => matches(bag.name))
+                .filter(
+                  (bag) =>
+                    matches(bag.name) && (!selectedId || bag.id === selectedId),
+                )
                 .map((bag) => {
                   const outbound = bag.legs.find((row) => row.leg === leg) ?? {
                     status: "packing",
@@ -574,7 +618,11 @@ export function PackingScreen({
                 </Notice>
               )}
               {packing.items
-                .filter((item) => matches(item.title))
+                .filter(
+                  (item) =>
+                    matches(item.title) &&
+                    (!selectedId || item.entryId === selectedId),
+                )
                 .map((item) => (
                   <ChecklistSection
                     key={item.entryId}
@@ -652,49 +700,53 @@ export function PackingScreen({
                   Add your own checks for passports, phones or other essentials.
                 </Notice>
               )}
-              {packing.checks.map((check) => (
-                <ChecklistSection key={check.id} title={check.label}>
-                  <Copy>
-                    {check.checked ? "Physically checked" : "Needs checking"}
-                  </Copy>
-                  <Copy>
-                    {locationLabel(check.location, packing, data.travelers)}
-                  </Copy>
-                  {check.entryId && (
+              {packing.checks
+                .filter((check) => !selectedId || check.id === selectedId)
+                .map((check) => (
+                  <ChecklistSection key={check.id} title={check.label}>
                     <Copy>
-                      Item:{" "}
-                      {packing.items.find(
-                        (item) => item.entryId === check.entryId,
-                      )?.title ?? "Former requirement"}
+                      {check.checked ? "Physically checked" : "Needs checking"}
                     </Copy>
-                  )}
-                  {check.checkedAt && (
-                    <Copy muted>
-                      Checked: {new Date(check.checkedAt).toLocaleString()}
+                    <Copy>
+                      {locationLabel(check.location, packing, data.travelers)}
                     </Copy>
-                  )}
-                  {packing.canEdit && (
-                    <>
-                      <Action
-                        title={`Edit check: ${check.label}`}
-                        onPress={() => open({ mode: "check", initial: check })}
-                      />
-                      <Action
-                        title={`Remove check: ${check.label}`}
-                        secondary
-                        onPress={() =>
-                          open({
-                            mode: "remove",
-                            kind: "check",
-                            id: check.id,
-                            title: check.label,
-                          })
-                        }
-                      />
-                    </>
-                  )}
-                </ChecklistSection>
-              ))}
+                    {check.entryId && (
+                      <Copy>
+                        Item:{" "}
+                        {packing.items.find(
+                          (item) => item.entryId === check.entryId,
+                        )?.title ?? "Former requirement"}
+                      </Copy>
+                    )}
+                    {check.checkedAt && (
+                      <Copy muted>
+                        Checked: {new Date(check.checkedAt).toLocaleString()}
+                      </Copy>
+                    )}
+                    {packing.canEdit && (
+                      <>
+                        <Action
+                          title={`Edit check: ${check.label}`}
+                          onPress={() =>
+                            open({ mode: "check", initial: check })
+                          }
+                        />
+                        <Action
+                          title={`Remove check: ${check.label}`}
+                          secondary
+                          onPress={() =>
+                            open({
+                              mode: "remove",
+                              kind: "check",
+                              id: check.id,
+                              title: check.label,
+                            })
+                          }
+                        />
+                      </>
+                    )}
+                  </ChecklistSection>
+                ))}
             </>
           )}
           {view === "history" && (

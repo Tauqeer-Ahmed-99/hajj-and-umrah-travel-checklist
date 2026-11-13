@@ -25,7 +25,14 @@ function snapshotSchema(path: string) {
   if (new RegExp(`^/api/trips/${id}/itinerary$`).test(path))
     return itineraryResponse;
   if (new RegExp(`^/api/trips/${id}/overview(?:/return)?$`).test(path))
-    return overviewResponse;
+    return overviewResponse.refine(
+      (data) =>
+        data.query.leg === (path.endsWith("/return") ? "return" : "outbound") &&
+        data.query.scope === "all" &&
+        !data.query.q &&
+        !data.query.attention &&
+        !data.query.familyId,
+    );
   const shared = path.match(
     new RegExp(`^/api/trips/${id}/shared\\?leg=(outbound|return)$`),
   );

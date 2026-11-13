@@ -7,13 +7,19 @@ appId: in.nmtsolutions.travel
 - tapOn: "Find an item or carrying location"
 - inputText: ${OVERVIEW_ITEM}
 - tapOn: "Search permitted records"
+- scrollUntilVisible:
+    element: "${OVERVIEW_ITEM}"
 - assertVisible: ${OVERVIEW_ITEM}
 - assertVisible: ${OVERVIEW_BAG}
 - assertVisible: "Travel leg: Outbound"
+- scrollUntilVisible:
+    element: "Activity for ${OVERVIEW_ITEM}"
 - tapOn: "Activity for ${OVERVIEW_ITEM}"
 - assertVisible: "Accepted item activity"
 - assertVisible: "Quantity packed"
 - assertNotVisible: ${OVERVIEW_PRIVATE_NOTE}
 - tapOn: "Back to results"
 - tapOn: "Refresh overview"
+- scrollUntilVisible:
+    element: "${OVERVIEW_ITEM}"
 - assertVisible: ${OVERVIEW_ITEM}

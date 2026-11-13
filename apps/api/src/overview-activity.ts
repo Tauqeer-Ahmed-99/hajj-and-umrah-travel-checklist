@@ -14,7 +14,7 @@ export function readOverviewActivity(
     await requireTripAccess(db, memberId, tripId);
     const shared = await sharedState(db, memberId, tripId, leg, entryId);
     const result = await db.query<{ familyId: string }>(
-      `SELECT e.family_id AS "familyId" FROM checklist_entries e JOIN families f ON f.id = e.family_id JOIN family_members fm ON fm.family_id = f.id AND fm.member_id = $3 WHERE f.trip_id = $1 AND e.id = $2 AND e.removed_at IS NULL AND e.leg IN ($4, 'both')`,
+      `SELECT e.family_id AS "familyId" FROM checklist_entries e JOIN families f ON f.id = e.family_id JOIN family_members fm ON fm.family_id = f.id AND fm.member_id = $3 WHERE f.trip_id = $1 AND e.id = $2 AND e.removed_at IS NULL AND (e.leg IN ($4, 'both') OR ($4='return' AND e.kind='item' AND (e.not_needed_reason IS NULL OR EXISTS(SELECT 1 FROM return_items r WHERE r.entry_id=e.id))))`,
       [tripId, entryId, memberId, leg],
     );
     let history: OverviewActivity["history"];
@@ -30,7 +30,12 @@ export function readOverviewActivity(
       history = events.rows;
     } else {
       const entry = shared.items.find(
-        (v) => v.entry.id === entryId && [leg, "both"].includes(v.entry.leg),
+        (v) =>
+          v.entry.id === entryId &&
+          ([leg, "both"].includes(v.entry.leg) ||
+            (leg === "return" &&
+              v.entry.kind === "item" &&
+              (v.packing || !v.entry.acquisition?.notNeededReason))),
       );
       if (!entry)
         throw new HttpError(

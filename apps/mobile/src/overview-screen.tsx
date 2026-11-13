@@ -334,7 +334,9 @@ export function OverviewRecords({
                 ? "Task"
                 : row.kind === "bag"
                   ? "Bag"
-                  : "Departure check"}{" "}
+                  : row.kind === "checkout"
+                    ? "Checkout check"
+                    : "Departure check"}{" "}
             · {row.familyName ?? "Shared with trip"}
           </Copy>
           <Copy>
@@ -355,13 +357,23 @@ export function OverviewRecords({
           {row.kind === "item" && (
             <>
               <Copy>
-                Required: {row.requiredQuantity} {row.unit}; physically
-                available: {row.available} {row.unit}.
+                Required: {row.requiredQuantity ?? "Unknown"} {row.unit};{" "}
+                {row.leg === "return"
+                  ? "independent return packing availability"
+                  : "physically available"}
+                : {row.available ?? "Unknown"} {row.unit}.
               </Copy>
               <Copy>
-                Remaining to prepare: {row.remainingToPrepare} {row.unit}. Still
-                to locate or pack: {row.remainingToPlace} {row.unit}.
+                Remaining to prepare: {row.remainingToPrepare ?? "Unknown"}{" "}
+                {row.unit}. Still to locate or pack:{" "}
+                {row.remainingToPlace ?? "Unknown"} {row.unit}.
               </Copy>
+              {row.unaccounted !== null && (
+                <Notice>
+                  Return belongings unaccounted for: {row.unaccounted}{" "}
+                  {row.unit}.
+                </Notice>
+              )}
               {row.locations.length ? (
                 row.locations.map((location, index) => (
                   <Copy key={`${location.kind}:${location.id ?? index}`}>

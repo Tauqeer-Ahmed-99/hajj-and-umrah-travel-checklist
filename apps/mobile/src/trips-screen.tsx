@@ -28,6 +28,8 @@ import {
   clearTripNavigation,
   type TripNavigation,
   type Destination,
+  type PackingView,
+  type ChecklistView,
 } from "./trip-navigation";
 import { FamilyForm, TravelerForm, TripForm } from "./trip-forms";
 import { InvitationInbox } from "./invitation-inbox";
@@ -56,11 +58,30 @@ type Route =
   | { screen: "overview-search"; tripId: string; query: OverviewQuery }
   | { screen: "new-family"; tripId: string }
   | { screen: "itinerary"; tripId: string }
-  | { screen: "shared"; tripId: string }
+  | {
+      screen: "shared";
+      tripId: string;
+      leg?: "outbound" | "return";
+      recordId?: string;
+      view?: "items" | "bags";
+    }
   | { screen: "reminders"; tripId: string }
   | { screen: "summary"; tripId: string }
-  | { screen: "checklist"; tripId: string; familyId: string }
-  | { screen: "bags"; tripId: string; familyId: string }
+  | {
+      screen: "checklist";
+      tripId: string;
+      familyId: string;
+      recordId?: string;
+      view?: ChecklistView;
+    }
+  | {
+      screen: "bags";
+      tripId: string;
+      familyId: string;
+      recordId?: string;
+      leg?: "outbound" | "return";
+      view?: PackingView;
+    }
   | { screen: "family"; tripId: string; familyId: string }
   | { screen: "new-traveler"; tripId: string; familyId: string };
 
@@ -112,12 +133,17 @@ export function TripsScreen({
                       screen: "checklist",
                       tripId: saved.tripId,
                       familyId: saved.familyId,
+                      recordId: saved.recordId,
+                      view: saved.checklistView,
                     }
                   : saved.familyId && saved.destination === "Bags"
                     ? {
                         screen: "bags",
                         tripId: saved.tripId,
                         familyId: saved.familyId,
+                        recordId: saved.recordId,
+                        leg: saved.leg,
+                        view: saved.packingView,
                       }
                     : { screen: "trip", ...saved },
           );
@@ -151,13 +177,32 @@ export function TripsScreen({
     tripId: string,
     familyId: string,
     destination: "Checklist" | "Bags",
+    state?: {
+      recordId?: string;
+      leg?: "outbound" | "return";
+      packingView?: PackingView;
+      checklistView?: ChecklistView;
+    },
   ) => {
-    setRoute({
-      screen: destination === "Checklist" ? "checklist" : "bags",
-      tripId,
-      familyId,
-    });
-    remember({ tripId, destination, familyId });
+    setRoute(
+      destination === "Checklist"
+        ? {
+            screen: "checklist",
+            tripId,
+            familyId,
+            recordId: state?.recordId,
+            view: state?.checklistView,
+          }
+        : {
+            screen: "bags",
+            tripId,
+            familyId,
+            recordId: state?.recordId,
+            leg: state?.leg,
+            view: state?.packingView,
+          },
+    );
+    remember({ tripId, destination, familyId, ...state });
   };
   const openOverview = (tripId: string, query: OverviewQuery) => {
     setRoute({ screen: "overview-search", tripId, query });
@@ -228,6 +273,9 @@ export function TripsScreen({
       <SharedScreen
         key={route.tripId}
         tripId={route.tripId}
+        initialLeg={route.leg}
+        initialId={route.recordId}
+        initialView={route.view}
         onBack={() => openTrip(route.tripId)}
       />
     );
@@ -257,11 +305,34 @@ export function TripsScreen({
         onBack={() => openTrip(route.tripId)}
         onOpen={(row) =>
           row.access === "shared"
-            ? setRoute({ screen: "shared", tripId: route.tripId })
+            ? setRoute({
+                screen: "shared",
+                tripId: route.tripId,
+                leg: row.leg,
+                recordId: row.id,
+                view: row.kind === "bag" ? "bags" : "items",
+              })
             : openFamily(
                 route.tripId,
                 row.familyId,
-                ["bag", "check"].includes(row.kind) ? "Bags" : "Checklist",
+                (row.kind === "item" && row.leg === "return") ||
+                  ["bag", "check", "checkout"].includes(row.kind)
+                  ? "Bags"
+                  : "Checklist",
+                {
+                  recordId: row.id,
+                  leg: row.leg,
+                  packingView:
+                    row.kind === "bag"
+                      ? "bags"
+                      : row.kind === "checkout"
+                        ? "checkout"
+                        : row.kind === "check"
+                          ? "departure"
+                          : row.leg === "return"
+                            ? "review"
+                            : "items",
+                },
               )
         }
         footer={
@@ -296,6 +367,17 @@ export function TripsScreen({
         tripId={route.tripId}
         familyId={route.familyId}
         memberId={profile.id}
+        initialId={route.recordId}
+        initialView={route.view}
+        onRemember={(view, recordId) =>
+          remember({
+            tripId: route.tripId,
+            destination: "Checklist",
+            familyId: route.familyId,
+            checklistView: view,
+            recordId,
+          })
+        }
         onBack={() => openTrip(route.tripId, "Checklist")}
       />
     );
@@ -306,6 +388,19 @@ export function TripsScreen({
         key={`${route.tripId}:${route.familyId}`}
         tripId={route.tripId}
         familyId={route.familyId}
+        initialId={route.recordId}
+        initialLeg={route.leg}
+        initialView={route.view}
+        onRemember={(leg, view, recordId) =>
+          remember({
+            tripId: route.tripId,
+            destination: "Bags",
+            familyId: route.familyId,
+            leg,
+            packingView: view,
+            recordId,
+          })
+        }
         onBack={() => openTrip(route.tripId, "Bags")}
       />
     );

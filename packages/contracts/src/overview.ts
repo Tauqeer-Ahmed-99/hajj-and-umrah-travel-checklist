@@ -25,7 +25,7 @@ export const overviewLocation = z.object({
 });
 export const overviewRecord = z.object({
   id: z.uuid(),
-  kind: z.enum(["item", "task", "bag", "check"]),
+  kind: z.enum(["item", "task", "bag", "check", "checkout"]),
   familyId: z.uuid(),
   familyName: z.string().nullable(),
   access: z.enum(["family", "shared"]),
@@ -39,6 +39,7 @@ export const overviewRecord = z.object({
   available: z.number().nullable(),
   remainingToPrepare: z.number().nullable(),
   remainingToPlace: z.number().nullable(),
+  unaccounted: z.number().nullable(),
   unit: z.string(),
   locations: z.array(overviewLocation),
   confirmedAt: z.iso.datetime().nullable(),

@@ -6,17 +6,25 @@ appId: in.nmtsolutions.travel
 - tapOn: "Find belongings and responsibilities"
 - assertVisible: "Unresolved essentials: 1"
 - tapOn: "Unresolved essentials: 1"
+- scrollUntilVisible:
+    element: "${OVERVIEW_ESSENTIAL}"
 - assertVisible: ${OVERVIEW_ESSENTIAL}
 - tapOn: "Show all records"
 - tapOn: "My items"
+- scrollUntilVisible:
+    element: "${OVERVIEW_MINE}"
 - assertVisible: ${OVERVIEW_MINE}
 - assertNotVisible: ${OVERVIEW_OTHER}
 - tapOn: "Shared with trip"
+- scrollUntilVisible:
+    element: "${OVERVIEW_SHARED}"
 - assertVisible: ${OVERVIEW_SHARED}
 - assertNotVisible: ${OVERVIEW_PRIVATE}
 - stopApp
 - launchApp
 - assertVisible: "Find belongings and responsibilities"
+- scrollUntilVisible:
+    element: "${OVERVIEW_SHARED}"
 - assertVisible: ${OVERVIEW_SHARED}
 - tapOn: "Back to Overview"
 - tapOn: "Checklist"

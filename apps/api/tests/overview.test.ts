@@ -101,6 +101,10 @@ test("overview keeps the missing essential prominent and every action count open
   const essential = await entry(j, "Passport", { priority: "essential" });
   const ready = await entry(j, "Adapter");
   await receive(j, ready);
+  for (let n = 2; n <= 19; n++) {
+    const id = await entry(j, `Available supply ${n}`);
+    await receive(j, id);
+  }
   const task = await entry(j, "Check booking", {
     kind: "task",
     taskStatus: "in_progress",
@@ -124,8 +128,8 @@ test("overview keeps the missing essential prominent and every action count open
     r.data.actions.find((a: { key: string }) => a.key === "essentials").records,
     [{ kind: "item", id: essential }],
   );
-  assert.equal(r.data.preparation.availableItems, 1);
-  assert.equal(r.data.preparation.activeItems, 2);
+  assert.equal(r.data.preparation.availableItems, 19);
+  assert.equal(r.data.preparation.activeItems, 20);
   assert.equal(r.data.readiness.verification, "not_verified");
   for (const action of r.data.actions) {
     const opened = await fixture.request(
@@ -316,15 +320,13 @@ test("item search and activity expose only the permitted confirmed leg and actor
     ).status,
     404,
   );
-  assert.equal(
-    (
-      await fixture.request(
-        `${j.trip}/overview?leg=return&q=medicine`,
-        reader.token,
-      )
-    ).data.records.length,
-    0,
+  const unknownReturn = await fixture.request(
+    `${j.trip}/overview?leg=return&q=medicine`,
+    reader.token,
   );
+  assert.equal(unknownReturn.data.records.length, 1);
+  assert.equal(unknownReturn.data.records[0].available, null);
+  assert.deepEqual(unknownReturn.data.records[0].locations, []);
   const visibleBag = await bag(j, "Shared blue suitcase");
   await share(j, "bags", visibleBag);
   const moved = await fixture.request(
@@ -630,5 +632,231 @@ test("scheduled travel retains its zone, while an essential in an unreviewed bag
     (await fixture.request(`${j.trip}/overview/activity`, j.owner.token))
       .status,
     422,
+  );
+});
+
+test("return overview uses independent reviewed possession and locations while preserving outbound search and family-only reconciliation", async () => {
+  const j = await setup("overview_return");
+  const reader = await admit(j, "overview_return_reader", "viewer");
+  const id = await entry(j, "Return medicine", { priority: "essential" });
+  const b = await bag(j, "Reusable case");
+  await receive(j, id);
+  await pack(j, id, b);
+  await share(j, "entries", id);
+  await share(j, "bags", b);
+  const unknown = await fixture.request(
+    `${j.trip}/overview/return?q=medicine`,
+    reader.token,
+  );
+  assert.equal(
+    unknown.data.records.length,
+    1,
+    "An essential still needs return review before any proposal exists.",
+  );
+  assert.equal(unknown.data.records[0].available, null);
+  assert.equal(unknown.data.records[0].requiredQuantity, null);
+  assert.deepEqual(unknown.data.records[0].locations, []);
+  assert.ok(unknown.data.records[0].attention.includes("essentials"));
+  const propose = await fixture.request(
+    `${j.family}/return-preparation`,
+    j.owner.token,
+    { requestId: randomUUID(), kind: "propose" },
+    "POST",
+  );
+  assert.equal(propose.status, 200, fixture.logs());
+  const pending = await fixture.request(
+    `${j.trip}/overview/return`,
+    j.owner.token,
+  );
+  assert.equal(pending.status, 200, fixture.logs());
+  assert.equal(pending.headers.get("cache-control"), "private, no-store");
+  const pendingItem = pending.data.records.find(
+    (r: { id: string }) => r.id === id,
+  );
+  assert.ok(
+    pendingItem,
+    "An outbound proposal must be present in the independent return view.",
+  );
+  assert.equal(pendingItem.available, 0);
+  assert.deepEqual(pendingItem.locations, []);
+  assert.equal(pendingItem.remainingToPrepare, 1);
+  assert.ok(
+    pending.data.actions
+      .find((a: { key: string }) => a.key === "essentials")
+      .records.some((r: { id: string }) => r.id === id),
+  );
+  const reconcile = await fixture.request(
+    `${j.family}/return-preparation`,
+    j.owner.token,
+    {
+      requestId: randomUUID(),
+      kind: "reconcile",
+      entryId: id,
+      fields: { requiredQuantity: 1, possessionQuantity: 1 },
+      reviewConfirmed: true,
+      physicalConfirmed: true,
+      reason: "Private return reconciliation",
+    },
+    "POST",
+  );
+  assert.equal(reconcile.status, 200, fixture.logs());
+  const move = await fixture.request(
+    `${j.family}/packing`,
+    j.owner.token,
+    {
+      requestId: randomUUID(),
+      kind: "move",
+      leg: "return",
+      entryId: id,
+      from: { kind: "unpacked" },
+      to: { kind: "bag", id: b },
+      quantity: 1,
+      physicalConfirmed: true,
+    },
+    "POST",
+  );
+  assert.equal(move.status, 200, fixture.logs());
+  const returned = await fixture.request(
+    `${j.trip}/overview/return?q=medicine`,
+    reader.token,
+  );
+  assert.equal(returned.status, 200, fixture.logs());
+  assert.equal(overviewResponse.safeParse(returned.data).success, true);
+  assert.deepEqual(
+    returned.data.records.map((r: { id: string }) => r.id),
+    [id],
+  );
+  assert.equal(returned.data.records[0].leg, "return");
+  assert.equal(returned.data.records[0].available, 1);
+  assert.deepEqual(returned.data.records[0].locations, [
+    { kind: "bag", id: b, label: "Reusable case", quantity: 1 },
+  ]);
+  const history = await fixture.request(
+    `${j.trip}/overview/activity?entryId=${id}&leg=return`,
+    reader.token,
+  );
+  assert.equal(history.status, 200, fixture.logs());
+  assert.ok(
+    history.data.history.some(
+      (h: { action: string; leg: string }) =>
+        h.action === "packed" && h.leg === "return",
+    ),
+  );
+  assert.ok(
+    !JSON.stringify(history.data).includes("Private return reconciliation"),
+  );
+  assert.equal(
+    (await fixture.request(`${j.family}/return-preparation`, reader.token))
+      .status,
+    404,
+  );
+  const outbound = await fixture.request(
+    `${j.trip}/overview?q=medicine`,
+    reader.token,
+  );
+  assert.equal(outbound.data.records[0].leg, "outbound");
+  assert.equal(outbound.data.records[0].locations[0].id, b);
+});
+
+test("fractional bag and traveler allocations do not create a phantom missing essential", async () => {
+  const j = await setup("overview_fraction");
+  const id = await entry(j, "Essential measured supply", {
+    priority: "essential",
+  });
+  const b = await bag(j, "Measured bag");
+  const traveler = await fixture.request(
+    `${j.family}/travelers`,
+    j.owner.token,
+    { firstName: "Noor", lastName: "Ahmed" },
+    "POST",
+  );
+  await receive(j, id);
+  for (const [to, quantity] of [
+    [{ kind: "bag", id: b }, 0.7],
+    [{ kind: "traveler", id: traveler.data.traveler.id }, 0.3],
+  ] as const) {
+    const r = await fixture.request(
+      `${j.family}/packing`,
+      j.owner.token,
+      {
+        requestId: randomUUID(),
+        kind: "move",
+        leg: "outbound",
+        entryId: id,
+        from: { kind: "unpacked" },
+        to,
+        quantity,
+        physicalConfirmed: true,
+      },
+      "POST",
+    );
+    assert.equal(r.status, 200, fixture.logs());
+  }
+  assert.equal(
+    (
+      await fixture.request(
+        `${j.family}/bags/${b}/state`,
+        j.owner.token,
+        {
+          requestId: randomUUID(),
+          leg: "outbound",
+          status: "ready",
+          reviewConfirmed: true,
+        },
+        "POST",
+      )
+    ).status,
+    200,
+  );
+  const r = await fixture.request(`${j.trip}/overview`, j.owner.token);
+  assert.equal(
+    r.data.records.find((row: { id: string }) => row.id === id)
+      .remainingToPlace,
+    0,
+  );
+  assert.deepEqual(
+    r.data.actions.find((a: { key: string }) => a.key === "essentials").records,
+    [],
+  );
+});
+
+test("essential tasks remain actionable without being counted as item preparation or packing", async () => {
+  const j = await setup("overview_task");
+  const id = await entry(j, "Verify travel permission", {
+    kind: "task",
+    priority: "essential",
+    taskStatus: "to_do",
+    requiredQuantity: null,
+    unit: "",
+  });
+  const open = await fixture.request(
+    `${j.trip}/overview?attention=essentials`,
+    j.owner.token,
+  );
+  assert.deepEqual(
+    open.data.records.map((r: { id: string }) => r.id),
+    [id],
+  );
+  assert.equal(open.data.preparation.activeItems, 0);
+  assert.deepEqual(open.data.records[0].locations, []);
+  assert.equal(
+    (
+      await fixture.request(
+        `${j.family}/checklist/entries/${id}`,
+        j.owner.token,
+        { requestId: randomUUID(), taskStatus: "done" },
+        "PATCH",
+      )
+    ).status,
+    200,
+  );
+  assert.deepEqual(
+    (
+      await fixture.request(
+        `${j.trip}/overview?attention=essentials`,
+        j.owner.token,
+      )
+    ).data.records,
+    [],
   );
 });

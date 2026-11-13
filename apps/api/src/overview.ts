@@ -17,6 +17,8 @@ import { sharedState } from "./sharing";
 import { entryColumns } from "./checklist";
 import { bagColumns, packingItems } from "./packing";
 import { checkColumns } from "./packing-events";
+import { returnItems } from "./return-preparation";
+import { milli } from "./acquisition";
 
 const labels = {
   essentials: "Unresolved essentials",
@@ -49,6 +51,7 @@ function base(
     available: null,
     remainingToPrepare: null,
     remainingToPlace: null,
+    unaccounted: null,
     unit: "",
     locations: [],
     confirmedAt: null,
@@ -73,27 +76,52 @@ function itemRecord(
   });
   if (entry.kind === "task") {
     row.status = checklistTaskLabels[entry.taskStatus!];
-    if (!["done", "not_needed"].includes(entry.taskStatus!))
+    if (!["done", "not_needed"].includes(entry.taskStatus!)) {
       row.attention.push("tasks");
+      if (entry.priority === "essential") row.attention.unshift("essentials");
+    }
   } else {
     const stock = entry.acquisition!;
-    const inactive = !!stock.notNeededReason;
-    row.requiredQuantity = inactive ? 0 : entry.requiredQuantity;
-    row.available = stock.available;
-    row.remainingToPrepare = inactive ? 0 : stock.remainingToBeReady;
+    const inactive =
+      !!stock.notNeededReason && (query.leg === "outbound" || !packed);
+    row.requiredQuantity = inactive
+      ? 0
+      : query.leg === "return"
+        ? (packed?.requiredQuantity ?? null)
+        : entry.requiredQuantity;
+    row.available =
+      query.leg === "return" ? (packed?.available ?? null) : stock.available;
+    row.remainingToPrepare = inactive
+      ? 0
+      : query.leg === "return"
+        ? packed
+          ? Math.max(
+              0,
+              milli(packed.requiredQuantity) - milli(packed.available),
+            ) / 1000
+          : null
+        : stock.remainingToBeReady;
     row.remainingToPlace = inactive
       ? 0
-      : Math.max(
-          0,
-          (entry.requiredQuantity ?? 0) -
-            (packed?.packed ?? 0) -
-            (packed?.keptWithTraveler ?? 0),
-        );
+      : query.leg === "return" && !packed
+        ? null
+        : Math.max(
+            0,
+            milli(row.requiredQuantity ?? 0) -
+              milli(packed?.packed ?? 0) -
+              milli(packed?.keptWithTraveler ?? 0),
+          ) / 1000;
     row.status = inactive
       ? "Not needed"
-      : row.remainingToPrepare
-        ? "Preparation outstanding"
-        : "Physically available; check carrying locations";
+      : query.leg === "return"
+        ? !packed
+          ? "Return review and possession unknown"
+          : "Independent return packing availability"
+        : inactive
+          ? "Not needed"
+          : row.remainingToPrepare
+            ? "Preparation outstanding"
+            : "Physically available; check carrying locations";
     if (!inactive) {
       row.locations = (packed?.allocations ?? []).flatMap<
         OverviewRecord["locations"][number]
@@ -117,7 +145,8 @@ function itemRecord(
                 },
               ],
       );
-      if (row.remainingToPrepare! > 0) row.attention.push("preparation");
+      if (row.remainingToPrepare! > 0 || (query.leg === "return" && !packed))
+        row.attention.push("preparation");
       if (row.remainingToPlace! > 0 || !packed) row.attention.push("placement");
       if (entry.priority === "essential" && row.attention.length)
         row.attention.unshift("essentials");
@@ -152,8 +181,11 @@ export function readOverview(
         tripId,
         candidate.id,
       );
+      await db.query("SELECT id FROM families WHERE id=$1 FOR SHARE", [
+        family.id,
+      ]);
       const entries = await db.query<ChecklistEntry>(
-        `SELECT ${entryColumns} FROM checklist_entries WHERE family_id = $1 AND removed_at IS NULL AND leg IN ($2,'both') ORDER BY created_at,id`,
+        `SELECT ${entryColumns} FROM checklist_entries WHERE family_id = $1 AND removed_at IS NULL AND (leg IN ($2,'both') OR ($2 = 'return' AND kind='item' AND (not_needed_reason IS NULL OR EXISTS(SELECT 1 FROM return_items r WHERE r.entry_id=checklist_entries.id)))) ORDER BY created_at,id`,
         [family.id, query.leg],
       );
       const bags = await db.query<Bag>(
@@ -164,8 +196,16 @@ export function readOverview(
         "SELECT id, first_name || ' ' || last_name AS name FROM travelers WHERE family_id = $1",
         [family.id],
       );
-      const packed =
-        query.leg === "outbound" ? await packingItems(db, family.id) : [];
+      const packed = await packingItems(db, family.id, query.leg);
+      const confirmations = await db.query<{ entryId: string; at: string }>(
+        `SELECT DISTINCT ON (entry_id) entry_id AS "entryId",at FROM packing_history WHERE family_id=$1 AND leg=$2 AND action IN ('packed','moved','undone') AND changes->'physicalConfirmed'->>'after'='true' ORDER BY entry_id,sequence DESC`,
+        [family.id, query.leg],
+      );
+      const confirmedAt = new Map(
+        confirmations.rows.map((r) => [r.entryId, r.at]),
+      );
+      const returning =
+        query.leg === "return" ? await returnItems(db, family.id) : [];
       const locationName = (kind: string, id: string) =>
         (kind === "bag"
           ? bags.rows.find((b) => b.id === id)?.name
@@ -180,12 +220,29 @@ export function readOverview(
           query,
           locationName,
         );
+        if (
+          query.leg === "return" &&
+          row.kind === "item" &&
+          !(
+            entry.acquisition?.notNeededReason &&
+            !packed.some((p) => p.entryId === entry.id)
+          )
+        ) {
+          const review = returning.find((r) => r.entryId === entry.id);
+          row.unaccounted = review?.unaccounted ?? null;
+          row.needsReview = !review?.reviewed || !review.possessionConfirmedAt;
+          if (row.unaccounted! > 0 || row.needsReview) {
+            if (!row.attention.includes("preparation"))
+              row.attention.push("preparation");
+            if (
+              row.priority === "essential" &&
+              !row.attention.includes("essentials")
+            )
+              row.attention.unshift("essentials");
+          }
+        }
         if (row.locations.length) {
-          const confirmed = await db.query<{ at: string }>(
-            `SELECT at FROM packing_history WHERE family_id = $1 AND entry_id = $2 AND leg = $3 AND action IN ('packed','moved','undone') AND changes->'physicalConfirmed'->>'after' = 'true' ORDER BY sequence DESC LIMIT 1`,
-            [family.id, entry.id, query.leg],
-          );
-          row.confirmedAt = confirmed.rows[0]?.at ?? null;
+          row.confirmedAt = confirmedAt.get(entry.id) ?? null;
         }
         row.shared = sharedIds.has(row.id);
         records.set(row.id, row);
@@ -209,16 +266,50 @@ export function readOverview(
         if (!check.checked) row.attention.push("checks");
         records.set(row.id, row);
       }
+      if (query.leg === "return") {
+        const checkout = await db.query<{
+          id: string;
+          label: string;
+          checked: boolean;
+          checkedAt: string | null;
+        }>(
+          `SELECT id,label,checked,checked_at AS "checkedAt" FROM return_checkout WHERE family_id=$1 ORDER BY area`,
+          [family.id],
+        );
+        for (const check of checkout.rows) {
+          const row = base(
+            check.id,
+            "checkout",
+            family.id,
+            family.name,
+            query.leg,
+          );
+          Object.assign(row, {
+            title: check.label,
+            status: check.checked
+              ? "Checkout confirmed"
+              : "Checkout needs physical confirmation",
+            confirmedAt: check.checkedAt,
+          });
+          if (!check.checked) row.attention.push("checks");
+          records.set(row.id, row);
+        }
+      }
     }
     for (const value of shared.items) {
       if (
         records.has(value.entry.id) ||
-        ![query.leg, "both"].includes(value.entry.leg)
+        !(
+          [query.leg, "both"].includes(value.entry.leg) ||
+          (query.leg === "return" &&
+            value.entry.kind === "item" &&
+            (value.packing || !value.entry.acquisition?.notNeededReason))
+        )
       )
         continue;
       const row = itemRecord(
         value.entry,
-        query.leg === "outbound" ? value.packing : null,
+        value.packing,
         null,
         memberId,
         query,
@@ -237,7 +328,7 @@ export function readOverview(
       }
     for (const row of records.values()) {
       if (row.kind !== "item") continue;
-      row.needsReview = row.locations.some(
+      row.needsReview ||= row.locations.some(
         (l) =>
           l.kind === "private" ||
           (l.kind === "bag" &&
@@ -334,7 +425,7 @@ export function readOverview(
       nextDeparture,
       preparation: {
         activeItems: selected.filter(
-          (r) => r.kind === "item" && r.requiredQuantity! > 0,
+          (r) => r.kind === "item" && r.requiredQuantity !== 0,
         ).length,
         availableItems: selected.filter(
           (r) =>

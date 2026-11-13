@@ -25,6 +25,7 @@ import {
 import { ChecklistChoices, ChecklistSection } from "./checklist-ui";
 import { AcquisitionForm, AcquisitionSummary } from "./acquisition-form";
 import { VisibilityForm } from "./sharing-forms";
+import type { ChecklistView } from "./trip-navigation";
 
 export function ChecklistDestination({
   families,
@@ -153,23 +154,27 @@ export function ChecklistScreen({
   familyId,
   memberId,
   defaultLeg,
+  initialId,
+  initialView,
+  onRemember,
   onBack,
 }: ChecklistScope & {
   memberId: string;
   defaultLeg?: "outbound" | "return";
+  initialId?: string;
+  initialView?: ChecklistView;
+  onRemember?: (view: ChecklistView, recordId?: string) => void;
   onBack: () => void;
 }) {
   const api = useTripRequest();
   const [data, setData] = useState<Data | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [saved, setSaved] = useState(false);
-  const [view, setView] = useState<
-    | "all"
-    | "shopping"
-    | "expectedDelivery"
-    | "overdueReceipt"
-    | "essentialOutstanding"
-  >("all");
+  const [view, setView] = useState<ChecklistView>(initialView ?? "all");
+  const [selectedId, setSelectedId] = useState(initialId);
+  useEffect(() => {
+    onRemember?.(view, selectedId);
+  }, [view, selectedId, onRemember]);
   const scope = { tripId, familyId };
   const load = useCallback(async () => {
     const result = await api.run(async (token, signal) => {
@@ -358,11 +363,9 @@ export function ChecklistScreen({
     setEditor(value);
   };
   const priority = { essential: 0, high: 1, normal: 2, low: 3 };
-  const entries = !data
-    ? []
-    : view === "all"
-      ? data.checklist.entries
-      : data.views[view];
+  const entries = (
+    !data ? [] : view === "all" ? data.checklist.entries : data.views[view]
+  ).filter((entry) => !selectedId || entry.id === selectedId);
   return (
     <Screen>
       <Action title="Back to family checklists" secondary onPress={onBack} />
@@ -370,6 +373,23 @@ export function ChecklistScreen({
         {data ? `${data.family.name} checklist` : "Family checklist"}
       </Heading>
       {saved && <Notice>Saved</Notice>}
+      {selectedId && (
+        <>
+          <Notice>
+            {entries.length
+              ? "Showing the selected record."
+              : "The selected record is no longer available in this view."}
+          </Notice>
+          <Action
+            title="Show all family checklist entries"
+            secondary
+            onPress={() => {
+              setSelectedId(undefined);
+              setView("all");
+            }}
+          />
+        </>
+      )}
       {!data && !api.error && (
         <Loading message="Loading the family checklist…" />
       )}

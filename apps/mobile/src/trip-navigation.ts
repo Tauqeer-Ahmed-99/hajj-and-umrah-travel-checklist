@@ -1,23 +1,15 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { z } from "zod";
-import { overviewQuery } from "@nmt/contracts";
-
-export const destinations = [
-  "Overview",
-  "Checklist",
-  "Bags",
-  "Guides",
-] as const;
-export type Destination = (typeof destinations)[number];
-const navigation = z.object({
-  tripId: z.uuid(),
-  destination: z.enum(destinations),
-  view: z.literal("overview-search").optional(),
-  familyId: z.uuid().optional(),
-  guideId: z.uuid().optional(),
-  overview: overviewQuery.omit({ q: true }).optional(),
-});
-export type TripNavigation = z.infer<typeof navigation>;
+import {
+  tripNavigation as navigation,
+  type TripNavigation,
+} from "@nmt/contracts";
+export {
+  destinations,
+  type Destination,
+  type PackingView,
+  type ChecklistView,
+  type TripNavigation,
+} from "@nmt/contracts";
 const prefix = (memberId: string) => `nmt.member.${memberId}.`;
 const key = (memberId: string, sessionId: string) =>
   `${prefix(memberId)}${sessionId}.navigation`;

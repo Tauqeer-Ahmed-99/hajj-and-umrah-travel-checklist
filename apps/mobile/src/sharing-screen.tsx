@@ -29,9 +29,15 @@ type Editor =
   | { mode: "bag" | "status" | "bagVisibility"; bag: Bag };
 export function SharedScreen({
   tripId,
+  initialLeg,
+  initialId,
+  initialView,
   onBack,
 }: {
   tripId: string;
+  initialLeg?: "outbound" | "return";
+  initialId?: string;
+  initialView?: "items" | "bags";
   onBack: () => void;
 }) {
   const api = useTripRequest();
@@ -40,9 +46,14 @@ export function SharedScreen({
     trip: TripDetail;
     members: AccessMember[];
   } | null>(null);
-  const [leg, setLeg] = useState<"outbound" | "return">("outbound");
+  const [leg, setLeg] = useState<"outbound" | "return">(
+    initialLeg ?? "outbound",
+  );
   const [editor, setEditor] = useState<Editor | null>(null);
-  const [view, setView] = useState<"items" | "bags" | "activity">("items");
+  const [view, setView] = useState<"items" | "bags" | "activity">(
+    initialView ?? "items",
+  );
+  const [selectedId, setSelectedId] = useState(initialId);
   const [query, setQuery] = useState("");
   const [saved, setSaved] = useState(false);
   const load = useCallback(async () => {
@@ -180,6 +191,7 @@ export function SharedScreen({
           if (next === leg) return;
           setData(null);
           setLeg(next);
+          setSelectedId(undefined);
         }}
       />
       {leg === "return" && (
@@ -205,13 +217,23 @@ export function SharedScreen({
           <ChecklistChoices
             label="Shared view"
             value={view}
-            onChange={setView}
+            onChange={(next) => {
+              setView(next);
+              setSelectedId(undefined);
+            }}
             options={[
               { value: "items", label: "Shared items" },
               { value: "bags", label: "Shared bags" },
               { value: "activity", label: "Shared activity" },
             ]}
           />
+          {selectedId && (
+            <Action
+              title="Show all shared records"
+              secondary
+              onPress={() => setSelectedId(undefined)}
+            />
+          )}
           {view !== "activity" && (
             <Field
               label="Search shared titles and bag names"
@@ -228,8 +250,10 @@ export function SharedScreen({
                 </Notice>
               )}
               {data.shared.items
-                .filter((i) =>
-                  i.entry.title.toLocaleLowerCase().includes(needle),
+                .filter(
+                  (i) =>
+                    i.entry.title.toLocaleLowerCase().includes(needle) &&
+                    (!selectedId || i.entry.id === selectedId),
                 )
                 .map((item) => {
                   const entry = item.entry;
@@ -352,7 +376,11 @@ export function SharedScreen({
                 </Notice>
               )}
               {data.shared.bags
-                .filter((b) => b.name.toLocaleLowerCase().includes(needle))
+                .filter(
+                  (b) =>
+                    b.name.toLocaleLowerCase().includes(needle) &&
+                    (!selectedId || b.id === selectedId),
+                )
                 .map((bag) => (
                   <ChecklistSection key={bag.id} title={bag.name}>
                     <Copy>Shared with trip · {bag.type}</Copy>
