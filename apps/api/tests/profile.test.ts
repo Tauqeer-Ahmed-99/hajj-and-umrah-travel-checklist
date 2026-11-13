@@ -13,6 +13,68 @@ after(async () => {
   if (fixture) await fixture.close();
 });
 
+test("Google profile suggestions remain unsaved until missing fields are completed", async () => {
+  const token = await fixture.token(
+    "user_google_draft",
+    "google@example.test",
+    {
+      strategy: "google_one_tap",
+      profile: { firstName: "  Amina  " },
+    },
+  );
+  const initial = await fixture.request("/api/me", token);
+  assert.equal(initial.status, 200, fixture.logs());
+  assert.deepEqual(initial.data, {
+    profile: null,
+    email: "google@example.test",
+    profileDefaults: { firstName: "Amina" },
+  });
+  const incomplete = await fixture.request("/api/me", token, {
+    firstName: "Amina",
+    lastName: "",
+    username: "amina_google",
+  });
+  assert.equal(incomplete.status, 422);
+  assert.ok(incomplete.data.error.fields.lastName);
+  assert.equal((await fixture.request("/api/me", token)).data.profile, null);
+  const saved = await fixture.request("/api/me", token, {
+    firstName: "Aminah",
+    lastName: "Khan",
+    username: "amina_google",
+  });
+  assert.equal(saved.status, 200);
+  assert.equal(saved.data.profile.firstName, "Aminah");
+  const restored = await fixture.request("/api/me", token);
+  assert.deepEqual(restored.data, saved.data);
+  assert.equal(restored.data.profileDefaults, undefined);
+});
+
+test("verified Google names fill absent Clerk names without using unverified provider data", async () => {
+  for (const verified of [true, false]) {
+    const token = await fixture.token(
+      `user_google_names_${verified}`,
+      "names@example.test",
+      {
+        profile: { firstName: "Chosen", username: "bad-handle" },
+        googleProfile: {
+          firstName: "Provider",
+          lastName: "  Khan  ",
+          verified,
+        },
+      },
+    );
+    const response = await fixture.request("/api/me", token);
+    assert.equal(response.status, 200, fixture.logs());
+    assert.deepEqual(response.data, {
+      profile: null,
+      email: "names@example.test",
+      profileDefaults: verified
+        ? { firstName: "Chosen", lastName: "Khan" }
+        : { firstName: "Chosen" },
+    });
+  }
+});
+
 test("a verified member can complete a profile and retrieve it after an API restart", async () => {
   const token = await fixture.token("user_persistence", "sana@example.test");
   const initial = await fixture.request("/api/me", token);
@@ -182,27 +244,64 @@ test("identity and private email come only from the verified session, with no me
   ]);
 });
 
-test("new sessions for a linked Clerk user keep the same application member", async () => {
-  const emailSession = await fixture.token(
-    "user_linked",
-    "linked@example.test",
-    { sessionId: "sess_email" },
-  );
-  const saved = await fixture.request("/api/me", emailSession, {
-    firstName: "Ali",
-    lastName: "Khan",
-    username: "linked_member",
+for (const firstStrategy of ["google_one_tap", "email_code"] as const) {
+  test(`${firstStrategy}-first and the linked sign-in method retain the saved member`, async () => {
+    // Provider fixtures describe an already linked Clerk identity. They do not
+    // implement or prove Clerk's actual OAuth/email linking policy.
+    const id = `user_linked_${firstStrategy}`;
+    const email = `${firstStrategy}@example.test`;
+    const firstSessionId = `sess_first_${firstStrategy}`;
+    const first = await fixture.token(id, email, {
+      sessionId: firstSessionId,
+      strategy: firstStrategy,
+      profile: { firstName: "Google", lastName: "Suggestion" },
+    });
+    const saved = await fixture.request("/api/me", first, {
+      firstName: "Ali",
+      lastName: "Khan",
+      username: `linked_${firstStrategy}`,
+    });
+    assert.equal(saved.status, 200);
+    fixture.revoke(firstSessionId);
+    const linked = await fixture.token(id, email, {
+      sessionId: `sess_second_${firstStrategy}`,
+      strategy:
+        firstStrategy === "email_code" ? "google_one_tap" : "email_code",
+      profile: {
+        firstName: "Changed",
+        lastName: "Provider",
+        username: "different_hint",
+      },
+    });
+    const restored = await fixture.request("/api/me", linked);
+    assert.equal(restored.status, 200);
+    assert.deepEqual(restored.data, saved.data);
+    assert.deepEqual(Object.keys(restored.data.profile).sort(), [
+      "firstName",
+      "id",
+      "lastName",
+      "username",
+    ]);
+    // A matching email from a different subject must never be linked by the app.
+    const unrelated = await fixture.token(`different_${id}`, email);
+    const isolated = await fixture.request(
+      `/api/me?memberId=${saved.data.profile.id}`,
+      unrelated,
+    );
+    assert.equal(isolated.status, 200);
+    assert.equal(isolated.data.profile, null);
+    const collision = await fixture.request("/api/me", unrelated, {
+      firstName: "Other",
+      lastName: "Person",
+      username: saved.data.profile.username,
+    });
+    assert.equal(collision.status, 409);
+    assert.deepEqual(
+      (await fixture.request("/api/me", linked)).data,
+      saved.data,
+    );
   });
-  const linkedSession = await fixture.token(
-    "user_linked",
-    "linked@example.test",
-    { sessionId: "sess_linked" },
-  );
-  assert.deepEqual(
-    (await fixture.request("/api/me", linkedSession)).data,
-    saved.data,
-  );
-});
+}
 
 test("missing, forged, expired, wrong-issuer, wrong-origin and revoked sessions cannot read or write profiles", async () => {
   const token = await fixture.token("user_invalid", "invalid@example.test");

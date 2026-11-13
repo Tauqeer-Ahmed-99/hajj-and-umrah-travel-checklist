@@ -1,0 +1,6 @@
+appId: in.nmtsolutions.travel
+---
+# Continue manually in Google's real native chooser; do not fake its result.
+- launchApp
+- assertVisible: "Send email code"
+- tapOn: "Continue with Google"

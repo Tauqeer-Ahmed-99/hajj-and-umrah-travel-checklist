@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { BackHandler } from "react-native";
 import { isClerkAPIResponseError, useSignIn, useSignUp } from "@clerk/expo";
+import { useSignInWithGoogle } from "@clerk/expo/google";
+import Constants from "expo-constants";
 import { Action, Copy, Field, Heading, Notice, Screen } from "./ui";
 
 function providerMessage(error: unknown) {
@@ -17,14 +19,83 @@ function providerMessage(error: unknown) {
 export function AuthScreen() {
   const { signIn } = useSignIn();
   const { signUp } = useSignUp();
+  const { startGoogleAuthenticationFlow } = useSignInWithGoogle();
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [verifying, setVerifying] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [cooldown, setCooldown] = useState(0);
   const ready = Boolean(signIn && signUp);
+  async function resetAttempts() {
+    if (!signIn || !signUp) return;
+    const signInReset = await signIn.reset();
+    if (signInReset.error) throw signInReset.error;
+    const signUpReset = await signUp.reset();
+    if (signUpReset.error) throw signUpReset.error;
+  }
+  async function google() {
+    if (busy || !ready) return;
+    setError("");
+    setStatus("");
+    if (!Constants.expoConfig?.extra?.EXPO_PUBLIC_CLERK_GOOGLE_WEB_CLIENT_ID) {
+      setError(
+        "Google sign-in is unavailable in this build. Use an email code, or ask for an updated build.",
+      );
+      return;
+    }
+    setBusy(true);
+    setGoogleBusy(true);
+    try {
+      // Discard an interrupted email/Google attempt before starting another.
+      await resetAttempts();
+      const result = await startGoogleAuthenticationFlow();
+      if (result.createdSessionId && result.setActive) {
+        await result.setActive({ session: result.createdSessionId });
+      } else if (
+        result.signUp?.status === "missing_requirements" ||
+        result.signIn?.status === "needs_first_factor" ||
+        result.signIn?.status === "needs_second_factor" ||
+        result.signIn?.status === "needs_new_password"
+      ) {
+        setError(
+          "Google sign-in needs another verification step. Try again, or use an email code for the same Google email address to finish signing in.",
+        );
+      } else {
+        // Clerk's hook returns no session for both dismissal and no credential.
+        setStatus(
+          "Google sign-in did not finish. Try again or use an email code.",
+        );
+      }
+    } catch (error) {
+      const code =
+        error && typeof error === "object" && "code" in error
+          ? String(error.code)
+          : "";
+      if (code === "SIGN_IN_CANCELLED" || code === "-5") {
+        setStatus(
+          "Google sign-in was cancelled. Try again or use an email code.",
+        );
+      } else if (code === "NO_SAVED_CREDENTIAL_FOUND") {
+        setError(
+          "No Google account is available. Add a Google account on this device, then try again, or use an email code.",
+        );
+      } else if (isClerkAPIResponseError(error)) {
+        setError(
+          `${providerMessage(error)} Try again, or use an email code for the same Google email address.`,
+        );
+      } else {
+        setError(
+          "Google sign-in could not finish. Check your connection and try again, or use an email code. If it keeps failing, ask for an updated build.",
+        );
+      }
+    } finally {
+      setGoogleBusy(false);
+      setBusy(false);
+    }
+  }
   useEffect(() => {
     if (!cooldown) return;
     const timer = setTimeout(() => setCooldown((value) => value - 1), 1000);
@@ -35,14 +106,7 @@ export function AuthScreen() {
     setBusy(true);
     setError("");
     try {
-      if (signIn) {
-        const { error } = await signIn.reset();
-        if (error) throw error;
-      }
-      if (signUp) {
-        const { error } = await signUp.reset();
-        if (error) throw error;
-      }
+      await resetAttempts();
       setVerifying(false);
       setCode("");
       setStatus("");
@@ -73,6 +137,7 @@ export function AuthScreen() {
     setBusy(true);
     try {
       if (!resend) {
+        await resetAttempts();
         const { error } = await signIn.create({
           identifier: address,
           signUpIfMissing: true,
@@ -145,10 +210,17 @@ export function AuthScreen() {
       <Copy>
         {verifying
           ? `Enter the code sent to ${email}.`
-          : "Sign in or create your account with an email code. No password to remember."}
+          : "Sign in or create your account with Google or an email code. No password to remember."}
       </Copy>
       {!verifying ? (
         <>
+          <Action
+            title={googleBusy ? "Opening Google…" : "Continue with Google"}
+            secondary
+            busy={googleBusy}
+            disabled={!ready || busy}
+            onPress={() => void google()}
+          />
           <Field
             label="Email address"
             testID="email-input"
@@ -165,9 +237,9 @@ export function AuthScreen() {
             maxLength={254}
           />
           <Action
-            title={busy ? "Sending code…" : "Send email code"}
-            busy={busy}
-            disabled={!ready}
+            title={busy && !googleBusy ? "Sending code…" : "Send email code"}
+            busy={busy && !googleBusy}
+            disabled={!ready || busy}
             onPress={() => void requestCode()}
           />
           <Copy muted>

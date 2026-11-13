@@ -1,5 +1,6 @@
 import { createClerkClient } from "@clerk/backend";
 import { parsePublishableKey } from "@clerk/shared/keys";
+import { profileInput, type ProfileInput } from "@nmt/contracts";
 import { HttpError } from "./response";
 
 let client: ReturnType<typeof createClerkClient> | undefined;
@@ -104,5 +105,21 @@ export async function identify(request: Request) {
       "email_unverified",
       "Verify your email address before completing your profile.",
     );
-  return { clerkUserId: auth.userId, email: email.emailAddress };
+  const profileDefaults: Partial<ProfileInput> = {};
+  const google = user.externalAccounts.find(
+    (account) =>
+      (account.provider === "google" || account.provider === "oauth_google") &&
+      account.verification?.status === "verified",
+  );
+  for (const field of ["firstName", "lastName", "username"] as const) {
+    const parsed = profileInput.shape[field].safeParse(user[field]);
+    const fallback = profileInput.shape[field].safeParse(google?.[field]);
+    if (parsed.success) profileDefaults[field] = parsed.data;
+    else if (fallback.success) profileDefaults[field] = fallback.data;
+  }
+  return {
+    clerkUserId: auth.userId,
+    email: email.emailAddress,
+    profileDefaults,
+  };
 }

@@ -27,6 +27,8 @@ export const memberProfile = z.object({
 export const accountResponse = z.object({
   profile: memberProfile.nullable(),
   email: z.email(),
+  // Suggestions for the owner's completion form, never an application profile.
+  profileDefaults: profileInput.partial().optional(),
 });
 export type ProfileInput = z.input<typeof profileInput>;
 export type MemberProfile = z.infer<typeof memberProfile>;
