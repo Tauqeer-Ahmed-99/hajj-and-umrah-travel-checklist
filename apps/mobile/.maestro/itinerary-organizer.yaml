@@ -1,0 +1,87 @@
+appId: in.nmtsolutions.travel
+---
+# Start on Overview of a new Hajj trip as its organizer, with a completed profile.
+# Use a unique MAESTRO_ITINERARY_RUN; this is a runner parameter only.
+- scrollUntilVisible:
+    element: "Itinerary and travel details"
+- tapOn: "Itinerary and travel details"
+- extendedWaitUntil:
+    visible: "Itinerary"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Add stop"
+- tapOn: "Add stop"
+- tapOn:
+    id: itinerary-title
+- inputText: "Airport ${MAESTRO_ITINERARY_RUN}"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: itinerary-start
+- tapOn:
+    id: itinerary-start
+- inputText: "2026-11-20T18:00:00+05:30"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: itinerary-start-zone
+- tapOn:
+    id: itinerary-start-zone
+- inputText: "Asia/Kolkata"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Save entry"
+- tapOn: "Save entry"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- scrollUntilVisible:
+    element: '2026-11-20 18:00:00 UTC\+05:30, Asia/Kolkata'
+- assertVisible: '2026-11-20 18:00:00 UTC\+05:30, Asia/Kolkata'
+- scrollUntilVisible:
+    element: "Edit Airport ${MAESTRO_ITINERARY_RUN}"
+- tapOn: "Edit Airport ${MAESTRO_ITINERARY_RUN}"
+- scrollUntilVisible:
+    element:
+      id: itinerary-meeting
+- tapOn:
+    id: itinerary-meeting
+- inputText: "Terminal 1 door 4"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Save entry"
+- tapOn: "Save entry"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Terminal 1 door 4"
+- assertVisible: "Terminal 1 door 4"
+- scrollUntilVisible:
+    element: "Change trip phase"
+    direction: UP
+- tapOn: "Change trip phase"
+- scrollUntilVisible:
+    element: "During the stay"
+- tapOn: "During the stay"
+- scrollUntilVisible:
+    element: "Save phase"
+- tapOn: "Save phase"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: "Itinerary and travel details"
+    timeout: 30000
+- tapOn: "Itinerary and travel details"
+- extendedWaitUntil:
+    visible: "During the stay"
+    timeout: 30000
+- scrollUntilVisible:
+    element: '[0-9]+\. Airport ${MAESTRO_ITINERARY_RUN}'
+- assertVisible: '2026-11-20 18:00:00 UTC\+05:30, Asia/Kolkata'
+- scrollUntilVisible:
+    element: "Terminal 1 door 4"
+- assertVisible: "Terminal 1 door 4"

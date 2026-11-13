@@ -27,6 +27,7 @@ import {
 import { FamilyForm, TravelerForm, TripForm } from "./trip-forms";
 import { InvitationInbox } from "./invitation-inbox";
 import { MembershipScreen } from "./membership-screen";
+import { ItineraryOverview, ItineraryScreen } from "./itinerary-screen";
 
 type Route =
   | { screen: "list" }
@@ -35,6 +36,7 @@ type Route =
   | { screen: "access"; tripId: string; familyId?: string }
   | { screen: "trip"; tripId: string; destination: Destination }
   | { screen: "new-family"; tripId: string }
+  | { screen: "itinerary"; tripId: string }
   | { screen: "family"; tripId: string; familyId: string }
   | { screen: "new-traveler"; tripId: string; familyId: string };
 
@@ -128,6 +130,14 @@ export function TripsScreen({
         }
       />
     );
+  if (route.screen === "itinerary")
+    return (
+      <ItineraryScreen
+        key={route.tripId}
+        tripId={route.tripId}
+        onBack={() => openTrip(route.tripId)}
+      />
+    );
   if (route.screen === "new-family")
     return (
       <FamilyForm
@@ -191,6 +201,9 @@ export function TripsScreen({
       }
       onAccount={onAccount}
       onAccess={() => setRoute({ screen: "access", tripId: route.tripId })}
+      onItinerary={() =>
+        setRoute({ screen: "itinerary", tripId: route.tripId })
+      }
     />
   );
 }
@@ -358,6 +371,7 @@ function TripHome({
   onAccount,
   preferenceError,
   onAccess,
+  onItinerary,
 }: {
   tripId: string;
   destination: Destination;
@@ -368,6 +382,7 @@ function TripHome({
   onAccount: () => void;
   preferenceError: string;
   onAccess: () => void;
+  onItinerary: () => void;
 }) {
   const api = useTripRequest();
   const [detail, setDetail] = useState<TripDetail | null>(null);
@@ -432,6 +447,7 @@ function TripHome({
           </Copy>
           {destination === "Overview" ? (
             <>
+              <ItineraryOverview tripId={tripId} onOpen={onItinerary} />
               <Section title="Journey dates">
                 <Copy>Departure: {detail.trip.startDate}</Copy>
                 <Copy>Return: {detail.trip.endDate}</Copy>
