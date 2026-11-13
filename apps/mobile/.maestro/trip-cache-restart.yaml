@@ -1,0 +1,39 @@
+appId: in.nmtsolutions.travel
+---
+# Prepared before implementation; unrun without a physical device/standalone bundle.
+# First open the fixture trip, itinerary, family checklist and bags online.
+# Disable Wi-Fi too if the device retains it in airplane mode. Do not clear data.
+- setAirplaneMode: enabled
+- stopApp
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible: "Open cached trips"
+    timeout: 45000
+- tapOn: "Open cached trips"
+- tapOn: "Cached ${CACHE_TRIP_NAME}"
+- assertVisible: "Cached trip.*read.only.*"
+- assertVisible: "Last refreshed.*"
+- tapOn: "Cached itinerary and contacts"
+- scrollUntilVisible:
+    element: "${CACHE_CONTACT_PHONE}"
+- assertVisible: "${CACHE_CONTACT_PHONE}"
+- back
+- scrollUntilVisible:
+    element: "Cached checklist for ${CACHE_FAMILY_NAME}"
+- tapOn: "Cached checklist for ${CACHE_FAMILY_NAME}"
+- scrollUntilVisible:
+    element: "${CACHE_ITEM_TITLE}"
+- assertVisible: "${CACHE_ITEM_TITLE}"
+- back
+- scrollUntilVisible:
+    element: "Cached bags for ${CACHE_FAMILY_NAME}"
+- tapOn: "Cached bags for ${CACHE_FAMILY_NAME}"
+- scrollUntilVisible:
+    element: "${CACHE_BAG_NAME}"
+- assertVisible: "${CACHE_BAG_NAME}"
+- assertVisible: "Outbound.*"
+- assertNotVisible: "Add bag"
+- assertNotVisible: "Save changes"
+- back
+- setAirplaneMode: disabled

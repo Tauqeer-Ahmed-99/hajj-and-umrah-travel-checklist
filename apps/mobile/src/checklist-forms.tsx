@@ -105,7 +105,7 @@ export function useSave<T>(
     subject,
     fields: { ...api.error?.fields, ...validation },
     uncertain,
-    locked: api.busy || uncertain,
+    locked: api.busy || uncertain || api.readOnly,
     submit,
     cancel,
     invalid,
@@ -131,6 +131,7 @@ export function SaveActions({
         </Notice>
       )}
       <Action
+        requiresConnection
         title={
           save.busy ? "Saving…" : save.uncertain ? "Retry same save" : title
         }

@@ -10,6 +10,7 @@ import {
   type DepartureCheckPatch,
 } from "@nmt/contracts";
 import { apiOrigin } from "./api";
+import { travelFetch } from "./trip-cache";
 import { TripError } from "./trip-api";
 import type { ChecklistScope } from "./checklist-api";
 
@@ -24,7 +25,7 @@ async function request(
   const origin = apiOrigin();
   if (!origin)
     throw new TripError("This build could not connect to NMT Travel.");
-  const response = await fetch(
+  const response = await travelFetch(
     `${origin}/api/trips/${scope.tripId}/families/${scope.familyId}${path}`,
     {
       method,

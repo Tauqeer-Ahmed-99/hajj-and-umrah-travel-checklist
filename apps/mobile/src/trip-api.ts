@@ -10,16 +10,9 @@ import {
   type TripInput,
 } from "@nmt/contracts";
 import { apiOrigin } from "./api";
-
-export class TripError extends Error {
-  constructor(
-    message: string,
-    public status = 0,
-    public fields?: Record<string, string>,
-  ) {
-    super(message);
-  }
-}
+import { TripError } from "./request-error";
+import { travelFetch } from "./trip-cache";
+export { TripError } from "./request-error";
 
 async function request<T>(
   path: string,
@@ -31,7 +24,7 @@ async function request<T>(
   const origin = apiOrigin();
   if (!origin)
     throw new TripError("This build could not connect to NMT Travel.");
-  const response = await fetch(`${origin}/api/trips${path}`, {
+  const response = await travelFetch(`${origin}/api/trips${path}`, {
     method: body ? "POST" : "GET",
     signal,
     headers: {
