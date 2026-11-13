@@ -1,5 +1,9 @@
 # Text and link guides (#12)
 
+Private PDF/image uploads, file versions and temporary in-app Open are now
+implemented by #13; see [file lifecycle, setup and remaining acceptance](guide-files.md).
+References below to file work being deferred describe the original #12 slice.
+
 Guides now persist text notes and external URLs with family ownership, category,
 description, source, original contributor, accepted updater/time, audience,
 pin state, and sequential versions. Migration `008-guides.sql` is reserved for

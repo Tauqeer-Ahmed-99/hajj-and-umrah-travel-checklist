@@ -1,7 +1,22 @@
 import { z } from "zod";
 
+export const GUIDE_FILE_LIMIT = 20_000_000;
+export const guideMediaType = z.enum([
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
+export const guideFile = z.object({
+  id: z.uuid(),
+  fileName: z.string(),
+  mediaType: guideMediaType,
+  byteSize: z.number().int().positive().max(GUIDE_FILE_LIMIT),
+  sha256: z.string(),
+});
+
 const guideFields = z.strictObject({
-  kind: z.enum(["text", "link"]),
+  kind: z.enum(["text", "link", "file"]),
   title: z.string().trim().min(1, "Enter a title.").max(120),
   category: z.string().trim().min(1, "Enter a category.").max(80),
   description: z.string().trim().max(500).default(""),
@@ -9,6 +24,7 @@ const guideFields = z.strictObject({
   text: z.string().trim().max(3000).default(""),
   url: z.string().trim().max(1500).default(""),
   textDirection: z.enum(["auto", "ltr", "rtl"]).default("auto"),
+  file: guideFile.nullable().default(null),
 });
 export const guideContent = guideFields.superRefine((value, context) => {
   if (value.kind === "text") {
@@ -24,7 +40,7 @@ export const guideContent = guideFields.superRefine((value, context) => {
         path: ["url"],
         message: "Use a link guide for a URL.",
       });
-  } else {
+  } else if (value.kind === "link") {
     let valid = false;
     try {
       const url = new URL(value.url);
@@ -46,12 +62,23 @@ export const guideContent = guideFields.superRefine((value, context) => {
         path: ["text"],
         message: "Use a text guide for a note.",
       });
+  } else if (value.text || value.url) {
+    context.addIssue({
+      code: "custom",
+      path: ["text"],
+      message: "A file guide cannot contain a text note or link.",
+    });
   }
 });
-export const guideInput = guideContent.extend({
-  familyId: z.uuid(),
-  requestId: z.uuid().optional(),
-});
+export const guideInput = guideContent
+  .extend({
+    familyId: z.uuid(),
+    requestId: z.uuid().optional(),
+  })
+  .refine(
+    (value) => value.kind !== "file" && value.file === null,
+    "Use the file upload action for documents and images.",
+  );
 export const guidePatch = z
   .strictObject({
     title: guideFields.shape.title.optional(),
