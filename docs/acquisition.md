@@ -212,10 +212,11 @@ concurrent edits and overdraw, racing reductions, a discarded committed HTTP
 response followed by retries and newer corrections, changed-payload conflicts,
 history and current family/viewer/organizer/revocation permissions.
 
-Local verification passed all 13 acquisition/checklist HTTP scenarios after the
-precision correction and updated checklist response expectation. The first full
-run passed the other 41 scenarios as well; its sole failure was that old exact
-response expectation, subsequently corrected and rerun. Workspace TypeScript,
+Final local verification passed **54/54 authenticated HTTP/PostgreSQL scenarios**,
+including six acquisition scenarios and the seven existing checklist scenarios.
+This full run followed the precision correction, updated checklist response
+expectation, implementation commit and merge of latest integration (already up
+to date at `91809756ecd653cf61e0b11e9dcf3b349289fdbd`). Workspace TypeScript,
 the production API build without service credentials, Android JavaScript export
 with `--no-bytecode`, repository formatting and `git diff --check` also passed.
 `adb devices` listed no attached device/emulator and Maestro was not installed.
