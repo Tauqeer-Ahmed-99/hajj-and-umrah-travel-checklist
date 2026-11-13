@@ -187,6 +187,17 @@ export function mutateReturnPreparation(
               "Propose this item for return review first.",
             );
           const next = { ...current, ...input.fields };
+          const sourceEntry = await db.query(
+            "SELECT id FROM checklist_entries WHERE id=$1 AND family_id=$2 AND removed_at IS NULL",
+            [input.entryId, familyId],
+          );
+          if (
+            !sourceEntry.rowCount &&
+            (next.requiredQuantity > 0 || next.possessionQuantity > 0)
+          )
+            conflict(
+              "This source item was removed. Its reconciliation history is retained; add a new destination requirement for new belongings.",
+            );
           if (
             (!current.reviewed ||
               (input.fields.requiredQuantity !== undefined &&

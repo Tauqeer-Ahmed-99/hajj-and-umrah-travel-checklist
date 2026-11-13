@@ -1048,3 +1048,180 @@ test("concurrent return packing and corrections serialize against current verifi
   ).data.items[0];
   assert.equal(ledger.sourceQuantity, 3);
 });
+
+test("shared return projections keep explicit legs and redact private carrying locations and reconciliation history", async () => {
+  const j = await setup("return_shared_owner");
+  const s = await supply(j, 3, 3);
+  const privateBag = await bag(j, "Secret hotel safe bag");
+  const sharedBag = await bag(j, "Group return bag");
+  await propose(j);
+  assert.equal(
+    (await reconcile(j, s.entryId, { possessionQuantity: 3 })).status,
+    200,
+  );
+  assert.equal(
+    (
+      await returnMove(
+        j,
+        s.entryId,
+        { kind: "unpacked" },
+        { kind: "bag", id: privateBag.id },
+        1,
+      )
+    ).status,
+    200,
+  );
+  const viewer = await member("return_shared_reader");
+  await admit(j, viewer);
+  assert.equal(
+    (
+      await fixture.request(
+        `${j.family}/members/${viewer.id}`,
+        j.owner.token,
+        undefined,
+        "DELETE",
+      )
+    ).status,
+    200,
+  );
+  const visibility = async (
+    kind: "bag" | "item",
+    id: string,
+    audience = "trip",
+  ) =>
+    fixture.request(
+      `${j.family}/${kind === "bag" ? "bags" : "checklist/entries"}/${id}/visibility`,
+      j.owner.token,
+      { requestId: randomUUID(), audience },
+      "POST",
+    );
+  assert.equal((await visibility("bag", sharedBag.id)).status, 200);
+  assert.equal(
+    (
+      await returnMove(
+        j,
+        s.entryId,
+        { kind: "unpacked" },
+        { kind: "bag", id: sharedBag.id },
+        1,
+      )
+    ).status,
+    409,
+  );
+  assert.equal((await visibility("item", s.entryId)).status, 200);
+  assert.equal(
+    (
+      await returnMove(
+        j,
+        s.entryId,
+        { kind: "unpacked" },
+        { kind: "bag", id: sharedBag.id },
+        1,
+      )
+    ).status,
+    200,
+  );
+  const shared = await fixture.request(
+    `${j.trip}/shared?leg=return`,
+    viewer.token,
+  );
+  assert.equal(shared.status, 200, fixture.logs());
+  assert.equal(shared.data.leg, "return");
+  assert.equal(shared.data.items[0].packing.available, 3);
+  assert.equal(shared.data.items[0].packing.packed, 2);
+  const serialized = JSON.stringify(shared.data);
+  for (const secret of [
+    privateBag.id,
+    privateBag.name,
+    j.travelerId,
+    "Checked belongings at checkout",
+    "return_reconciled",
+    "possessionConfirmedBy",
+    "sourceQuantity",
+  ])
+    assert.ok(
+      !serialized.includes(secret),
+      `Shared return response leaked ${secret}`,
+    );
+  assert.ok(
+    shared.data.items[0].packing.allocations.some(
+      (a: { location: { kind: string } }) => a.location.kind === "private",
+    ),
+  );
+  assert.ok(
+    shared.data.history.every(
+      (event: { changes: object }) => Object.keys(event.changes).length === 0,
+    ),
+  );
+  assert.equal(
+    (await fixture.request(`${j.family}/return-preparation`, viewer.token))
+      .status,
+    404,
+  );
+  assert.equal(
+    (await fixture.request(`${j.packing}?leg=return`, viewer.token)).status,
+    404,
+  );
+  assert.equal((await visibility("item", s.entryId, "family")).status, 409);
+  const move = await fixture.request(
+    `${j.trip}/shared/packing`,
+    viewer.token,
+    {
+      requestId: randomUUID(),
+      kind: "move",
+      leg: "return",
+      entryId: s.entryId,
+      from: { kind: "unpacked" },
+      to: { kind: "bag", id: sharedBag.id },
+      quantity: 0.5,
+      physicalConfirmed: true,
+    },
+    "POST",
+  );
+  assert.equal(move.status, 200, fixture.logs());
+  assert.deepEqual(move.data, { saved: true });
+  const safe = (
+    await fixture.request(`${j.trip}/shared?leg=return`, viewer.token)
+  ).data;
+  assert.equal(safe.items[0].packing.packed, 2.5);
+  assert.ok(!JSON.stringify(safe).includes(privateBag.id));
+  assert.equal(
+    (await fixture.request(`${j.trip}/shared?leg=outbound`, viewer.token)).data
+      .items[0].packing.packed,
+    0,
+  );
+});
+
+test("legacy removal retains reconciliation history and cannot revive a return requirement through a correction", async () => {
+  const j = await setup("return_retired");
+  const s = await supply(j, 1, 1);
+  await propose(j);
+  const retired = await reconcile(j, s.entryId, {
+    requiredQuantity: 0,
+    possessionQuantity: 0,
+    left: { quantity: 1, explanation: "Left with host" },
+  });
+  assert.equal(retired.status, 200);
+  assert.equal(
+    (
+      await fixture.request(
+        s.entryPath,
+        j.owner.token,
+        { requestId: randomUUID(), reason: "Archived source requirement" },
+        "DELETE",
+      )
+    ).status,
+    200,
+  );
+  const changed = await reconcile(j, s.entryId, {
+    requiredQuantity: 1,
+    possessionQuantity: 1,
+    left: { quantity: 0, explanation: "" },
+  });
+  assert.equal(changed.status, 409);
+  const retained = (
+    await fixture.request(`${j.family}/return-preparation`, j.owner.token)
+  ).data.items[0];
+  assert.equal(retained.requiredQuantity, 0);
+  assert.equal(retained.left.quantity, 1);
+});
