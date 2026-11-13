@@ -285,6 +285,7 @@ export function PackingScreen({
           { value: "return", label: "Return" },
         ]}
         onChange={(next) => {
+          if (next === leg) return;
           setData(null);
           setSaved(false);
           setView(next === "return" ? "review" : "bags");

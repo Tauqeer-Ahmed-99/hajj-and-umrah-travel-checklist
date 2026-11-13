@@ -175,6 +175,7 @@ export function SharedScreen({
           { value: "return", label: "Return" },
         ]}
         onChange={(next) => {
+          if (next === leg) return;
           setData(null);
           setLeg(next);
         }}
@@ -275,6 +276,14 @@ export function SharedScreen({
                       {entry.dueDate && <Copy>Due: {entry.dueDate}</Copy>}
                       {item.packing && (
                         <>
+                          {leg === "return" && (
+                            <Copy>
+                              Return requirement:{" "}
+                              {item.packing.requiredQuantity} {entry.unit}.
+                              Verified for return packing:{" "}
+                              {item.packing.available} {entry.unit}.
+                            </Copy>
+                          )}
                           <Copy>
                             {leg === "return" ? "Return" : "Outbound"}:{" "}
                             {item.packing.packed} in bags;{" "}

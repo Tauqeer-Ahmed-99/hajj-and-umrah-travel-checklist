@@ -40,7 +40,9 @@ viewers read but cannot mutate. Reads are private/no-store and Authorization-var
   omitted leg retains outbound behavior. Invalid legs fail with 422.
 - Existing packing move/undo and bag-state bodies accept `leg:"return"`.
   Departure-check create/patch/delete select the leg with `?leg=return`.
-  Each mutation returns the current selected-leg snapshot. Bags are physical IDs
+  Leg commands return the current selected-leg snapshot. Physical bag creation,
+  metadata and removal retain their outbound response; the return UI refreshes its
+  selected leg after acceptance. Bags are physical IDs
   reused across legs; no return status inherits outbound Ready/Collected.
 
 Return requirements, possession and disposition amounts live independently of the
