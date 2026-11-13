@@ -12,6 +12,8 @@ import { profileInput, type Account, type ProfileInput } from "@nmt/contracts";
 import { AccountError, accountRequest } from "./api";
 import { Action, Copy, Field, Heading, Loading, Notice, Screen } from "./ui";
 import { useTheme } from "./theme";
+import { TripsScreen } from "./trips-screen";
+import { clearTripNavigation } from "./trip-navigation";
 
 export function AccountScreen() {
   const { getToken } = useAuth();
@@ -30,6 +32,7 @@ export function AccountScreen() {
     username: "",
   });
   const [saveUncertain, setSaveUncertain] = useState(false);
+  const [showAccount, setShowAccount] = useState(false);
   const request = useRef<AbortController | null>(null);
   const generation = useRef(0);
   const signedOut = useRef(false);
@@ -104,6 +107,7 @@ export function AccountScreen() {
     signedOut.current = true;
     ++generation.current;
     request.current?.abort();
+    const memberId = account?.profile?.id;
     // No profile, draft, email, or API response is persisted on this device.
     // Clear memory before revoking Clerk's session and encrypted token cache.
     setAccount(null);
@@ -113,6 +117,7 @@ export function AccountScreen() {
     setHidden(true);
     setLeaving(true);
     try {
+      if (memberId) await clearTripNavigation(memberId).catch(() => {});
       await signOut();
     } catch {
       setError(
@@ -138,6 +143,14 @@ export function AccountScreen() {
     });
     return () => listener.remove();
   }, [account?.profile, hidden, saving]);
+  useEffect(() => {
+    if (!account?.profile || !showAccount || hidden) return;
+    const listener = BackHandler.addEventListener("hardwareBackPress", () => {
+      setShowAccount(false);
+      return true;
+    });
+    return () => listener.remove();
+  }, [account?.profile, showAccount, hidden]);
   async function save() {
     if (saving || hidden) return;
     const parsed = profileInput.safeParse(draft);
@@ -218,7 +231,7 @@ export function AccountScreen() {
         />
       </Screen>
     );
-  if (loading)
+  if (loading && !account)
     return (
       <Screen>
         <Loading message="Loading your saved profile…" />
@@ -235,6 +248,13 @@ export function AccountScreen() {
       </Screen>
     );
   const profile = account.profile;
+  // A completed server profile remains the gate for every protected trip view.
+  // Keep the workspace mounted during foreground profile refreshes so a native
+  // background/foreground transition does not discard an in-progress form.
+  if (profile && !showAccount)
+    return (
+      <TripsScreen profile={profile} onAccount={() => setShowAccount(true)} />
+    );
   return (
     <Screen>
       <Heading>
@@ -260,6 +280,7 @@ export function AccountScreen() {
             <Copy>@{profile.username}</Copy>
           </View>
           <Notice>Profile saved</Notice>
+          <Action title="Open trips" onPress={() => setShowAccount(false)} />
           <Copy muted>
             Your email stays private. Your name and username identify you to
             people on your trips.

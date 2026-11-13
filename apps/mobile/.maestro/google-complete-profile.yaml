@@ -25,10 +25,18 @@ appId: in.nmtsolutions.travel
     element: "Save profile"
 - tapOn: "Save profile"
 - extendedWaitUntil:
+    visible: "Account"
+    timeout: 30000
+- tapOn: "Account"
+- extendedWaitUntil:
     visible: "Profile saved"
     timeout: 30000
 - stopApp
 - launchApp
+- extendedWaitUntil:
+    visible: "Account"
+    timeout: 30000
+- tapOn: "Account"
 - extendedWaitUntil:
     visible: "Profile saved"
     timeout: 30000
