@@ -23,13 +23,14 @@ import { randomUUID } from "node:crypto";
 import { requireFamilyAccess, resourceId } from "./permissions";
 import { createOnce, transaction } from "./trips";
 import { HttpError } from "./response";
+import { preservePacking } from "./packing-invariants";
 
 const categoryColumns = `id, family_id AS "familyId", name`;
 const entryColumns = `id, family_id AS "familyId", category_id AS "categoryId", kind, title,
   required_quantity::float8 AS "requiredQuantity", unit, beneficiaries, responsible_member_id AS "responsibleMemberId",
   priority, due_date::text AS "dueDate", notes, leg, source, last_reviewed_on::text AS "lastReviewedOn", task_status AS "taskStatus", ${acquisitionColumns}`;
 
-async function lockChecklist(
+export async function lockChecklist(
   db: PoolClient,
   memberId: string,
   tripId: string,
@@ -368,11 +369,13 @@ export function removeChecklistRecord(
     }
     const table =
       kind === "category" ? "checklist_categories" : "checklist_entries";
+    let current: ChecklistEntry | undefined;
     if (kind === "entry") {
-      const record = await db.query(
-        `SELECT kind FROM checklist_entries WHERE id = $1 AND family_id = $2 AND removed_at IS NULL`,
+      const record = await db.query<ChecklistEntry>(
+        `SELECT ${entryColumns} FROM checklist_entries WHERE id = $1 AND family_id = $2 AND removed_at IS NULL`,
         [id, familyId],
       );
+      current = record.rows[0];
       if (
         record.rows[0]?.kind === "item" &&
         (!details.reason || !details.requestId)
@@ -383,6 +386,8 @@ export function removeChecklistRecord(
         );
     }
     const remove = async () => {
+      if (current)
+        await preservePacking(db, familyId, current, { removed: true });
       const result = await db.query(
         `UPDATE ${table} SET removed_at = clock_timestamp() WHERE id = $1 AND family_id = $2 AND removed_at IS NULL RETURNING id`,
         [id, familyId],
@@ -545,6 +550,11 @@ export function patchChecklistEntry(
           { requiredQuantity: parsed.data.requiredQuantity! },
           { reason },
         );
+        await preservePacking(db, familyId, current, {
+          requiredQuantity: parsed.data.requiredQuantity!,
+          unit: parsed.data.unit,
+          leg: parsed.data.leg,
+        });
       }
       await entryReferences(db, tripId, familyId, changedFields);
       const keys = (
@@ -609,6 +619,7 @@ export function mutateAcquisition(
         const changes =
           input.kind === "move" ? moveQuantities(current, input) : input.fields;
         validateAcquisition(current, changes, input, input.kind === "correct");
+        await preservePacking(db, familyId, current, changes);
         const previous = {
           ...current.acquisition,
           requiredQuantity: current.requiredQuantity,

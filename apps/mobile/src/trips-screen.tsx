@@ -30,6 +30,7 @@ import { MembershipScreen } from "./membership-screen";
 import { ItineraryOverview, ItineraryScreen } from "./itinerary-screen";
 import { GuidesScreen } from "./guides-screen";
 import { ChecklistDestination, ChecklistScreen } from "./checklist-screen";
+import { BagsDestination, PackingScreen } from "./packing-screen";
 
 type Route =
   | { screen: "list" }
@@ -40,6 +41,7 @@ type Route =
   | { screen: "new-family"; tripId: string }
   | { screen: "itinerary"; tripId: string }
   | { screen: "checklist"; tripId: string; familyId: string }
+  | { screen: "bags"; tripId: string; familyId: string }
   | { screen: "family"; tripId: string; familyId: string }
   | { screen: "new-traveler"; tripId: string; familyId: string };
 
@@ -152,6 +154,15 @@ export function TripsScreen({
         onBack={() => openTrip(route.tripId, "Checklist")}
       />
     );
+  if (route.screen === "bags")
+    return (
+      <PackingScreen
+        key={`${route.tripId}:${route.familyId}`}
+        tripId={route.tripId}
+        familyId={route.familyId}
+        onBack={() => openTrip(route.tripId, "Bags")}
+      />
+    );
   if (route.screen === "new-family")
     return (
       <FamilyForm
@@ -236,6 +247,9 @@ export function TripsScreen({
       }
       onChecklist={(familyId) =>
         setRoute({ screen: "checklist", tripId: route.tripId, familyId })
+      }
+      onBags={(familyId) =>
+        setRoute({ screen: "bags", tripId: route.tripId, familyId })
       }
     />
   );
@@ -406,6 +420,7 @@ function TripHome({
   onAccess,
   onItinerary,
   onChecklist,
+  onBags,
 }: {
   tripId: string;
   destination: Destination;
@@ -418,6 +433,7 @@ function TripHome({
   onAccess: () => void;
   onItinerary: () => void;
   onChecklist: (familyId: string) => void;
+  onBags: (familyId: string) => void;
 }) {
   const api = useTripRequest();
   const [detail, setDetail] = useState<TripDetail | null>(null);
@@ -430,10 +446,6 @@ function TripHome({
   }, [api.run, tripId]);
   useForegroundRefresh(load);
   const placeholders = {
-    Bags: [
-      "Bags are not available yet",
-      "Bag planning and packing are not available in this build. No packing or departure readiness has been recorded here.",
-    ],
     Guides: [
       "Guides are not available yet",
       "The guide library is not available in this build. No files have been uploaded or saved offline here.",
@@ -511,7 +523,8 @@ function TripHome({
                 )}
               </Section>
               <Notice>
-                Purchase and packing readiness are not available in this build.
+                Open Checklist to arrange items and Bags to confirm outbound
+                packing.
               </Notice>
             </>
           ) : destination === "Checklist" ? (
@@ -519,6 +532,8 @@ function TripHome({
               families={detail.families}
               onOpen={onChecklist}
             />
+          ) : destination === "Bags" ? (
+            <BagsDestination families={detail.families} onOpen={onBags} />
           ) : (
             <Section title={placeholders[destination][0]}>
               <Copy>{placeholders[destination][1]}</Copy>

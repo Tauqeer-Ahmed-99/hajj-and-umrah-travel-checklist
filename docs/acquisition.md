@@ -139,18 +139,16 @@ No-op edits and duplicate retries add no history. No private email is exposed.
 
 ## Boundary for packing ticket #8
 
-There is **no bag/allocation schema in this revision**. No packing total is
-fabricated and no future table is queried. `src/acquisition.ts` holds current-state
-quantity validation; `mutateAcquisition`, `patchChecklistEntry` and
-`removeChecklistRecord` in `src/checklist.ts` are the transactional mutation
-boundary. #8 must extend all three paths under the same family/membership locks
-with checks against its real allocation records. That includes physical-state
-reductions/returns/corrections, requirement reductions, Not needed, unit changes
-and soft removal through the older checklist endpoint. A new packing endpoint
-alone would leave a bypass. #8 must also use this locking order for its allocation
-writes and atomically reject/reconcile changes that leave allocations above
-available quantities or the active requirement. Replaying an old receipt must
-continue to return current state without checking/applying an old stock snapshot.
+[#8 packing](packing.md) now adds real bag/allocation records in migration 011.
+`src/acquisition.ts` retains acquisition validation; `mutateAcquisition`,
+`patchChecklistEntry` and `removeChecklistRecord` in `src/checklist.ts` also call
+`preservePacking` under the same `lockChecklist` family/membership locks used by
+packing writes. Physical reductions/returns/corrections, requirement changes,
+Not needed, unit/leg changes and legacy soft removal reject any change leaving
+allocations above availability or the active requirement. Unpack the affected
+contents first; no endpoint silently deletes an allocation. Accepted stock
+reductions clamp outstanding repacking amounts. Receipts still return current
+accepted acquisition state without checking/applying an old stock snapshot.
 
 ## Mobile behavior and prepared native journeys
 
