@@ -1,0 +1,23 @@
+appId: in.nmtsolutions.travel
+---
+# Prepared, not executed. Start on Overview as a different account with explicit
+# viewer access to the family used by checklist-child-and-task.yaml.
+- tapOn:
+    id: tab-checklist
+- scrollUntilVisible:
+    element: "Checklist for ${MAESTRO_CHECKLIST_FAMILY}"
+- tapOn: "Checklist for ${MAESTRO_CHECKLIST_FAMILY}"
+- extendedWaitUntil:
+    visible: "Read-only family access.*"
+    timeout: 30000
+- assertNotVisible: "Add category"
+- assertNotVisible: "Add item"
+- assertNotVisible: "Add non-packing task"
+- assertNotVisible: "Copy starter suggestions"
+- scrollUntilVisible:
+    element: "Child clothing ${MAESTRO_CHECKLIST_RUN}"
+- assertNotVisible: "Edit Child clothing ${MAESTRO_CHECKLIST_RUN}"
+- scrollUntilVisible:
+    element: "Task: Done"
+- assertVisible: "Task: Done"
+- assertNotVisible: "Edit Call hotel ${MAESTRO_CHECKLIST_RUN}"
