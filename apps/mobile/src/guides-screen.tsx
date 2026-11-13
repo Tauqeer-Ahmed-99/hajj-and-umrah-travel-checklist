@@ -11,6 +11,9 @@ import { guideApi } from "./guide-api";
 import { tripApi } from "./trip-api";
 import { useTripRequest } from "./use-trip-request";
 import { GuideChangeForm, GuideForm } from "./guide-forms";
+import { GuideFileForm } from "./guide-file-form";
+import { GuideFileViewer } from "./guide-file-viewer";
+import { guideFileApi } from "./guide-file-api";
 import {
   GuideChoices,
   GuideMetadata,
@@ -31,7 +34,9 @@ type Route =
   | { mode: "list" }
   | { mode: "read" | "history"; id: string }
   | { mode: "new"; families: Family[] }
-  | { mode: "edit" | "audience" | "pin"; guide: Guide };
+  | { mode: "new-file"; families: Family[] }
+  | { mode: "file-view"; id: string; version?: number }
+  | { mode: "edit" | "audience" | "pin" | "upload"; guide: Guide };
 export function GuidesScreen({
   tripId,
   onBack,
@@ -47,10 +52,20 @@ export function GuidesScreen({
 }) {
   const [route, setRoute] = useState<Route>({ mode: "list" });
   const [saved, setSaved] = useState(false);
-  const form = ["new", "edit", "audience", "pin"].includes(route.mode);
+  const form = [
+    "new",
+    "edit",
+    "audience",
+    "pin",
+    "new-file",
+    "upload",
+    "file-view",
+  ].includes(route.mode);
   const back = () => {
     if (route.mode === "list") onBack();
     else if (route.mode === "history") setRoute({ mode: "read", id: route.id });
+    else if (route.mode === "file-view")
+      setRoute({ mode: route.version ? "history" : "read", id: route.id });
     else setRoute({ mode: "list" });
   };
   useEffect(() => {
@@ -69,6 +84,25 @@ export function GuidesScreen({
     setSaved(false);
     setRoute({ mode: "list" });
   };
+  if (route.mode === "file-view")
+    return (
+      <GuideFileViewer
+        tripId={tripId}
+        id={route.id}
+        version={route.version}
+        onBack={back}
+      />
+    );
+  if (route.mode === "new-file" || route.mode === "upload")
+    return (
+      <GuideFileForm
+        tripId={tripId}
+        initial={route.mode === "upload" ? route.guide : undefined}
+        families={route.mode === "new-file" ? route.families : []}
+        onSaved={onSaved}
+        onCancel={cancel}
+      />
+    );
   if (route.mode === "new" || route.mode === "edit")
     return (
       <GuideForm
@@ -91,7 +125,16 @@ export function GuidesScreen({
       />
     );
   if (route.mode === "history")
-    return <GuideHistory tripId={tripId} id={route.id} onBack={back} />;
+    return (
+      <GuideHistory
+        tripId={tripId}
+        id={route.id}
+        onBack={back}
+        onOpenFile={(version) =>
+          setRoute({ mode: "file-view", id: route.id, version })
+        }
+      />
+    );
   if (route.mode === "read")
     return (
       <GuideReader
@@ -101,6 +144,7 @@ export function GuidesScreen({
         saved={saved}
         onBack={back}
         onHistory={() => setRoute({ mode: "history", id: route.id })}
+        onOpenFile={() => setRoute({ mode: "file-view", id: route.id })}
         onChange={(mode, guide) => {
           setSaved(false);
           setRoute({ mode, guide });
@@ -119,6 +163,7 @@ export function GuidesScreen({
         setRoute({ mode: "read", id });
       }}
       onCreate={(families) => setRoute({ mode: "new", families })}
+      onUpload={(families) => setRoute({ mode: "new-file", families })}
     />
   );
 }
@@ -130,6 +175,7 @@ function GuideLibrary({
   onAccount,
   onOpen,
   onCreate,
+  onUpload,
 }: {
   tripId: string;
   footer: ReactNode;
@@ -138,6 +184,7 @@ function GuideLibrary({
   onAccount(): void;
   onOpen(id: string): void;
   onCreate(families: Family[]): void;
+  onUpload(families: Family[]): void;
 }) {
   const api = useTripRequest();
   const [q, setQ] = useState("");
@@ -172,8 +219,8 @@ function GuideLibrary({
       {data && <Copy>{data.name}</Copy>}
       <Heading>Guide library</Heading>
       <Copy muted>
-        Text notes and links for your journey. Family-only guides appear only
-        with a current family grant.
+        Documents, images, text notes and links for your journey. Family-only
+        guides appear only with a current family grant.
       </Copy>
       <Field
         label="Search guide titles and metadata"
@@ -228,6 +275,13 @@ function GuideLibrary({
                 {guide.pinned ? " · Pinned" : ""}
               </Copy>
               {!!guide.description && <Copy>{guide.description}</Copy>}
+              {guide.kind === "file" && (
+                <Notice>
+                  {guide.file
+                    ? "File ready · Open inside the app"
+                    : "Upload incomplete · Cannot open yet"}
+                </Notice>
+              )}
               <Copy muted>
                 Version {guide.version} · Updated by @{guide.updatedBy.username}
               </Copy>
@@ -239,7 +293,17 @@ function GuideLibrary({
             </GuideSection>
           ))}
           {data.families.length > 0 ? (
-            <Action title="Add guide" onPress={() => onCreate(data.families)} />
+            <>
+              <Action
+                title="Add guide"
+                onPress={() => onCreate(data.families)}
+              />
+              <Action
+                title="Upload document or image"
+                secondary
+                onPress={() => onUpload(data.families)}
+              />
+            </>
           ) : (
             <Copy muted>
               Read-only library. A family editor or coordinator can contribute
@@ -268,22 +332,33 @@ function GuideReader({
   onBack,
   onHistory,
   onChange,
+  onOpenFile,
 }: {
   tripId: string;
   id: string;
   saved: boolean;
   onBack(): void;
   onHistory(): void;
-  onChange(mode: "edit" | "audience" | "pin", guide: Guide): void;
+  onChange(mode: "edit" | "audience" | "pin" | "upload", guide: Guide): void;
+  onOpenFile(): void;
 }) {
   const api = useTripRequest();
   const [guide, setGuide] = useState<Guide | null>(null);
+  const [pendingUploads, setPendingUploads] = useState(0);
   const load = useCallback(async () => {
     setGuide(null);
-    const result = await api.run((token, signal) =>
-      guideApi.read(tripId, id, token, signal),
-    );
-    if (result) setGuide(result.guide);
+    const result = await api.run(async (token, signal) => {
+      const current = await guideApi.read(tripId, id, token, signal);
+      const pending =
+        current.guide.kind === "file" && current.guide.canEdit
+          ? await guideFileApi.pending(tripId, id, token, signal)
+          : null;
+      return { ...current, pending: pending?.uploads.length ?? 0 };
+    });
+    if (result) {
+      setGuide(result.guide);
+      setPendingUploads(result.pending);
+    }
   }, [api.run, tripId, id]);
   useRefresh(load);
   const openLink = async () => {
@@ -309,6 +384,35 @@ function GuideReader({
           <GuideMetadata guide={guide} />
           {guide.kind === "text" ? (
             <GuideText guide={guide} />
+          ) : guide.kind === "file" ? (
+            <>
+              {pendingUploads > 0 && (
+                <Notice>
+                  {pendingUploads} incomplete upload(s). Open the upload screen
+                  to retry or finish.
+                </Notice>
+              )}
+              <Copy>
+                Files open inside NMT Travel using a temporary view. Opening
+                does not save an offline copy or export a device file.
+              </Copy>
+              <Action
+                title="Open file"
+                disabled={!guide.file}
+                onPress={onOpenFile}
+              />
+              {guide.canEdit && (
+                <Action
+                  title={
+                    guide.file
+                      ? "Upload new version"
+                      : "Retry incomplete upload"
+                  }
+                  secondary
+                  onPress={() => onChange("upload", guide)}
+                />
+              )}
+            </>
           ) : (
             <>
               <Copy>{guide.url}</Copy>
@@ -362,10 +466,12 @@ function GuideHistory({
   tripId,
   id,
   onBack,
+  onOpenFile,
 }: {
   tripId: string;
   id: string;
   onBack(): void;
+  onOpenFile(version: number): void;
 }) {
   const api = useTripRequest();
   const [versions, setVersions] = useState<
@@ -405,6 +511,13 @@ function GuideHistory({
           {selected === guide.version &&
             (guide.kind === "text" ? (
               <GuideText guide={guide} />
+            ) : guide.kind === "file" ? (
+              <Action
+                title={`Open file version ${guide.version}`}
+                secondary
+                disabled={!guide.file}
+                onPress={() => onOpenFile(guide.version)}
+              />
             ) : (
               <Copy>{guide.url}</Copy>
             ))}

@@ -6,7 +6,7 @@ import { startFixture } from "./support/fixture";
 let fixture: Awaited<ReturnType<typeof startFixture>>;
 before(
   async () => {
-    fixture = await startFixture({ notifications: true });
+    fixture = await startFixture({}, { notifications: true });
   },
   { timeout: 120_000 },
 );
