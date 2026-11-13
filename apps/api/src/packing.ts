@@ -20,12 +20,13 @@ import { createOnce, transaction } from "./trips";
 import { HttpError } from "./response";
 import { milli } from "./acquisition";
 import { lockChecklist as lockPacking } from "./checklist";
+import { lockSharedContent } from "./sharing-access";
 import {
   recordPacking as record,
   checkColumns,
   invalidateDepartureChecks,
 } from "./packing-events";
-const bagColumns = `b.id, b.family_id AS "familyId", b.name, b.type, b.carrier_traveler_id AS "carrierTravelerId",
+export const bagColumns = `b.id, b.family_id AS "familyId", b.name, b.type, b.carrier_traveler_id AS "carrierTravelerId",
  b.identifying_note AS "identifyingNote", b.weight_note AS "weightNote", b.allowance_note AS "allowanceNote",
  (SELECT coalesce(jsonb_agg(jsonb_build_object('leg', l.leg, 'status', l.status, 'needsReview', l.needs_review,
    'confirmedAt', to_char(l.confirmed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
@@ -57,7 +58,7 @@ async function packingState(
     canEdit,
   };
 }
-async function packingItems(db: PoolClient, familyId: string) {
+export async function packingItems(db: PoolClient, familyId: string) {
   const items = await db.query<PackingItem>(
     `WITH totals AS (
     SELECT entry_id, sum(quantity) AS allocated,
@@ -169,9 +170,15 @@ export function setBagState(
   familyId: string,
   bagId: string,
   input: BagStateInput,
+  shared = false,
 ) {
   return transaction(async (db) => {
-    await lockPacking(db, memberId, tripId, familyId);
+    if (shared)
+      await lockSharedContent(db, memberId, tripId, familyId, {
+        kind: "bag",
+        id: bagId,
+      });
+    else await lockPacking(db, memberId, tripId, familyId);
     await createOnce(
       db,
       memberId,
@@ -215,7 +222,7 @@ export function setBagState(
         );
       },
     );
-    return packingState(db, familyId, true);
+    return shared ? { saved: true as const } : packingState(db, familyId, true);
   });
 }
 
@@ -291,6 +298,16 @@ async function applyMove(
     );
   await validLocation(db, familyId, input.from);
   await validLocation(db, familyId, input.to);
+  if (input.to.kind === "bag") {
+    const invalid = await db.query(
+      `SELECT 1 FROM bags b JOIN checklist_entries e ON e.family_id = b.family_id WHERE b.id = $1 AND e.id = $2 AND b.audience = 'trip' AND e.audience <> 'trip'`,
+      [input.to.id, input.entryId],
+    );
+    if (invalid.rowCount)
+      conflict(
+        "A shared bag can contain only explicitly shared items. Ask the owning coordinator to share this item first.",
+      );
+  }
   const at = (location: PackingLocation) =>
     location.kind === "unpacked"
       ? milli(current.notPacked)
@@ -382,9 +399,37 @@ export function mutatePacking(
   tripId: string,
   familyId: string,
   input: PackingInput,
+  shared = false,
 ) {
   return transaction(async (db) => {
-    await lockPacking(db, memberId, tripId, familyId);
+    if (shared)
+      await lockSharedContent(db, memberId, tripId, familyId, {
+        kind: "entry",
+        id: input.kind === "move" ? input.entryId : "",
+      });
+    else await lockPacking(db, memberId, tripId, familyId);
+    if (shared && input.kind === "move") {
+      for (const location of [input.from, input.to]) {
+        if (location.kind === "traveler")
+          throw new HttpError(
+            404,
+            "not_found",
+            "This carrying location is not available to you.",
+          );
+        if (location.kind === "bag") {
+          const permitted = await db.query(
+            "SELECT id FROM bags WHERE family_id = $1 AND id = $2 AND audience = 'trip' AND removed_at IS NULL",
+            [familyId, location.id],
+          );
+          if (!permitted.rowCount)
+            throw new HttpError(
+              404,
+              "not_found",
+              "This carrying location is not available to you.",
+            );
+        }
+      }
+    }
     await createOnce(
       db,
       memberId,
@@ -425,7 +470,7 @@ export function mutatePacking(
       },
     );
     // Never replay a receipt's previous locations over newer accepted edits.
-    return packingState(db, familyId, true);
+    return shared ? { saved: true as const } : packingState(db, familyId, true);
   });
 }
 
@@ -443,9 +488,15 @@ export function patchBag(
   familyId: string,
   bagId: string,
   input: BagPatch,
+  shared = false,
 ) {
   return transaction(async (db) => {
-    await lockPacking(db, memberId, tripId, familyId);
+    if (shared)
+      await lockSharedContent(db, memberId, tripId, familyId, {
+        kind: "bag",
+        id: bagId,
+      });
+    else await lockPacking(db, memberId, tripId, familyId);
     await createOnce(
       db,
       memberId,
@@ -480,7 +531,7 @@ export function patchBag(
         );
       },
     );
-    return packingState(db, familyId, true);
+    return shared ? { saved: true as const } : packingState(db, familyId, true);
   });
 }
 export function removeBag(

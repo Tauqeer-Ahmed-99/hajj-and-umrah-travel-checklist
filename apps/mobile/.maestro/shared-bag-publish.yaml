@@ -1,0 +1,32 @@
+appId: in.nmtsolutions.travel
+---
+# Prepared, not executed. Start in the owning family's Checklist as coordinator.
+# Seed an acquired item allocated in a bag. Supply MAESTRO_SHARED_ITEM and BAG.
+- scrollUntilVisible:
+    element: "Visibility for ${MAESTRO_SHARED_ITEM}"
+- tapOn: "Visibility for ${MAESTRO_SHARED_ITEM}"
+- tapOn: "Shared with trip"
+- scrollUntilVisible:
+    element: "Save visibility"
+- tapOn: "Save visibility"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Back to family checklists"
+    direction: UP
+- tapOn: "Back to family checklists"
+- tapOn:
+    id: tab-bags
+# Open the seeded family's Bags screen manually, then continue this flow.
+- tapOn: "Bags for ${MAESTRO_PACKING_FAMILY}"
+- scrollUntilVisible:
+    element: "Visibility for ${MAESTRO_SHARED_BAG}"
+- tapOn: "Visibility for ${MAESTRO_SHARED_BAG}"
+- tapOn: "Shared with trip"
+- scrollUntilVisible:
+    element: "Save visibility"
+- tapOn: "Save visibility"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000

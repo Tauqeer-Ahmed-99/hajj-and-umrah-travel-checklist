@@ -5,6 +5,7 @@ export * from "./itinerary";
 export * from "./guides";
 export * from "./checklist";
 export * from "./packing";
+export * from "./sharing";
 
 export const profileInput = z.strictObject({
   firstName: z
