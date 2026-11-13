@@ -60,7 +60,7 @@ function useCreate<T, R>(
     busy: api.busy,
     error: api.error,
     uncertain,
-    locked: api.busy || uncertain,
+    locked: api.busy || uncertain || api.readOnly,
     fields: { ...api.error?.fields, ...validation },
     submit,
   };
@@ -118,6 +118,7 @@ function SaveActions({
         </Notice>
       )}
       <Action
+        requiresConnection
         title={busy ? "Saving…" : uncertain ? "Retry same save" : title}
         busy={busy}
         onPress={onSave}

@@ -4,6 +4,7 @@ import {
   type ApiError,
   type ProfileInput,
 } from "@nmt/contracts";
+import { travelFetch } from "./trip-cache";
 
 export class AccountError extends Error {
   constructor(
@@ -44,7 +45,7 @@ export async function accountRequest(
     throw new AccountError(
       "This build could not connect to NMT Travel. Contact the person who shared it.",
     );
-  const response = await fetch(`${origin}/api/me`, {
+  const response = await travelFetch(`${origin}/api/me`, {
     method: profile ? "PUT" : "GET",
     signal,
     headers: {

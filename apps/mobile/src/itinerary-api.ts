@@ -8,6 +8,7 @@ import {
   type ItineraryEntryPatch,
 } from "@nmt/contracts";
 import { apiOrigin } from "./api";
+import { travelFetch } from "./trip-cache";
 import { TripError } from "./trip-api";
 
 async function request<T>(
@@ -22,7 +23,7 @@ async function request<T>(
   const origin = apiOrigin();
   if (!origin)
     throw new TripError("This build could not connect to NMT Travel.");
-  const response = await fetch(
+  const response = await travelFetch(
     `${origin}/api/trips/${tripId}/itinerary${path}`,
     {
       method,

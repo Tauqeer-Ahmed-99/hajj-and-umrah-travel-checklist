@@ -10,6 +10,7 @@ import {
   type PackingMove,
 } from "@nmt/contracts";
 import { apiOrigin } from "./api";
+import { travelFetch } from "./trip-cache";
 import { TripError } from "./trip-api";
 import { acceptedTravelChange } from "./accepted-travel-change";
 async function request<T>(
@@ -23,7 +24,7 @@ async function request<T>(
   const origin = apiOrigin();
   if (!origin)
     throw new TripError("This build could not connect to NMT Travel.");
-  const response = await fetch(`${origin}/api/trips/${path}`, {
+  const response = await travelFetch(`${origin}/api/trips/${path}`, {
     method,
     signal,
     headers: {

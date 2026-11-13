@@ -45,7 +45,7 @@ export function InvitationForm({
     !!pending &&
     !!api.error &&
     (api.error.status === 0 || api.error.status >= 500);
-  const locked = api.busy || uncertain;
+  const locked = api.busy || uncertain || api.readOnly;
   const back = () => {
     if (api.busy) return;
     Alert.alert(
@@ -189,6 +189,7 @@ export function InvitationForm({
         manage family access; organizers manage the trip.
       </Text>
       <Action
+        requiresConnection
         title={
           api.busy
             ? "Saving invitation…"

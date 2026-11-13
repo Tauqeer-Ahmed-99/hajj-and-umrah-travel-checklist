@@ -51,7 +51,7 @@ export function GuideFileForm({
   const [guideId, setGuideId] = useState(initial?.id);
   const picked = useRef<File | null>(null),
     active = useRef(true);
-  const locked = api.busy || body !== null;
+  const locked = api.busy || body !== null || api.readOnly;
   useEffect(() => {
     active.current = true;
     return () => {
@@ -279,12 +279,14 @@ export function GuideFileForm({
             {(item.byteSize / 1_000_000).toFixed(2)} MB
           </Copy>
           <Action
+            requiresConnection
             title={`Finish uploaded ${item.fileName}`}
             secondary
             disabled={api.busy}
             onPress={() => void finish({ id: initial!.id, upload: item })}
           />
           <Action
+            requiresConnection
             title={`Retry upload ${item.fileName}`}
             secondary
             disabled={api.busy || body !== null}
@@ -312,12 +314,14 @@ export function GuideFileForm({
       {api.error && <Notice error>{api.error.message}</Notice>}
       {api.busy && <Notice>{phase || "Checking incomplete uploads…"}</Notice>}
       <Action
+        requiresConnection
         title={body ? "Retry same upload" : "Upload and finish"}
         busy={api.busy}
         onPress={() => void upload()}
       />
       {session && (
         <Action
+          requiresConnection
           title="Finish uploaded file"
           secondary
           disabled={api.busy}

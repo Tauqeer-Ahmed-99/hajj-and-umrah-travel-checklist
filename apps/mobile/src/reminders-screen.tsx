@@ -183,6 +183,7 @@ export function RemindersScreen({
       {data && (
         <>
           <Action
+            requiresConnection
             title="Add reminder"
             disabled={api.busy || deviceBusy}
             onPress={() => setForm("new")}
@@ -223,6 +224,7 @@ export function RemindersScreen({
               {r.ownerMemberId === memberId && (
                 <>
                   <Action
+                    requiresConnection
                     title={`Reschedule ${r.title}`}
                     secondary
                     disabled={api.busy || deviceBusy}
@@ -230,6 +232,7 @@ export function RemindersScreen({
                   />
                   {r.needsReview && (
                     <Action
+                      requiresConnection
                       title={`Confirm reviewed ${r.title}`}
                       secondary
                       disabled={api.busy || deviceBusy}
@@ -240,6 +243,7 @@ export function RemindersScreen({
                   )}
                   {!r.dismissed && (
                     <Action
+                      requiresConnection
                       title={`Dismiss ${r.title}`}
                       secondary
                       disabled={api.busy || deviceBusy}
@@ -263,6 +267,7 @@ export function RemindersScreen({
               ] as const
             ).map(([key, label]) => (
               <Action
+                requiresConnection
                 key={key}
                 title={`${label}: ${data.preferences[key] ? "On" : "Off"}`}
                 secondary
@@ -346,7 +351,7 @@ function ReminderForm({
     !!pending &&
     !!api.error &&
     (api.error.status === 0 || api.error.status >= 500);
-  const locked = api.busy || uncertain;
+  const locked = api.busy || uncertain || api.readOnly;
   useEffect(() => {
     if (existing) return;
     let current = true;
@@ -561,6 +566,7 @@ function ReminderForm({
         </Notice>
       )}
       <Action
+        requiresConnection
         title={uncertain ? "Retry same reminder save" : "Save reminder"}
         busy={api.busy}
         disabled={references.busy}
