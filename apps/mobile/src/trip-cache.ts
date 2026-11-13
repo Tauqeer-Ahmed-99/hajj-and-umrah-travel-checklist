@@ -184,10 +184,30 @@ function publish(
   finishRevokedCleanup(directory);
   // A failed cleanup remains hidden until a subsequent successful cleanup.
   if (new File(directory, "discard").exists) return;
+  let lostSharedAccess = false;
+  if (path.endsWith("/shared")) {
+    try {
+      const previous = sharedContentResponse.parse(
+        JSON.parse(new File(directory, name(path)).textSync()).data,
+      );
+      const next = sharedContentResponse.parse(record.data);
+      lostSharedAccess =
+        previous.items.some(
+          (item) =>
+            !next.items.some((current) => current.entry.id === item.entry.id),
+        ) ||
+        previous.bags.some(
+          (bag) => !next.bags.some((current) => current.id === bag.id),
+        );
+    } catch {
+      /* No prior compatible shared snapshot. */
+    }
+  }
   const pending = new File(directory, `${name(path)}.pending`);
   pending.writeSync(JSON.stringify(record));
   current(value, signal);
   pending.moveSync(new File(directory, name(path)), { overwrite: true });
+  if (lostSharedAccess) for (const listener of revokedListeners) listener();
   tripCacheChanged();
 }
 export function clearTripCache() {

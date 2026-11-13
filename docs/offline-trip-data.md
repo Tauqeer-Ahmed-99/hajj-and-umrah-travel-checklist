@@ -47,6 +47,29 @@ snapshots disappear together. Failed cleanup blocks private access. #16's
 notification-session cleanup remains in place and is also invoked when the
 completed-profile gate is invalidated. User-owned exports cannot be recalled.
 
+## Shared-content integration
+
+The committed #9 implementation is merged into this branch. Its existing
+`GET /api/trips/:tripId/shared` response is cached as one complete, validated
+projection. **Cached shared items and bags** reads that projection directly,
+including canonical acquisition/task quantities and permitted last confirmed
+locations. It never obtains a private family snapshot merely because an item or
+bag is shared. Private carrier identities, identifying notes and private location
+references are absent by the shared API contract and are never reconstructed.
+Each shared entry is listed once; bag sections reference that same list rather
+than duplicating quantities or adding counts across private/shared views.
+
+Reconnection refreshes the complete unfiltered shared projection. Making content
+private removes it from the next snapshot; it does not append to an old list.
+Loss of shared records also dismisses stale live trip views/editors. Family-grant
+loss removes private family snapshots and their older navigation labels while
+retaining the separate currently authorized shared projection. Each scope is
+checked independently, and filtered/partial listings still never authorize purge.
+The shared client crosses the same write/session guard; #9's family endpoints,
+atomic sharing/packing constraints and reserved SQL015 remain unchanged. #15 uses
+no SQL014 migration. #18's summary client crosses the session boundary but neither
+choices nor outgoing preview text is persisted in this cache.
+
 ## Connectivity, permissions and saves
 
 Expo SDK 58 `expo-network ~58.0.5` supplies real Android network-state events.
@@ -128,6 +151,13 @@ start. Do not clear app data on relaunch.
 7. Check maximum Android font/display scaling, TalkBack, 48+ dp controls, native
    Back, light/dark/device appearance, stable reader position and foreground
    refresh with a draft. No OTA or background refresh may interrupt reading.
+8. `trip-cache-shared.yaml`: as a different-family member without the owning
+   family grant, load Shared with trip online, then restart disconnected. Set
+   `CACHE_TRIP_NAME`, `CACHE_SHARED_ITEM`, `CACHE_PRIVATE_BAG_NOTE`. Verify the
+   cached shared projection, absence of private fields and disabled writes. From
+   a second account make an item/bag family-only, reconnect/refresh, and verify
+   disappearance here and after another disconnected restart. Repeat grant loss
+   while the same item remains trip-shared: only the private snapshot disappears.
 
 Provider and physical-device acceptance remains pending. Service resources,
 real messages/exports, issue closure, pushes, PRs, APKs and OTA publication are
