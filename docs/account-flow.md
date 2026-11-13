@@ -156,12 +156,21 @@ disabled. The actual PostgreSQL migration command succeeded against that databas
 Only the consumed `DATABASE_URL` is retained in the project's environment and the
 ignored local API configuration; unused provider-generated aliases were removed.
 
-No API deployment has been made. Vercel's automatic GitHub connection failed
-because its signed-in account lacks write/admin access to this repository; direct
-CLI deployment remains available. Clerk provisioning is awaiting the account
-owner's required browser acceptance of its Vercel Marketplace terms. Clerk keys,
-production DNS/OAuth, a private R2 bucket, signing, and device verification remain
-unfinished. These resources do not establish the rest of specification #1.
+An initial CLI deployment of integration commit `c082814` is Ready at
+[`nmt-travel-api.vercel.app`](https://nmt-travel-api.vercel.app). Vercel assigned
+this first deployment to its production target automatically. Unauthenticated
+requests to `/api/me` and `/api/trips` returned the expected `401 invalid_session`,
+including through the public alias. This verifies hosting and unauthenticated
+denial only: Clerk is not configured and no authenticated deployed journey has
+passed. Trip migrations 002-004 have also been applied to the actual Neon database.
+
+Vercel's automatic GitHub connection failed because its signed-in account lacks
+write/admin access to this repository; the CLI deployment succeeded independently.
+Clerk provisioning is awaiting the account owner's required browser acceptance
+of its Vercel Marketplace terms. Clerk keys, production DNS/OAuth, a private R2
+bucket, and device verification remain unfinished. EAS preview signing setup is
+recorded in [google-sign-in.md](google-sign-in.md). No APK or OTA update has been
+published, and these resources do not establish the rest of specification #1.
 
 1. Create/configure Neon PostgreSQL and run the migration against the chosen
    database. Verify recovery/backup settings separately; local persistence tests
