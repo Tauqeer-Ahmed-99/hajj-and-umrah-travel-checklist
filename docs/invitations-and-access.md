@@ -145,7 +145,14 @@ preserving existing roles, an accepted receipt surviving email change, and old
 offers failing after access removal. Concurrent scenarios cover one-time
 acceptance, acceptance versus revocation, coordinator departure, and authorized
 family writes versus removal. Existing account/trip regressions also remain in
-the full suite. Check results for the final commit are reported by the implementer.
+the full suite.
+
+After merging integration head `aad62f9` (including #11), the combined branch
+passed all 35 authenticated HTTP/PostgreSQL tests, workspace TypeScript checks,
+the Next production API build without service credentials, Android JavaScript
+export with `--no-bytecode`, repository formatting, and `git diff --check`.
+The navigation merge preserves both itinerary and membership destinations, and
+migrations 005 and 006 run together through the disposable fixture.
 
 **Unverified:** Clerk marketplace terms have not been confirmed; no live Clerk
 app/authenticated provider acceptance was available. Local controlled-provider
