@@ -125,8 +125,9 @@ queue or automatic retry. Offline trip-data caching is outside #4.
 
 Observed local checks for this slice:
 
-- `npm test`: 18 real HTTP/PostgreSQL tests passed (11 existing profile scenarios
-  and seven trip scenarios). The real Clerk SDK verifies fixture session tokens;
+- `npm test`: 21 real HTTP/PostgreSQL tests passed after merging the current
+  integration branch (14 account/Google scenarios and seven trip scenarios).
+  The real Clerk SDK verifies fixture session tokens;
   only its external provider boundary is controlled.
 - Trip red/green slices observed `404 → 201` for trip creation/reopen, another
   family, and dependent traveler persistence. The request-ID retry slice observed
@@ -134,7 +135,8 @@ Observed local checks for this slice:
 - Tests cover API restart persistence, both trip kinds, multiple trips/families,
   incomplete profiles, unrelated accounts, revoked sessions, scoped coordinators,
   editor/viewer restrictions, organizer isolation from another family's roster,
-  crossed trip/family IDs, private response headers, validation, and changed
+  crossed trip/family IDs, an already-linked member's new session retaining its
+  trip, private response headers, validation, and changed
   request-ID conflict without overwriting the saved trip.
 - Before #5 exposes invitations, tests seed membership preconditions in disposable
   PostgreSQL. They do not mock authorization or assert via database side channels:
@@ -154,8 +156,9 @@ maestro test apps/mobile/.maestro/trips-and-traveler.yaml
 It creates Umrah and Hajj trips, adds Aisha Ahmed without an account, switches
 between trips, reopens her roster, visits the four destinations, relaunches into
 the last selected trip and Guides view, verifies the second roster stays empty,
-and signs out/relaunches without the previous roster. The #2 profile flow now
-opens Account explicitly after profile completion and restart.
+and signs out/relaunches without the previous roster. The #2 profile flow and #3
+Google/linked-member flows now open Account explicitly after profile completion
+and restart. Google profile defaults and the completion gate remain intact.
 
 **Unverified external/native acceptance:** no Android device or emulator was
 attached and Maestro was unavailable on this implementation machine. The flow

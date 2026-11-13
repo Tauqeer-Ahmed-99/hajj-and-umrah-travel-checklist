@@ -26,7 +26,9 @@ external HTTP boundary is controlled by the integration fixture.
 For service configuration, migrations, Android development/preview builds, the
 native signup check, known local build limits, and primary documentation, see
 [Account flow setup and verification](docs/account-flow.md). See the
-[native Google setup and acceptance checks](docs/google-sign-in.md) for #3 and the
+[native Google setup and acceptance checks](docs/google-sign-in.md) for #3,
+[private trips, family permissions, and Android roster flow](docs/trips-and-families.md)
+for #4, and the
 [product brief](docs/idea.md) for the complete agreed scope and architecture.
 
 Created in [T3 Code](https://t3.codes).

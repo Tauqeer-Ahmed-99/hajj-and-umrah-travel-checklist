@@ -76,6 +76,16 @@ test("a completed member creates and reopens a private trip with organizer and i
   assert.deepEqual(restored.data, created.data);
   const listed = await fixture.request("/api/trips", owner.token);
   assert.deepEqual(listed.data, { trips: [created.data.trip] });
+  const linkedSession = await fixture.token(
+    "user_trip_owner",
+    "trip_owner@example.test",
+    { sessionId: "sess_trip_linked", strategy: "google_one_tap" },
+  );
+  assert.deepEqual(
+    (await fixture.request(`/api/trips/${created.data.trip.id}`, linkedSession))
+      .data,
+    created.data,
+  );
   assert.equal(restored.headers.get("cache-control"), "private, no-store");
   assert.ok(
     restored.headers.get("vary")?.toLowerCase().includes("authorization"),
