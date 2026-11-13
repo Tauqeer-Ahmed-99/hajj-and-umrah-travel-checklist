@@ -22,6 +22,7 @@ export async function sharedState(
   db: PoolClient,
   memberId: string,
   tripId: string,
+  activityEntryId?: string,
 ): Promise<SharedContent> {
   await requireTripAccess(db, memberId, tripId);
   const families = await db.query<{ id: string }>(
@@ -60,8 +61,8 @@ export async function sharedState(
     );
     const visibleEntries = new Set(entries.rows.map((e) => e.id));
     const events = await db.query<PackingEvent>(
-      `SELECT id,leg,entry_id AS "entryId",bag_ids AS "bagIds",action,at,actor,changes,false AS "canUndo" FROM packing_history WHERE family_id = $1 ORDER BY sequence DESC LIMIT 200`,
-      [family.id],
+      `SELECT id,leg,entry_id AS "entryId",bag_ids AS "bagIds",action,at,actor,changes,false AS "canUndo" FROM packing_history WHERE family_id = $1 AND ($2::uuid IS NULL OR entry_id = $2) ORDER BY sequence DESC LIMIT 200`,
+      [family.id, activityEntryId ?? null],
     );
     for (const event of events.rows) {
       const permittedAt = (id: string) =>
@@ -107,8 +108,8 @@ export async function sharedState(
       history.push({ ...event, changes: {}, canUndo: false });
     }
     const edits = await db.query<PackingEvent>(
-      `SELECT h.id, CASE WHEN e.leg = 'return' THEN 'return' ELSE 'outbound' END AS leg, e.id AS "entryId", ARRAY[]::uuid[] AS "bagIds", 'entry_' || h.action AS action,h.at,h.actor,'{}'::jsonb AS changes,false AS "canUndo" FROM checklist_history h JOIN checklist_entries e ON e.id = h.entity_id WHERE h.family_id = $1 AND h.entity_type = 'entry' AND e.audience = 'trip' AND e.removed_at IS NULL AND h.at >= e.shared_at ORDER BY h.sequence DESC LIMIT 200`,
-      [family.id],
+      `SELECT h.id, CASE WHEN e.leg = 'return' THEN 'return' ELSE 'outbound' END AS leg, e.id AS "entryId", ARRAY[]::uuid[] AS "bagIds", 'entry_' || h.action AS action,h.at,h.actor,'{}'::jsonb AS changes,false AS "canUndo" FROM checklist_history h JOIN checklist_entries e ON e.id = h.entity_id WHERE h.family_id = $1 AND h.entity_type = 'entry' AND e.audience = 'trip' AND e.removed_at IS NULL AND h.at >= e.shared_at AND ($2::uuid IS NULL OR e.id = $2) ORDER BY h.sequence DESC LIMIT 200`,
+      [family.id, activityEntryId ?? null],
     );
     history.push(...edits.rows);
     const packed = await packingItems(db, family.id);

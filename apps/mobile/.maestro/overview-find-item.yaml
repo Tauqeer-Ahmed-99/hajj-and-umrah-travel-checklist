@@ -1,0 +1,19 @@
+appId: in.nmtsolutions.travel
+---
+# Start on Overview of a synthetic trip with a physically packed item.
+- scrollUntilVisible:
+    element: "Find belongings and responsibilities"
+- tapOn: "Find belongings and responsibilities"
+- tapOn: "Find an item or carrying location"
+- inputText: ${OVERVIEW_ITEM}
+- tapOn: "Search permitted records"
+- assertVisible: ${OVERVIEW_ITEM}
+- assertVisible: ${OVERVIEW_BAG}
+- assertVisible: "Travel leg: Outbound"
+- tapOn: "Activity for ${OVERVIEW_ITEM}"
+- assertVisible: "Accepted item activity"
+- assertVisible: "Quantity packed"
+- assertNotVisible: ${OVERVIEW_PRIVATE_NOTE}
+- tapOn: "Back to results"
+- tapOn: "Refresh overview"
+- assertVisible: ${OVERVIEW_ITEM}
