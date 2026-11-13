@@ -144,6 +144,20 @@ test("a family saves a child's requirement with a separate responsible account a
     id: saved.data.entry.id,
     familyId: journey.familyId,
     taskStatus: null,
+    acquisition: {
+      remaining: 3,
+      ordered: 0,
+      delivered: 0,
+      bought: 0,
+      received: 0,
+      alreadyAvailable: 0,
+      stillToArrange: 3,
+      awaitingReceipt: 0,
+      available: 0,
+      remainingToBeReady: 3,
+      expectedDeliveryDate: null,
+      notNeededReason: null,
+    },
   });
   await fixture.restartApi();
   const reopened = await fixture.request(journey.checklist, owner.token);
@@ -265,6 +279,7 @@ test("Hajj and Umrah starter copies are independent editable preparation prompts
       owner.token,
       {
         title: "Our family's chosen supplies",
+        requestId: randomUUID(),
         requiredQuantity: 2.5,
         unit: "litres",
         source: "Our booking guidance",
@@ -353,7 +368,12 @@ test("reassignment and concurrent field edits preserve one item; removal keeps h
   assert.deepEqual(saves[0].data, saves[1].data);
   const path = `${journey.checklist}/entries/${saves[0].data.entry.id}`;
   const changes = await Promise.all([
-    fixture.request(path, owner.token, { requiredQuantity: 6 }, "PATCH"),
+    fixture.request(
+      path,
+      owner.token,
+      { requiredQuantity: 6, requestId: randomUUID() },
+      "PATCH",
+    ),
     fixture.request(
       path,
       editor.token,
@@ -393,7 +413,14 @@ test("reassignment and concurrent field edits preserve one item; removal keeps h
   );
   for (let i = 0; i < 2; i++)
     assert.equal(
-      (await fixture.request(path, owner.token, undefined, "DELETE")).status,
+      (
+        await fixture.request(
+          path,
+          owner.token,
+          { reason: "Duplicate requirement", requestId: randomUUID() },
+          "DELETE",
+        )
+      ).status,
       200,
       fixture.logs(),
     );

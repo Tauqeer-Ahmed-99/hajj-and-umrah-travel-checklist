@@ -12,6 +12,7 @@ import {
   checklistTaskStatus,
   checklistPriority,
   checklistLeg,
+  mutationDetails,
   type Checklist,
   type ChecklistCategory,
   type ChecklistEntry,
@@ -25,7 +26,7 @@ import { checklistApi, type ChecklistScope } from "./checklist-api";
 import { useTripRequest } from "./use-trip-request";
 import { ChecklistChoices } from "./checklist-ui";
 
-type FormProps = {
+export type FormProps = {
   scope: ChecklistScope;
   onSaved: () => void;
   onCancel: () => void;
@@ -38,7 +39,7 @@ type Validator<T> = {
         error: { issues: { path: PropertyKey[]; message: string }[] };
       };
 };
-function useSave<T>(
+export function useSave<T>(
   schema: Validator<T>,
   operation: (value: T, token: string, signal: AbortSignal) => Promise<unknown>,
   props: FormProps,
@@ -107,7 +108,7 @@ function useSave<T>(
     invalid,
   };
 }
-function SaveActions({
+export function SaveActions({
   save,
   title,
   onSave,
@@ -195,7 +196,7 @@ export function ChecklistEntryForm(
   const [requestId] = useState(randomUUID);
   const [value, setValue] = useState<ChecklistEntryInput>(() => {
     if (props.initial) {
-      const { id, familyId, ...fields } = props.initial;
+      const { id, familyId, acquisition, ...fields } = props.initial;
       return fields;
     }
     return {
@@ -219,6 +220,7 @@ export function ChecklistEntryForm(
     value.requiredQuantity?.toString() ?? "",
   );
   const [details, setDetails] = useState(false);
+  const [reason, setReason] = useState("");
   const update = <K extends keyof ChecklistEntryInput>(
     key: K,
     next: ChecklistEntryInput[K],
@@ -259,7 +261,11 @@ export function ChecklistEntryForm(
             JSON.stringify(initial[key as keyof ChecklistEntry]),
       ),
     );
-    void save.submit(patch);
+    void save.submit({
+      ...patch,
+      requestId,
+      ...(reason.trim() ? { reason } : {}),
+    });
   };
   return (
     <Screen>
@@ -315,6 +321,17 @@ export function ChecklistEntryForm(
             error={save.fields.unit}
             maxLength={40}
           />
+          {props.initial && (
+            <Field
+              label="Reason for requirement change"
+              value={reason}
+              onChangeText={setReason}
+              editable={!save.locked}
+              error={save.fields.reason}
+              hint="Required when reducing the quantity. Use acquisition actions to correct existing stock in the same save."
+              maxLength={800}
+            />
+          )}
         </>
       ) : (
         <ChecklistChoices
@@ -535,12 +552,25 @@ export function ChecklistRemovalForm(
     kind: "categories" | "entries";
     id: string;
     title: string;
+    requiresReason?: boolean;
   },
 ) {
+  const [requestId] = useState(randomUUID);
+  const [reason, setReason] = useState("");
   const save = useSave(
-    { safeParse: () => ({ success: true as const, data: true }) },
-    (_input, token, signal) =>
-      checklistApi.remove(props.scope, props.kind, props.id, token, signal),
+    mutationDetails.refine((value) => !props.requiresReason || !!value.reason, {
+      message: "Enter a reason for removing this item.",
+      path: ["reason"],
+    }),
+    (input, token, signal) =>
+      checklistApi.remove(
+        props.scope,
+        props.kind,
+        props.id,
+        token,
+        signal,
+        input,
+      ),
     props,
   );
   return (
@@ -550,10 +580,22 @@ export function ChecklistRemovalForm(
         The entry leaves the active checklist. Its accepted history is retained.
         A category must be empty before removal.
       </Copy>
+      {props.requiresReason && (
+        <Field
+          label="Reason for removal"
+          value={reason}
+          onChangeText={setReason}
+          editable={!save.locked}
+          error={save.fields.reason}
+          maxLength={800}
+        />
+      )}
       <SaveActions
         save={save}
         title="Confirm removal"
-        onSave={() => void save.submit(true)}
+        onSave={() =>
+          void save.submit({ requestId, ...(reason.trim() ? { reason } : {}) })
+        }
       />
     </Screen>
   );

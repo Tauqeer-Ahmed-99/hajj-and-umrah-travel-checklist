@@ -1,5 +1,6 @@
 import {
   checklistResponse,
+  acquisitionViewsResponse,
   checklistEntryResponse,
   checklistCategoryResponse,
   checklistHistoryResponse,
@@ -10,6 +11,7 @@ import {
   type ChecklistEntryInput,
   type ChecklistEntryPatch,
   type ChecklistStarterInput,
+  type AcquisitionInput,
 } from "@nmt/contracts";
 import { apiOrigin } from "./api";
 import { TripError } from "./trip-api";
@@ -60,6 +62,27 @@ async function request<T>(
   }
 }
 export const checklistApi = {
+  acquisitionViews: (
+    scope: ChecklistScope,
+    token: string,
+    signal: AbortSignal,
+  ) => request(scope, "/acquisition", token, signal, acquisitionViewsResponse),
+  acquire: (
+    scope: ChecklistScope,
+    id: string,
+    body: AcquisitionInput,
+    token: string,
+    signal: AbortSignal,
+  ) =>
+    request(
+      scope,
+      `/entries/${id}/acquisition`,
+      token,
+      signal,
+      checklistEntryResponse,
+      "POST",
+      body,
+    ),
   read: (scope: ChecklistScope, token: string, signal: AbortSignal) =>
     request(scope, "", token, signal, checklistResponse),
   history: (scope: ChecklistScope, token: string, signal: AbortSignal) =>
@@ -117,6 +140,7 @@ export const checklistApi = {
     id: string,
     token: string,
     signal: AbortSignal,
+    details?: { reason?: string; requestId?: string },
   ) =>
     request(
       scope,
@@ -125,6 +149,7 @@ export const checklistApi = {
       signal,
       checklistSavedResponse,
       "DELETE",
+      kind === "entries" ? details : undefined,
     ),
   copy: (
     scope: ChecklistScope,

@@ -1,5 +1,10 @@
 # Family checklists and tasks (#6)
 
+The original #6 slice below records requirements/tasks. Quantity-based acquisition
+is now implemented by [#7](acquisition.md), which extends item responses and guards
+legacy item requirement PATCH and removal with quantities, reasons and retry IDs.
+Tasks still have no acquisition ledger or packing behavior.
+
 Family-private checklist categories and entries persist in PostgreSQL. A category
 can contain supply requirements and non-packing tasks. This slice records required
 quantities only: it records no purchase, physical availability, bag allocation,

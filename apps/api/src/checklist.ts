@@ -10,7 +10,15 @@ import {
   type ChecklistEntryPatch,
   type ChecklistHistory,
   type ChecklistStarterInput,
+  type AcquisitionInput,
 } from "@nmt/contracts";
+import {
+  acquisitionColumns,
+  acquisitionFields,
+  invalidAcquisition,
+  moveQuantities,
+  validateAcquisition,
+} from "./acquisition";
 import { randomUUID } from "node:crypto";
 import { requireFamilyAccess, resourceId } from "./permissions";
 import { createOnce, transaction } from "./trips";
@@ -19,7 +27,7 @@ import { HttpError } from "./response";
 const categoryColumns = `id, family_id AS "familyId", name`;
 const entryColumns = `id, family_id AS "familyId", category_id AS "categoryId", kind, title,
   required_quantity::float8 AS "requiredQuantity", unit, beneficiaries, responsible_member_id AS "responsibleMemberId",
-  priority, due_date::text AS "dueDate", notes, leg, source, last_reviewed_on::text AS "lastReviewedOn", task_status AS "taskStatus"`;
+  priority, due_date::text AS "dueDate", notes, leg, source, last_reviewed_on::text AS "lastReviewedOn", task_status AS "taskStatus", ${acquisitionColumns}`;
 
 async function lockChecklist(
   db: PoolClient,
@@ -170,6 +178,36 @@ export function readChecklist(
     } satisfies Checklist;
   });
 }
+export async function readAcquisitionViews(
+  memberId: string,
+  tripId: string,
+  familyId: string,
+) {
+  const checklist = await readChecklist(memberId, tripId, familyId);
+  const asOf = new Date().toISOString().slice(0, 10);
+  const active = checklist.entries.filter(
+    (entry) => entry.acquisition && !entry.acquisition.notNeededReason,
+  );
+  return {
+    shopping: active.filter((entry) => entry.acquisition!.stillToArrange > 0),
+    expectedDelivery: active.filter(
+      (entry) => entry.acquisition!.awaitingReceipt > 0,
+    ),
+    overdueReceipt: active.filter(
+      (entry) =>
+        entry.acquisition!.awaitingReceipt > 0 &&
+        entry.acquisition!.expectedDeliveryDate &&
+        entry.acquisition!.expectedDeliveryDate < asOf,
+    ),
+    essentialOutstanding: active.filter(
+      (entry) =>
+        entry.priority === "essential" &&
+        entry.acquisition!.remainingToBeReady > 0,
+    ),
+    canEdit: checklist.canEdit,
+    asOf,
+  };
+}
 export function createChecklistCategory(
   memberId: string,
   tripId: string,
@@ -311,6 +349,7 @@ export function removeChecklistRecord(
   familyId: string,
   id: string,
   kind: "category" | "entry",
+  details: { reason?: string; requestId?: string } = {},
 ) {
   return transaction(async (db) => {
     await lockChecklist(db, memberId, tripId, familyId);
@@ -329,21 +368,49 @@ export function removeChecklistRecord(
     }
     const table =
       kind === "category" ? "checklist_categories" : "checklist_entries";
-    const result = await db.query(
-      `UPDATE ${table} SET removed_at = clock_timestamp() WHERE id = $1 AND family_id = $2 AND removed_at IS NULL RETURNING id`,
-      [id, familyId],
-    );
-    if (result.rowCount)
-      await history(
+    if (kind === "entry") {
+      const record = await db.query(
+        `SELECT kind FROM checklist_entries WHERE id = $1 AND family_id = $2 AND removed_at IS NULL`,
+        [id, familyId],
+      );
+      if (
+        record.rows[0]?.kind === "item" &&
+        (!details.reason || !details.requestId)
+      )
+        invalidAcquisition(
+          "Enter a reason and save identifier to remove an item.",
+          "reason",
+        );
+    }
+    const remove = async () => {
+      const result = await db.query(
+        `UPDATE ${table} SET removed_at = clock_timestamp() WHERE id = $1 AND family_id = $2 AND removed_at IS NULL RETURNING id`,
+        [id, familyId],
+      );
+      if (result.rowCount)
+        await history(
+          db,
+          memberId,
+          familyId,
+          kind,
+          id,
+          "removed",
+          {
+            removed: true,
+            ...(details.reason ? { reason: details.reason } : {}),
+          },
+          { removed: false },
+        );
+    };
+    if (details.requestId)
+      await createOnce(
         db,
         memberId,
-        familyId,
-        kind,
-        id,
-        "removed",
-        { removed: true },
-        { removed: false },
+        `checklist-remove:${tripId}:${familyId}:${kind}:${id}`,
+        details,
+        remove,
       );
+    else await remove();
     return { saved: true as const };
   });
 }
@@ -438,42 +505,139 @@ export function patchChecklistEntry(
   return transaction(async (db) => {
     await lockChecklist(db, memberId, tripId, familyId);
     const current = await entry(db, familyId, entryId);
-    const { id, familyId: ignoredFamily, ...fields } = current;
-    const parsed = checklistEntryInput.safeParse({ ...fields, ...input });
-    if (!parsed.success)
-      throw new HttpError(
-        422,
-        "invalid_checklist",
-        "Check the highlighted checklist fields.",
-        Object.fromEntries(
-          parsed.error.issues.map((issue) => [
-            String(issue.path[0] ?? "form"),
-            issue.message,
-          ]),
-        ),
+    const { id, familyId: ignoredFamily, acquisition, ...fields } = current;
+    const { requestId, reason, ...changedFields } = input;
+    const apply = async () => {
+      const parsed = checklistEntryInput.safeParse({
+        ...fields,
+        ...changedFields,
+      });
+      if (!parsed.success)
+        throw new HttpError(
+          422,
+          "invalid_checklist",
+          "Check the highlighted checklist fields.",
+          Object.fromEntries(
+            parsed.error.issues.map((issue) => [
+              String(issue.path[0] ?? "form"),
+              issue.message,
+            ]),
+          ),
+        );
+      if (current.kind === "item") {
+        if (
+          (changedFields.requiredQuantity !== undefined ||
+            changedFields.unit !== undefined) &&
+          !requestId
+        )
+          invalidAcquisition("Use a save identifier for requirement changes.");
+        if (
+          changedFields.unit !== undefined &&
+          changedFields.unit !== current.unit &&
+          acquisition!.available + acquisition!.awaitingReceipt > 0
+        )
+          invalidAcquisition(
+            "Clear the current acquisition quantities before changing units.",
+            "unit",
+          );
+        validateAcquisition(
+          current,
+          { requiredQuantity: parsed.data.requiredQuantity! },
+          { reason },
+        );
+      }
+      await entryReferences(db, tripId, familyId, changedFields);
+      const keys = (
+        Object.keys(changedFields) as (keyof typeof entryFields)[]
+      ).filter(
+        (key) =>
+          JSON.stringify(changedFields[key]) !== JSON.stringify(current[key]),
       );
-    await entryReferences(db, tripId, familyId, input);
-    const keys = Object.keys(input) as (keyof ChecklistEntryPatch)[];
-    await db.query(
-      `UPDATE checklist_entries SET ${keys.map((key, i) => `${entryFields[key]} = $${i + 3}`).join(", ")} WHERE id = $1 AND family_id = $2`,
-      [
-        entryId,
+      if (!keys.length) return;
+      await db.query(
+        `UPDATE checklist_entries SET ${keys.map((key, i) => `${entryFields[key]} = $${i + 3}`).join(", ")} WHERE id = $1 AND family_id = $2`,
+        [
+          entryId,
+          familyId,
+          ...keys.map((key) =>
+            key === "beneficiaries"
+              ? JSON.stringify(changedFields[key])
+              : changedFields[key],
+          ),
+        ],
+      );
+      await history(
+        db,
+        memberId,
         familyId,
-        ...keys.map((key) =>
-          key === "beneficiaries" ? JSON.stringify(input[key]) : input[key],
-        ),
-      ],
-    );
-    await history(
+        "entry",
+        entryId,
+        "updated",
+        { ...changedFields, ...(reason ? { reason } : {}) },
+        current,
+      );
+    };
+    if (requestId)
+      await createOnce(
+        db,
+        memberId,
+        `checklist-edit:${tripId}:${familyId}:${entryId}`,
+        input,
+        apply,
+      );
+    else await apply();
+    return { entry: await entry(db, familyId, entryId) };
+  });
+}
+
+export function mutateAcquisition(
+  memberId: string,
+  tripId: string,
+  familyId: string,
+  entryId: string,
+  input: AcquisitionInput,
+) {
+  return transaction(async (db) => {
+    await lockChecklist(db, memberId, tripId, familyId);
+    const current = await entry(db, familyId, entryId);
+    await createOnce(
       db,
       memberId,
-      familyId,
-      "entry",
-      entryId,
-      "updated",
+      `acquisition:${tripId}:${familyId}:${entryId}`,
       input,
-      current,
+      async () => {
+        const changes =
+          input.kind === "move" ? moveQuantities(current, input) : input.fields;
+        validateAcquisition(current, changes, input, input.kind === "correct");
+        const previous = {
+          ...current.acquisition,
+          requiredQuantity: current.requiredQuantity,
+        };
+        const keys = (
+          Object.keys(changes) as (keyof typeof acquisitionFields)[]
+        ).filter((key) => changes[key] !== previous[key]);
+        if (!keys.length) return;
+        await db.query(
+          `UPDATE checklist_entries SET ${keys.map((key, i) => `${acquisitionFields[key]} = $${i + 3}`).join(", ")} WHERE id = $1 AND family_id = $2`,
+          [entryId, familyId, ...keys.map((key) => changes[key])],
+        );
+        await history(
+          db,
+          memberId,
+          familyId,
+          "entry",
+          entryId,
+          "updated",
+          {
+            ...changes,
+            ...(input.reason ? { reason: input.reason } : {}),
+            ...(input.physicalConfirmed ? { physicalConfirmed: true } : {}),
+          },
+          previous,
+        );
+      },
     );
+    // Retry acknowledges the command but always returns current accepted fields.
     return { entry: await entry(db, familyId, entryId) };
   });
 }
