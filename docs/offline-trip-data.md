@@ -1,5 +1,9 @@
 # Cached trip data (#15)
 
+[#20 completion and archive](completion-and-archive.md) adds separately validated
+trip-only completion/lesson metadata and a cached read-only archive view. Its
+mixed-permission arrival review is deliberately excluded from the cache.
+
 [#10 return preparation](return-preparation.md) extends this reader with explicit
 outbound/return packing and shared snapshot keys, plus a separate private return
 reconciliation view. Its mutations use the same connection guard described below.

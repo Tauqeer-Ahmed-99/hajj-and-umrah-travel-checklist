@@ -7,6 +7,7 @@ import {
   packingResponse,
   returnPreparationResponse,
   sharedContentResponse,
+  completionResponse,
 } from "@nmt/contracts";
 import { TripError } from "./request-error";
 import {
@@ -23,6 +24,10 @@ function snapshotSchema(path: string) {
   if (new RegExp(`^/api/trips/${id}$`).test(path)) return tripResponse;
   if (new RegExp(`^/api/trips/${id}/itinerary$`).test(path))
     return itineraryResponse;
+  // Trip-only lifecycle metadata/lessons. Never cache the mixed-permission
+  // arrival review, archive listings, private reference labels or file access.
+  if (new RegExp(`^/api/trips/${id}/completion$`).test(path))
+    return completionResponse;
   const shared = path.match(
     new RegExp(`^/api/trips/${id}/shared\\?leg=(outbound|return)$`),
   );

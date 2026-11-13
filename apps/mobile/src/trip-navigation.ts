@@ -7,7 +7,11 @@ export const destinations = [
   "Guides",
 ] as const;
 export type Destination = (typeof destinations)[number];
-type Navigation = { tripId: string; destination: Destination };
+type Navigation = {
+  tripId: string;
+  destination: Destination;
+  view?: "completion";
+};
 function isDestination(value: unknown): value is Destination {
   return destinations.some((name) => name === value);
 }
@@ -43,7 +47,13 @@ export async function restoreTripNavigation(
       "destination" in parsed &&
       isDestination(parsed.destination)
     )
-      return { tripId: parsed.tripId, destination: parsed.destination };
+      return {
+        tripId: parsed.tripId,
+        destination: parsed.destination,
+        ...("view" in parsed && parsed.view === "completion"
+          ? { view: "completion" as const }
+          : {}),
+      };
     return null;
   } catch {
     return null;

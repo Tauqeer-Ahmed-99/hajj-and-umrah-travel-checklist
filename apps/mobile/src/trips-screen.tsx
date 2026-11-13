@@ -35,11 +35,14 @@ import { RemindersScreen } from "./reminders-screen";
 import { onTripCacheRevoked } from "./trip-cache";
 import { SharedScreen } from "./sharing-screen";
 import { SummaryScreen } from "./summary-screen";
+import { CompletionScreen, ArchivesScreen } from "./completion-screen";
 
 type Route =
   | { screen: "list" }
   | { screen: "new-trip" }
   | { screen: "invitations" }
+  | { screen: "archives" }
+  | { screen: "completion"; tripId: string }
   | { screen: "access"; tripId: string; familyId?: string }
   | { screen: "trip"; tripId: string; destination: Destination }
   | { screen: "new-family"; tripId: string }
@@ -80,7 +83,13 @@ export function TripsScreen({
     restoreTripNavigation(profile.id)
       .then((saved) => {
         if (active)
-          setRoute(saved ? { screen: "trip", ...saved } : { screen: "list" });
+          setRoute(
+            saved
+              ? saved.view === "completion"
+                ? { screen: "completion", tripId: saved.tripId }
+                : { screen: "trip", ...saved }
+              : { screen: "list" },
+          );
       })
       .catch(() => {
         if (active) {
@@ -100,6 +109,18 @@ export function TripsScreen({
     void rememberTripNavigation(profile.id, { tripId, destination }).catch(() =>
       setPreferenceError(
         "This view could not be remembered. Your trip is saved; choose it again after restarting.",
+      ),
+    );
+  };
+  const openCompletion = (tripId: string) => {
+    setRoute({ screen: "completion", tripId });
+    void rememberTripNavigation(profile.id, {
+      tripId,
+      destination: "Overview",
+      view: "completion",
+    }).catch(() =>
+      setPreferenceError(
+        "This archive view could not be remembered. Reopen it from Your trips.",
       ),
     );
   };
@@ -130,6 +151,31 @@ export function TripsScreen({
       <TripForm
         onCancel={() => setRoute({ screen: "list" })}
         onSaved={(tripId) => openTrip(tripId)}
+      />
+    );
+  if (route.screen === "archives")
+    return (
+      <ArchivesScreen
+        onBack={() => setRoute({ screen: "list" })}
+        onOpen={openCompletion}
+      />
+    );
+  if (route.screen === "completion")
+    return (
+      <CompletionScreen
+        tripId={route.tripId}
+        onBack={() => openTrip(route.tripId)}
+        onItinerary={() =>
+          setRoute({ screen: "itinerary", tripId: route.tripId })
+        }
+        onGuides={() => openTrip(route.tripId, "Guides")}
+        onChecklist={(familyId) =>
+          setRoute({ screen: "checklist", tripId: route.tripId, familyId })
+        }
+        onBags={(familyId) =>
+          setRoute({ screen: "bags", tripId: route.tripId, familyId })
+        }
+        onShared={() => setRoute({ screen: "shared", tripId: route.tripId })}
       />
     );
   if (route.screen === "invitations")
@@ -187,6 +233,7 @@ export function TripsScreen({
       <ItineraryScreen
         key={route.tripId}
         tripId={route.tripId}
+        onCompletion={() => openCompletion(route.tripId)}
         onBack={() => openTrip(route.tripId)}
       />
     );
@@ -250,6 +297,7 @@ export function TripsScreen({
   if (route.screen === "list")
     return (
       <TripList
+        onArchives={() => setRoute({ screen: "archives" })}
         onCached={onCached}
         onOffline={onOffline}
         preferenceError={preferenceError}
@@ -299,6 +347,7 @@ export function TripsScreen({
         setRoute({ screen: "reminders", tripId: route.tripId })
       }
       onSummary={() => setRoute({ screen: "summary", tripId: route.tripId })}
+      onCompletion={() => openCompletion(route.tripId)}
       onChecklist={(familyId) =>
         setRoute({ screen: "checklist", tripId: route.tripId, familyId })
       }
@@ -396,6 +445,7 @@ function DestinationNav({
 }
 
 function TripList({
+  onArchives,
   onCached,
   onOpen,
   onCreate,
@@ -404,6 +454,7 @@ function TripList({
   onInvitations,
   onOffline,
 }: {
+  onArchives: () => void;
   onCached: () => void;
   onOpen: (id: string) => void;
   onCreate: () => void;
@@ -425,6 +476,7 @@ function TripList({
       <Action title="Open cached trips" secondary onPress={onCached} />
       <TripLink title="Account" onPress={onAccount} />
       <Heading>Your trips</Heading>
+      <Action title="Archived trips" secondary onPress={onArchives} />
       <Action title="Open saved guides" secondary onPress={onOffline} />
       <Action title="Your invitations" secondary onPress={onInvitations} />
       <Copy>Keep each journey and its families together.</Copy>
@@ -482,6 +534,7 @@ function TripHome({
   onReminders,
   onShared,
   onSummary,
+  onCompletion,
   onChecklist,
   onBags,
 }: {
@@ -498,6 +551,7 @@ function TripHome({
   onReminders: () => void;
   onShared: () => void;
   onSummary: () => void;
+  onCompletion: () => void;
   onChecklist: (familyId: string) => void;
   onBags: (familyId: string) => void;
 }) {
@@ -547,6 +601,7 @@ function TripHome({
           <Heading>{detail.trip.name}</Heading>
           <TripLink title="Trip members & invitations" onPress={onAccess} />
           <TripLink title="Share travel summary" onPress={onSummary} />
+          <TripLink title="Completion and archive" onPress={onCompletion} />
           <Copy muted>
             {detail.trip.kind === "hajj" ? "Hajj" : "Umrah"} ·{" "}
             {detail.trip.role === "organizer"

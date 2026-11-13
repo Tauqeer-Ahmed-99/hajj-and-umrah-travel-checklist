@@ -49,9 +49,12 @@ The seven manually selectable phases are:
 | `traveling_home`           | Traveling home               |
 | `completed`                | Completed                    |
 
-The initial phase is Planning. Organizers can correct the phase in either
-direction. Dates, milestones, and the Completed phase do not mark bags collected,
-judge religious completion, or archive the trip.
+The initial phase is Planning. [Completion and archive](completion-and-archive.md)
+now requires a deliberate permitted home-arrival review for Completed; selecting
+it in the phase form continues to that review. Direct itinerary PATCH cannot
+bypass it. Organizers can correct other phases before archival; archived trips
+retain Completed. Dates, milestones, and Completed do not mark bags collected,
+judge religious completion, or automatically archive the trip.
 
 ## Time, partial edits, ordering, and retries
 

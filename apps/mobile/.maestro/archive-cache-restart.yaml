@@ -1,0 +1,28 @@
+appId: in.nmtsolutions.travel
+---
+# Prepared, unrun. Use a standalone embedded-bundle build, signed in with an
+# archived trip's completion, itinerary, both packing legs and checklist cached.
+# Disable Wi-Fi AND mobile data before running. Never clear application data.
+- stopApp
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible: "Open cached trips"
+    timeout: 30000
+- tapOn: "Open cached trips"
+- scrollUntilVisible:
+    element: "Cached ${ARCHIVE_TRIP_NAME}"
+- tapOn: "Cached ${ARCHIVE_TRIP_NAME}"
+- scrollUntilVisible:
+    element: "Cached completion and archive"
+- tapOn: "Cached completion and archive"
+- assertVisible: "Cached trip data.*read only.*"
+- assertVisible: "Phase: Completed"
+- scrollUntilVisible:
+    element: "${ARCHIVE_LESSON}"
+- assertVisible: "${ARCHIVE_LESSON}"
+- assertNotVisible: "Record a lesson"
+- assertNotVisible: "Archive completed trip"
+- assertNotVisible: "Confirm Completed"
+# Follow cached references and saved guides. Reconnect after membership removal,
+# refresh and repeat disconnected restart: denied archive must stay absent.

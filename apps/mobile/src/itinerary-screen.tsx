@@ -126,9 +126,11 @@ type Editor =
 export function ItineraryScreen({
   tripId,
   onBack,
+  onCompletion,
 }: {
   tripId: string;
   onBack: () => void;
+  onCompletion: () => void;
 }) {
   const api = useTripRequest();
   const [data, setData] = useState<{ itinerary: Itinerary; trip: Trip } | null>(
@@ -182,7 +184,13 @@ export function ItineraryScreen({
       );
     const props = { tripId, onSaved, onCancel };
     if (editor.mode === "phase")
-      return <PhaseForm {...props} initial={data.itinerary.phase} />;
+      return (
+        <PhaseForm
+          {...props}
+          initial={data.itinerary.phase}
+          onCompletion={onCompletion}
+        />
+      );
     if (editor.mode === "references")
       return <ReferencesForm {...props} initial={data.itinerary} />;
     if (editor.mode === "entry")
