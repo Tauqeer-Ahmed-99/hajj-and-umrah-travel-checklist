@@ -36,6 +36,7 @@ import {
 import { locationLabel, travelerName } from "./packing-ui";
 import { VisibilityForm } from "./sharing-forms";
 import type { PackingView } from "./trip-navigation";
+import { TravelFilesScreen } from "./travel-files-screen";
 
 export function BagsDestination({
   families,
@@ -69,6 +70,7 @@ export function BagsDestination({
   );
 }
 type Editor =
+  | { mode: "photo"; bag: Bag }
   | { mode: "visibility"; bag: Bag }
   | { mode: "proposal" }
   | { mode: "reconcile"; item: ReturnItem }
@@ -236,6 +238,14 @@ export function PackingScreen({
     setEditor(next);
   };
   if (data && editor) {
+    if (editor.mode === "photo")
+      return (
+        <TravelFilesScreen
+          tripId={tripId}
+          target={{ kind: "bag_photo", bagId: editor.bag.id, familyId }}
+          onBack={() => setEditor(null)}
+        />
+      );
     const props = {
       scope,
       subject: "bags",
@@ -551,6 +561,11 @@ export function PackingScreen({
                       {bag.identifyingNote && (
                         <Copy>Identify: {bag.identifyingNote}</Copy>
                       )}
+                      <Action
+                        title={`Identification photo for ${bag.name}`}
+                        secondary
+                        onPress={() => open({ mode: "photo", bag })}
+                      />
                       {bag.weightNote && <Copy>Weight: {bag.weightNote}</Copy>}
                       {bag.allowanceNote && (
                         <Copy>Allowance: {bag.allowanceNote}</Copy>

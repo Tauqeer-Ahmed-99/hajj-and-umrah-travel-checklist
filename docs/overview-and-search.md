@@ -5,7 +5,7 @@ The prepared isolated branch started clean at integration
 `43794687218147434cee5f85a2a9e9f0bac54244`, including sharing #9, summaries #18,
 offline guide copies #14 and the reminder overlap regression. Integration #15
 (`a44bc27f0321060ca0f6faf994820e7b945f069d`) and #10
-(`2434253c` prefix; use the actual merge ancestry) were subsequently merged.
+(`2434253f7a778eb8c1c1bcbd62d4b29a2b0f95d8`) were subsequently merged.
 The final verification section records the precise integrated revision.
 
 ## Authorized read contract

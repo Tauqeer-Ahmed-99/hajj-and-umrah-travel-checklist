@@ -1,0 +1,22 @@
+appId: in.nmtsolutions.travel
+---
+# Prepared, unrun. Start at permitted family Bags. Seed a harmless PNG in Files.
+- tapOn: "Identification photo for ${FILES_BAG_NAME}"
+- assertVisible: "Bag identification photo"
+- tapOn: "Add bag photo"
+- tapOn: "Choose file"
+- tapOn: "${FILES_PHOTO_NAME}"
+- tapOn: "Upload and finish"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 90000
+- tapOn: "Open ${FILES_PHOTO_NAME}"
+- extendedWaitUntil:
+    visible: "Image ready"
+    timeout: 90000
+- assertVisible: "Temporary view.*Not saved offline"
+- tapOn: "Close file"
+- stopApp
+- launchApp:
+    clearState: false
+# Reopen the same family bag manually; the same metadata must persist.

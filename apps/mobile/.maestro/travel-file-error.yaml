@@ -1,0 +1,26 @@
+appId: in.nmtsolutions.travel
+---
+# Prepared, unrun. Start at a ready attachment's file screen with an invalid PNG
+# fixture in Android Files. The current file must survive the failed replacement.
+- tapOn: "Change file"
+- tapOn: "Choose file"
+- tapOn: "${FILES_INVALID_NAME}"
+- tapOn: "Upload and finish"
+- extendedWaitUntil:
+    visible: "The uploaded bytes must be a readable.*"
+    timeout: 90000
+- assertVisible: "Selected: ${FILES_INVALID_NAME}"
+- assertVisible: "Retry same upload"
+- setAirplaneMode: enabled
+- assertVisible:
+    text: "Retry same upload"
+    enabled: false
+- setAirplaneMode: disabled
+- extendedWaitUntil:
+    visible:
+      text: "Retry same upload"
+      enabled: true
+    timeout: 45000
+- assertVisible: "Selected: ${FILES_INVALID_NAME}"
+# Reconnect must not submit. Explicitly Check files, accept leaving, open the old
+# ready file, then Start a different file to select a valid replacement.
