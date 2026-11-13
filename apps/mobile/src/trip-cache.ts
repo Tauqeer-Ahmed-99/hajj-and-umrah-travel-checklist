@@ -249,7 +249,7 @@ export async function travelFetch(
   const path = new URL(url).pathname;
   const method = init.method ?? "GET";
   const readAuthorization =
-    method === "POST" && /\/(copy-access|open)$/.test(path);
+    method === "POST" && /\/(copy-access|open|summary)$/.test(path);
   const cleanup = method === "DELETE" && path === "/api/notifications/device";
   const readNumber =
     value && method === "GET" ? (value.cache.reads.get(path) ?? 0) + 1 : null;

@@ -33,6 +33,7 @@ import { ChecklistDestination, ChecklistScreen } from "./checklist-screen";
 import { BagsDestination, PackingScreen } from "./packing-screen";
 import { RemindersScreen } from "./reminders-screen";
 import { onTripCacheRevoked } from "./trip-cache";
+import { SummaryScreen } from "./summary-screen";
 
 type Route =
   | { screen: "list" }
@@ -43,6 +44,7 @@ type Route =
   | { screen: "new-family"; tripId: string }
   | { screen: "itinerary"; tripId: string }
   | { screen: "reminders"; tripId: string }
+  | { screen: "summary"; tripId: string }
   | { screen: "checklist"; tripId: string; familyId: string }
   | { screen: "bags"; tripId: string; familyId: string }
   | { screen: "family"; tripId: string; familyId: string }
@@ -145,6 +147,14 @@ export function TripsScreen({
               })
             : openTrip(route.tripId)
         }
+      />
+    );
+  if (route.screen === "summary")
+    return (
+      <SummaryScreen
+        key={route.tripId}
+        tripId={route.tripId}
+        onBack={() => openTrip(route.tripId)}
       />
     );
   if (route.screen === "reminders")
@@ -270,6 +280,7 @@ export function TripsScreen({
       onReminders={() =>
         setRoute({ screen: "reminders", tripId: route.tripId })
       }
+      onSummary={() => setRoute({ screen: "summary", tripId: route.tripId })}
       onChecklist={(familyId) =>
         setRoute({ screen: "checklist", tripId: route.tripId, familyId })
       }
@@ -451,6 +462,7 @@ function TripHome({
   onAccess,
   onItinerary,
   onReminders,
+  onSummary,
   onChecklist,
   onBags,
 }: {
@@ -465,6 +477,7 @@ function TripHome({
   onAccess: () => void;
   onItinerary: () => void;
   onReminders: () => void;
+  onSummary: () => void;
   onChecklist: (familyId: string) => void;
   onBags: (familyId: string) => void;
 }) {
@@ -513,6 +526,7 @@ function TripHome({
         <>
           <Heading>{detail.trip.name}</Heading>
           <TripLink title="Trip members & invitations" onPress={onAccess} />
+          <TripLink title="Share travel summary" onPress={onSummary} />
           <Copy muted>
             {detail.trip.kind === "hajj" ? "Hajj" : "Umrah"} ·{" "}
             {detail.trip.role === "organizer"

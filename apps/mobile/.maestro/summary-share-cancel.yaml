@@ -1,0 +1,47 @@
+appId: in.nmtsolutions.travel
+---
+# Prepared, unrun. Synthetic trip dates only; start on Overview.
+# Pixel/AOSP chooser locator: adapt to the actual OEM chooser before running.
+# No recipient/target is chosen and no message is sent.
+- scrollUntilVisible:
+    element: "Share travel summary"
+- tapOn: "Share travel summary"
+- extendedWaitUntil:
+    visible: "Fields to include"
+    timeout: 30000
+- tapOn: "Travel dates and times"
+- scrollUntilVisible:
+    element: "Trip travel details"
+- tapOn: "Trip travel details"
+- scrollUntilVisible:
+    element: "Preview selected text"
+- tapOn: "Preview selected text"
+- extendedWaitUntil:
+    visible: "Summary preview"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: summary-outgoing-text
+- assertVisible: "(?s).*Departure: ${SUMMARY_DEPARTURE}.*Return: ${SUMMARY_RETURN}.*"
+- scrollUntilVisible:
+    element: "Share this text"
+- tapOn: "Share this text"
+- extendedWaitUntil:
+    visible:
+      id: "android:id/chooser_header"
+    timeout: 30000
+- back
+- extendedWaitUntil:
+    visible: "Summary preview"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "(?s).*Recipient delivery is not confirmed.*"
+- assertVisible: "(?s).*Recipient delivery is not confirmed.*"
+- back
+- scrollUntilVisible:
+    element: "Clear selection"
+- tapOn: "Clear selection"
+- scrollUntilVisible:
+    element: "Back to trip"
+- tapOn: "Back to trip"
+- assertVisible: "Trip members & invitations"

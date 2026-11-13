@@ -1,0 +1,50 @@
+appId: in.nmtsolutions.travel
+---
+# Prepared, unrun. Start on Overview with synthetic data only, as a family viewer.
+# SUMMARY_ITEM is a four-adapter item (2 available, 1 ordered, 1 remaining).
+# SUMMARY_TASK is a Done task. Keep another item/task unselected.
+- scrollUntilVisible:
+    element: "Share travel summary"
+- tapOn: "Share travel summary"
+- extendedWaitUntil:
+    visible: "Fields to include"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Include ${SUMMARY_ITEM} (item)"
+- tapOn: "Include ${SUMMARY_ITEM} (item)"
+- scrollUntilVisible:
+    element: "Include ${SUMMARY_TASK} (task)"
+- tapOn: "Include ${SUMMARY_TASK} (task)"
+- scrollUntilVisible:
+    element: "Include preparation quantities and counts"
+- tapOn: "Include preparation quantities and counts"
+- tapOn: "Include task progress and counts"
+- scrollUntilVisible:
+    element: "Preview selected text"
+- tapOn: "Preview selected text"
+- extendedWaitUntil:
+    visible: "Summary preview"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: summary-outgoing-text
+- assertVisible: "(?s).*Required: 4 adapters.*"
+- assertVisible: "(?s).*2 adapters available; 1 adapters still to arrange; 1 adapters awaiting receipt; 2 adapters remaining to be ready.*"
+- assertVisible: "(?s).*Tasks selected: 1; To do: 0; In progress: 0; Done: 1; Not needed: 0.*"
+- assertNotVisible: "(?s).*${SUMMARY_UNSELECTED}.*"
+# Back cancels preview and keeps the checkboxes; it never invokes Android Share.
+- back
+- scrollUntilVisible:
+    element: "Preview selected text"
+- tapOn: "Preview selected text"
+- extendedWaitUntil:
+    visible: "Summary preview"
+    timeout: 30000
+- back
+- scrollUntilVisible:
+    element: "Clear selection"
+- tapOn: "Clear selection"
+- scrollUntilVisible:
+    element: "Back to trip"
+- tapOn: "Back to trip"
+- assertVisible: "Trip members & invitations"
