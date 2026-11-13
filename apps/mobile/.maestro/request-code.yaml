@@ -1,0 +1,12 @@
+appId: in.nmtsolutions.travel
+---
+- launchApp
+- assertVisible: "Send email code"
+- tapOn:
+    id: email-input
+- inputText: ${MAESTRO_EMAIL}
+- hideKeyboard
+- tapOn: "Send email code"
+- extendedWaitUntil:
+    visible: "Verify email"
+    timeout: 30000

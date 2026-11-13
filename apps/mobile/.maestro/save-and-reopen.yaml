@@ -1,0 +1,55 @@
+appId: in.nmtsolutions.travel
+---
+# Continue on the code screen from request-code.yaml with a real mailbox code.
+- tapOn:
+    id: code-input
+- inputText: ${MAESTRO_EMAIL_CODE}
+- hideKeyboard
+- tapOn: "Verify email"
+- extendedWaitUntil:
+    visible: "Let’s get to know you"
+    timeout: 30000
+- tapOn:
+    id: first-name-input
+- inputText: "Sana"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: last-name-input
+- tapOn:
+    id: last-name-input
+- inputText: "Ahmed"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: username-input
+- tapOn:
+    id: username-input
+- inputText: ${MAESTRO_USERNAME}
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Save profile"
+- tapOn: "Save profile"
+- extendedWaitUntil:
+    visible: "Profile saved"
+    timeout: 30000
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: "Profile saved"
+    timeout: 30000
+- assertVisible: ${MAESTRO_EMAIL}
+- assertVisible: "@${MAESTRO_USERNAME}"
+- scrollUntilVisible:
+    element: "Sign out"
+- tapOn: "Sign out"
+- extendedWaitUntil:
+    visible: "Send email code"
+    timeout: 30000
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: "Send email code"
+    timeout: 30000
+- assertNotVisible: ${MAESTRO_EMAIL}
+- assertNotVisible: "@${MAESTRO_USERNAME}"
