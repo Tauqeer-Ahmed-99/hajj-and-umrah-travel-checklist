@@ -28,6 +28,7 @@ type Row = Omit<
   | "text"
   | "url"
   | "textDirection"
+  | "file"
   | "createdAt"
   | "updatedAt"
 > & {
@@ -41,6 +42,7 @@ type Row = Omit<
     | "text"
     | "url"
     | "textDirection"
+    | "file"
   >;
   createdAt: Date;
   updatedAt: Date;
@@ -56,7 +58,7 @@ function record({ content, createdAt, updatedAt, ...row }: Row): GuideRecord {
 function unavailable(): never {
   throw new HttpError(404, "not_found", "This guide is not available to you.");
 }
-async function actor(db: PoolClient, memberId: string) {
+export async function actor(db: PoolClient, memberId: string) {
   return (
     await db.query(
       `SELECT id, first_name AS "firstName", last_name AS "lastName", username FROM members WHERE id = $1`,
@@ -94,7 +96,7 @@ async function capabilities(
     canShare: !!family?.canCoordinate,
   };
 }
-async function read(
+export async function readGuideInTransaction(
   db: PoolClient,
   memberId: string,
   tripId: string,
@@ -110,7 +112,7 @@ async function read(
   if (!result.rows[0]) unavailable();
   return capabilities(db, memberId, record(result.rows[0]));
 }
-async function version(
+export async function saveGuideVersion(
   db: PoolClient,
   guide: GuideRecord,
   changedFields: string[],
@@ -146,15 +148,15 @@ export function createGuide(
             JSON.stringify(contributor),
           ],
         );
-        await version(db, record(saved.rows[0]), ["created"]);
+        await saveGuideVersion(db, record(saved.rows[0]), ["created"]);
       },
     );
-    return { guide: await read(db, memberId, tripId, id) };
+    return { guide: await readGuideInTransaction(db, memberId, tripId, id) };
   });
 }
 export function readGuide(memberId: string, tripId: string, guideId: string) {
   return transaction(async (db) => ({
-    guide: await read(db, memberId, tripId, guideId),
+    guide: await readGuideInTransaction(db, memberId, tripId, guideId),
   }));
 }
 export function listGuides(
@@ -207,7 +209,7 @@ export function guideHistory(
   guideId: string,
 ) {
   return transaction(async (db) => {
-    const current = await read(db, memberId, tripId, guideId);
+    const current = await readGuideInTransaction(db, memberId, tripId, guideId);
     const result = await db.query(
       `SELECT snapshot AS guide, changed_fields AS "changedFields" FROM guide_versions v WHERE guide_id = $1 AND (snapshot->>'audience' = 'trip' OR EXISTS (SELECT 1 FROM family_members fm WHERE fm.trip_id = $2 AND fm.family_id = $3 AND fm.member_id = $4)) ORDER BY version DESC`,
       [guideId, tripId, current.familyId, memberId],
@@ -222,7 +224,13 @@ export function patchGuide(
   input: GuidePatch,
 ) {
   return transaction(async (db) => {
-    const current = await read(db, memberId, tripId, guideId, "UPDATE");
+    const current = await readGuideInTransaction(
+      db,
+      memberId,
+      tripId,
+      guideId,
+      "UPDATE",
+    );
     if (!current.canEdit)
       throw new HttpError(
         403,
@@ -269,6 +277,7 @@ export function patchGuide(
               "text",
               "url",
               "textDirection",
+              "file",
             ].map((key) => [key, merged[key as keyof Guide]]),
           ),
         );
@@ -284,10 +293,17 @@ export function patchGuide(
             JSON.stringify(updatedBy),
           ],
         );
-        await version(db, record(saved.rows[0]), changedFields, receiptId);
+        await saveGuideVersion(
+          db,
+          record(saved.rows[0]),
+          changedFields,
+          receiptId,
+        );
       },
     );
     // Retries return current state, never replay an earlier edit over later work.
-    return { guide: await read(db, memberId, tripId, guideId) };
+    return {
+      guide: await readGuideInTransaction(db, memberId, tripId, guideId),
+    };
   });
 }

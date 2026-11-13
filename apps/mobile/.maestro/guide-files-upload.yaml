@@ -1,0 +1,52 @@
+appId: in.nmtsolutions.travel
+---
+# Prepared, unrun. From Overview as a family editor/coordinator. Stage a harmless
+# PDF/image in the Android DocumentsUI Recent list beforehand. GUIDE_PICKER_NAME
+# must uniquely identify its accessible file row. Other document providers may
+# require manual selection. GUIDE_EXPECT_READY is "PDF ready.*" or "Image ready".
+- tapOn:
+    id: tab-guides
+- extendedWaitUntil:
+    visible: "Guide library"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Upload document or image"
+- tapOn: "Upload document or image"
+- tapOn: "Owning family: ${GUIDE_FAMILY}"
+- tapOn:
+    id: guide-file-title
+- inputText: "${GUIDE_FILE_TITLE}"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: guide-file-category
+- tapOn:
+    id: guide-file-category
+- inputText: "Travel"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Choose file"
+- tapOn: "Choose file"
+- extendedWaitUntil:
+    visible: "${GUIDE_PICKER_NAME}"
+    timeout: 30000
+- tapOn: "${GUIDE_PICKER_NAME}"
+- extendedWaitUntil:
+    visible: "Selected:.*"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Upload and finish"
+- tapOn: "Upload and finish"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 180000
+- scrollUntilVisible:
+    element: "Open file"
+- tapOn: "Open file"
+- extendedWaitUntil:
+    visible: "${GUIDE_EXPECT_READY}"
+    timeout: 90000
+- assertVisible: "Temporary view.*Not saved offline"
+- assertVisible: "Close file"
+- assertNotVisible: "Available offline"
+- tapOn: "Close file"

@@ -20,10 +20,20 @@ const config: ExpoConfig = {
     package: "in.nmtsolutions.travel",
     versionCode: 1,
     softwareKeyboardLayoutMode: "resize",
+    // File picking and temporary in-app viewing need no shared-storage grants.
+    // Remove defaults contributed by the PDF dependency's filesystem library.
+    blockedPermissions: [
+      "android.permission.READ_EXTERNAL_STORAGE",
+      "android.permission.WRITE_EXTERNAL_STORAGE",
+      "android.permission.DOWNLOAD_WITHOUT_NOTIFICATION",
+    ],
   },
   plugins: [
     "expo-dev-client",
     "expo-secure-store",
+    "expo-document-picker",
+    "react-native-blob-util",
+    "@config-plugins/react-native-pdf",
     ["@clerk/expo", { appleSignIn: false }],
     "@clerk/expo-google-signin",
   ],

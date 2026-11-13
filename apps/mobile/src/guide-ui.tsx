@@ -98,8 +98,21 @@ export function GuideMetadata({ guide }: { guide: GuideRecord }) {
     <>
       <Copy>
         {guide.category} ·{" "}
-        {guide.kind === "text" ? "Text note" : "External link"}
+        {guide.kind === "text"
+          ? "Text note"
+          : guide.kind === "link"
+            ? "External link"
+            : "Document or image"}
       </Copy>
+      {guide.kind === "file" &&
+        (guide.file ? (
+          <Copy>
+            {guide.file.fileName} ·{" "}
+            {(guide.file.byteSize / 1_000_000).toFixed(2)} MB
+          </Copy>
+        ) : (
+          <Copy>Upload incomplete · Cannot open yet</Copy>
+        ))}
       <Copy>
         {guide.audience === "family" ? "Family only" : "Shared with trip"}
         {guide.pinned ? " · Pinned" : ""}
