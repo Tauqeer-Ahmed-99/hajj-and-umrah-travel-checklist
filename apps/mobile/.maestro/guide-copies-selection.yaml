@@ -1,0 +1,30 @@
+appId: in.nmtsolutions.travel
+---
+# Prepared, unrun. Start in the library with a unique text note and ready image.
+# Keep a link and another unsaved guide in the library to inspect nonselection.
+- tapOn: "Prepare for offline use"
+- extendedWaitUntil:
+    visible: 'Save selected guides \(0\)'
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Save ${GUIDE_NOTE_TITLE}"
+- tapOn: "Save ${GUIDE_NOTE_TITLE}"
+- scrollUntilVisible:
+    element: "Save ${GUIDE_IMAGE_TITLE}"
+- tapOn: "Save ${GUIDE_IMAGE_TITLE}"
+- scrollUntilVisible:
+    element: 'Save selected guides \(2\)'
+- tapOn: 'Save selected guides \(2\)'
+- extendedWaitUntil:
+    visible: "2 saved, 0 failed, 0 not attempted.*"
+    timeout: 120000
+- tapOn: "Back to guides"
+- tapOn: "Open saved guides"
+- assertVisible: "Open saved ${GUIDE_NOTE_TITLE}"
+- scrollUntilVisible:
+    element: "Open saved ${GUIDE_IMAGE_TITLE}"
+- tapOn: "Open saved ${GUIDE_IMAGE_TITLE}"
+- extendedWaitUntil:
+    visible: "Image ready"
+    timeout: 30000
+- back

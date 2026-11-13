@@ -15,6 +15,13 @@ import { GuideFileForm } from "./guide-file-form";
 import { GuideFileViewer } from "./guide-file-viewer";
 import { guideFileApi } from "./guide-file-api";
 import {
+  GuideCopyActions,
+  OfflineGuidesScreen,
+  PrepareGuidesScreen,
+} from "./guide-copy-ui";
+import { useGuideCopies } from "./guide-copy-context";
+import { refreshSavedGuideAccess } from "./guide-copies";
+import {
   GuideChoices,
   GuideMetadata,
   GuideSection,
@@ -31,6 +38,8 @@ function useRefresh(load: () => Promise<void>) {
   }, [load]);
 }
 type Route =
+  | { mode: "offline"; id?: string }
+  | { mode: "prepare" }
   | { mode: "list" }
   | { mode: "read" | "history"; id: string }
   | { mode: "new"; families: Family[] }
@@ -60,6 +69,8 @@ export function GuidesScreen({
     "new-file",
     "upload",
     "file-view",
+    "offline",
+    "prepare",
   ].includes(route.mode);
   const back = () => {
     if (route.mode === "list") onBack();
@@ -84,6 +95,12 @@ export function GuidesScreen({
     setSaved(false);
     setRoute({ mode: "list" });
   };
+  if (route.mode === "offline")
+    return (
+      <OfflineGuidesScreen tripId={tripId} initialId={route.id} onBack={back} />
+    );
+  if (route.mode === "prepare")
+    return <PrepareGuidesScreen tripId={tripId} onBack={back} />;
   if (route.mode === "file-view")
     return (
       <GuideFileViewer
@@ -145,6 +162,7 @@ export function GuidesScreen({
         onBack={back}
         onHistory={() => setRoute({ mode: "history", id: route.id })}
         onOpenFile={() => setRoute({ mode: "file-view", id: route.id })}
+        onOpenSaved={() => setRoute({ mode: "offline", id: route.id })}
         onChange={(mode, guide) => {
           setSaved(false);
           setRoute({ mode, guide });
@@ -164,6 +182,8 @@ export function GuidesScreen({
       }}
       onCreate={(families) => setRoute({ mode: "new", families })}
       onUpload={(families) => setRoute({ mode: "new-file", families })}
+      onOffline={() => setRoute({ mode: "offline" })}
+      onPrepare={() => setRoute({ mode: "prepare" })}
     />
   );
 }
@@ -176,6 +196,8 @@ function GuideLibrary({
   onOpen,
   onCreate,
   onUpload,
+  onOffline,
+  onPrepare,
 }: {
   tripId: string;
   footer: ReactNode;
@@ -185,7 +207,10 @@ function GuideLibrary({
   onOpen(id: string): void;
   onCreate(families: Family[]): void;
   onUpload(families: Family[]): void;
+  onOffline(): void;
+  onPrepare(): void;
 }) {
+  const copies = useGuideCopies();
   const api = useTripRequest();
   const [q, setQ] = useState("");
   const [pinned, setPinned] = useState("all");
@@ -199,6 +224,7 @@ function GuideLibrary({
   const load = useCallback(async () => {
     setData(null);
     const result = await api.run(async (token, signal) => {
+      await refreshSavedGuideAccess(copies, token, signal);
       const [library, detail] = await Promise.all([
         guideApi.list(tripId, query, token, signal),
         tripApi.read(tripId, token, signal),
@@ -210,7 +236,7 @@ function GuideLibrary({
       };
     });
     if (result) setData(result);
-  }, [api.run, tripId, query]);
+  }, [api.run, tripId, query, copies]);
   useRefresh(load);
   return (
     <Screen footer={footer}>
@@ -218,6 +244,8 @@ function GuideLibrary({
       <Action title="Account" secondary onPress={onAccount} />
       {data && <Copy>{data.name}</Copy>}
       <Heading>Guide library</Heading>
+      <Action title="Open saved guides" secondary onPress={onOffline} />
+      <Action title="Prepare for offline use" secondary onPress={onPrepare} />
       <Copy muted>
         Documents, images, text notes and links for your journey. Family-only
         guides appear only with a current family grant.
@@ -320,7 +348,8 @@ function GuideLibrary({
       />
       <Action title="Back to Overview" secondary onPress={onBack} />
       <Copy muted>
-        Reading needs a connection in this build. Links are not saved offline.
+        Open reads in the app. Save offline in app and Download to device are
+        explicit actions. Links need a connection.
       </Copy>
     </Screen>
   );
@@ -333,6 +362,7 @@ function GuideReader({
   onHistory,
   onChange,
   onOpenFile,
+  onOpenSaved,
 }: {
   tripId: string;
   id: string;
@@ -341,13 +371,15 @@ function GuideReader({
   onHistory(): void;
   onChange(mode: "edit" | "audience" | "pin" | "upload", guide: Guide): void;
   onOpenFile(): void;
+  onOpenSaved(): void;
 }) {
+  const copies = useGuideCopies();
   const api = useTripRequest();
   const [guide, setGuide] = useState<Guide | null>(null);
   const [pendingUploads, setPendingUploads] = useState(0);
   const load = useCallback(async () => {
-    setGuide(null);
     const result = await api.run(async (token, signal) => {
+      await refreshSavedGuideAccess(copies, token, signal);
       const current = await guideApi.read(tripId, id, token, signal);
       const pending =
         current.guide.kind === "file" && current.guide.canEdit
@@ -359,8 +391,11 @@ function GuideReader({
       setGuide(result.guide);
       setPendingUploads(result.pending);
     }
-  }, [api.run, tripId, id]);
+  }, [api.run, tripId, id, copies]);
   useRefresh(load);
+  useEffect(() => {
+    if (api.error && [401, 403, 404].includes(api.error.status)) setGuide(null);
+  }, [api.error]);
   const openLink = async () => {
     // Recheck current access and URL before Android handles the explicit action.
     setGuide(null);
@@ -428,6 +463,7 @@ function GuideReader({
               />
             </>
           )}
+          <GuideCopyActions guide={guide} onOpen={onOpenSaved} />
           {!guide.canEdit && <Notice>Read-only guide</Notice>}
           {guide.canEdit && (
             <>

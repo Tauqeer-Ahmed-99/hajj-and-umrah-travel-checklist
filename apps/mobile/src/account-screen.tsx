@@ -14,8 +14,18 @@ import { Action, Copy, Field, Heading, Loading, Notice, Screen } from "./ui";
 import { useTheme } from "./theme";
 import { TripsScreen } from "./trips-screen";
 import { clearTripNavigation } from "./trip-navigation";
+import { useGuideCopies } from "./guide-copy-context";
+import {
+  clearGuideCopies,
+  clearSessionGuideCopies,
+  rememberCopyProfile,
+  restoreCopyProfile,
+  refreshSavedGuideAccess,
+} from "./guide-copies";
+import { OfflineGuidesScreen } from "./guide-copy-ui";
 
 export function AccountScreen() {
+  const copies = useGuideCopies();
   const { getToken } = useAuth();
   const { signOut } = useClerk();
   const { colors } = useTheme();
@@ -33,6 +43,10 @@ export function AccountScreen() {
   });
   const [saveUncertain, setSaveUncertain] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
+  const [showOffline, setShowOffline] = useState(false);
+  const [offlineProfile, setOfflineProfile] = useState(() =>
+    restoreCopyProfile(copies),
+  );
   const request = useRef<AbortController | null>(null);
   const generation = useRef(0);
   const signedOut = useRef(false);
@@ -59,8 +73,7 @@ export function AccountScreen() {
       const token = await getToken();
       if (!token)
         throw new AccountError(
-          "Your session has ended. Sign out, then sign in again.",
-          401,
+          "Connect to refresh sign-in. Previously saved guides remain available for this restored account.",
         );
       const result = await accountRequest(token, controller.signal);
       if (current === generation.current) {
@@ -75,8 +88,30 @@ export function AccountScreen() {
         }
         setAccount(result);
         setSaveUncertain(false);
+        if (result.profile) {
+          rememberCopyProfile(copies, result.profile);
+          setOfflineProfile(result.profile);
+          // Metadata checks only; this never obtains or downloads guide objects.
+          void refreshSavedGuideAccess(copies, token, controller.signal).catch(
+            () => {},
+          );
+        } else {
+          clearSessionGuideCopies(copies);
+          setOfflineProfile(null);
+          setShowOffline(false);
+        }
       }
     } catch (error) {
+      if (
+        current === generation.current &&
+        error instanceof AccountError &&
+        [401, 403, 404].includes(error.status)
+      ) {
+        clearSessionGuideCopies(copies);
+        setOfflineProfile(null);
+        setShowOffline(false);
+        setAccount(null);
+      }
       if (current === generation.current)
         setError(
           error instanceof AccountError
@@ -87,7 +122,7 @@ export function AccountScreen() {
       clearTimeout(timeout);
       if (current === generation.current) setLoading(false);
     }
-  }, [getToken]);
+  }, [getToken, copies]);
   useEffect(() => {
     void load();
     return () => {
@@ -107,9 +142,8 @@ export function AccountScreen() {
     signedOut.current = true;
     ++generation.current;
     request.current?.abort();
-    const memberId = account?.profile?.id;
-    // No profile, draft, email, or API response is persisted on this device.
-    // Clear memory before revoking Clerk's session and encrypted token cache.
+    const memberId = account?.profile?.id ?? offlineProfile?.id;
+    // Invalidate copies synchronously before waiting for navigation/provider I/O.
     setAccount(null);
     setDraft({ firstName: "", lastName: "", username: "" });
     setFields({});
@@ -117,6 +151,9 @@ export function AccountScreen() {
     setHidden(true);
     setLeaving(true);
     try {
+      clearGuideCopies();
+      setOfflineProfile(null);
+      setShowOffline(false);
       if (memberId) await clearTripNavigation(memberId).catch(() => {});
       await signOut();
     } catch {
@@ -193,6 +230,10 @@ export function AccountScreen() {
       const saved = await accountRequest(token, controller.signal, parsed.data);
       if (current === generation.current) {
         setAccount(saved);
+        if (saved.profile) {
+          rememberCopyProfile(copies, saved.profile);
+          setOfflineProfile(saved.profile);
+        }
         setSaveUncertain(false);
       }
     } catch (error) {
@@ -231,10 +272,19 @@ export function AccountScreen() {
         />
       </Screen>
     );
+  if (showOffline && offlineProfile)
+    return <OfflineGuidesScreen onBack={() => setShowOffline(false)} />;
   if (loading && !account)
     return (
       <Screen>
         <Loading message="Loading your saved profile…" />
+        {offlineProfile && (
+          <Action
+            title="Open saved guides"
+            secondary
+            onPress={() => setShowOffline(true)}
+          />
+        )}
         <Action title="Sign out" secondary onPress={() => void logout()} />
       </Screen>
     );
@@ -244,6 +294,19 @@ export function AccountScreen() {
         <Heading>Could not load your profile</Heading>
         <Notice error>{error}</Notice>
         <Action title="Try again" onPress={() => void load()} />
+        {offlineProfile && (
+          <>
+            <Copy muted>
+              Your previously completed profile is restored for this account.
+              Saved guides are read only; connect for current trip access and
+              changes.
+            </Copy>
+            <Action
+              title="Open saved guides"
+              onPress={() => setShowOffline(true)}
+            />
+          </>
+        )}
         <Action title="Sign out" secondary onPress={() => void logout()} />
       </Screen>
     );
@@ -253,7 +316,11 @@ export function AccountScreen() {
   // background/foreground transition does not discard an in-progress form.
   if (profile && !showAccount)
     return (
-      <TripsScreen profile={profile} onAccount={() => setShowAccount(true)} />
+      <TripsScreen
+        profile={profile}
+        onAccount={() => setShowAccount(true)}
+        onOffline={() => setShowOffline(true)}
+      />
     );
   return (
     <Screen>
@@ -281,6 +348,11 @@ export function AccountScreen() {
           </View>
           <Notice>Profile saved</Notice>
           <Action title="Open trips" onPress={() => setShowAccount(false)} />
+          <Action
+            title="Open saved guides"
+            secondary
+            onPress={() => setShowOffline(true)}
+          />
           <Copy muted>
             Your email stays private. Your name and username identify you to
             people on your trips.

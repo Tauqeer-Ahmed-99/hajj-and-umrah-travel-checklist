@@ -31,7 +31,14 @@ export async function startFixture(
     password: "local-test-only",
     persistent: true,
     initdbFlags: ["--encoding=UTF8", "--locale=C"],
-    postgresFlags: ["-h", "127.0.0.1"],
+    // PG18 I/O workers can retain inherited stdio after Windows taskkill, leaving
+    // a completed test process alive. Keep this disposable Windows DB synchronous;
+    // its real transactions, constraints and locks are unchanged.
+    postgresFlags: [
+      "-h",
+      "127.0.0.1",
+      ...(process.platform === "win32" ? ["-c", "io_method=sync"] : []),
+    ],
     onLog: () => {},
     onError: () => {},
   });

@@ -1,0 +1,29 @@
+appId: in.nmtsolutions.travel
+---
+# Prepared before implementation; unrun without a configured Android device.
+# Start in Guide library. GUIDE_COPY_TITLE is a unique, ready PDF guide.
+- tapOn:
+    id: guide-search
+- inputText: "${GUIDE_COPY_TITLE}"
+- hideKeyboard
+- tapOn: "Search guides"
+- extendedWaitUntil:
+    visible: "Read ${GUIDE_COPY_TITLE}"
+    timeout: 30000
+- tapOn: "Read ${GUIDE_COPY_TITLE}"
+- scrollUntilVisible:
+    element: "Save offline in app"
+- assertNotVisible: "Available offline.*"
+- tapOn: "Save offline in app"
+- extendedWaitUntil:
+    visible: "Available offline.*"
+    timeout: 120000
+- scrollUntilVisible:
+    element: "Open saved copy"
+- tapOn: "Open saved copy"
+- extendedWaitUntil:
+    visible: "PDF ready.*"
+    timeout: 30000
+- assertVisible: "Saved offline.*"
+- back
+- assertVisible: "${GUIDE_COPY_TITLE}"

@@ -262,6 +262,11 @@ test("file operations reauthorize actual current trip/family grants, version aud
     first.guidePath,
   );
   const operations = [
+    {
+      path: `${first.guidePath}/copy-access`,
+      method: "POST",
+      body: { version: 2 },
+    },
     { path: `${pending.uploadPath}/authorize`, method: "POST", body: {} },
     { path: `${pending.uploadPath}/finalize`, method: "POST", body: {} },
     { path: `${first.guidePath}/open`, method: "POST", body: {} },
@@ -283,6 +288,22 @@ test("file operations reauthorize actual current trip/family grants, version aud
     (await fixture.request(owner.path, organizer.token)).data.count,
     0,
   );
+  storage.available(false);
+  try {
+    const metadata = await fixture.request(
+      `${first.guidePath}/copy-access`,
+      viewer.token,
+      { version: 2 },
+      "POST",
+    );
+    assert.equal(metadata.status, 200, fixture.logs());
+    assert.equal(metadata.data.guide.file.byteSize, bytes.length);
+    assert.match(metadata.data.guide.file.sha256, /^[a-f0-9]{64}$/);
+    assert.equal(metadata.data.authorization, undefined);
+    assert.equal(metadata.data.guide.file.objectKey, undefined);
+  } finally {
+    storage.available(true);
+  }
   assert.equal(
     (await fixture.request(`${first.guidePath}/open`, viewer.token, {}, "POST"))
       .status,
@@ -346,6 +367,28 @@ test("file operations reauthorize actual current trip/family grants, version aud
       )
     ).status,
     200,
+  );
+  assert.equal(
+    (
+      await fixture.request(
+        `${first.guidePath}/copy-access`,
+        organizer.token,
+        { version: 2 },
+        "POST",
+      )
+    ).status,
+    404,
+  );
+  const latest = await fixture.request(
+    `${first.guidePath}/copy-access`,
+    organizer.token,
+    { version: 3 },
+    "POST",
+  );
+  assert.equal(latest.status, 200);
+  assert.equal(
+    latest.data.guide.file.id,
+    (await fixture.request(first.guidePath, owner.token)).data.guide.file.id,
   );
   assert.equal(
     (

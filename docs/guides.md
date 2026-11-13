@@ -1,5 +1,9 @@
 # Text and link guides (#12)
 
+Explicit offline saving and device export now also support text notes; see
+[guide copies and remaining native acceptance](guide-copies.md). Links still
+require connectivity and cannot be saved websites.
+
 Private PDF/image uploads, file versions and temporary in-app Open are now
 implemented by #13; see [file lifecycle, setup and remaining acceptance](guide-files.md).
 References below to file work being deferred describe the original #12 slice.

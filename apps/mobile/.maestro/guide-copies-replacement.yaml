@@ -1,0 +1,21 @@
+appId: in.nmtsolutions.travel
+---
+# Prepared, unrun. Start on a guide reader with a saved old version and a newer
+# server version. Confirm Wi-Fi is off when setting airplane mode.
+- scrollUntilVisible:
+    element: "Update available.*"
+- assertVisible: "Available offline.*Version ${GUIDE_OLD_VERSION}.*"
+- setAirplaneMode: enabled
+- scrollUntilVisible:
+    element: "Replace saved copy"
+- tapOn: "Replace saved copy"
+- extendedWaitUntil:
+    visible: "Could not reach NMT Travel.*"
+    timeout: 120000
+- assertVisible: "Available offline.*Version ${GUIDE_OLD_VERSION}.*"
+- setAirplaneMode: disabled
+- tapOn: "Replace saved copy"
+- extendedWaitUntil:
+    visible: "Saved version ${GUIDE_NEW_VERSION} offline"
+    timeout: 120000
+- assertVisible: "Available offline.*Version ${GUIDE_NEW_VERSION}.*"
