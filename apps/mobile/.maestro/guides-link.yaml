@@ -1,0 +1,49 @@
+appId: in.nmtsolutions.travel
+---
+# Start on Overview as a family editor/coordinator. GUIDE_URL is a reachable
+# non-sensitive http(s) page chosen for this device run, not app configuration.
+- tapOn:
+    id: tab-guides
+- extendedWaitUntil:
+    visible: "Guide library"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Add guide"
+- tapOn: "Add guide"
+- scrollUntilVisible:
+    element: "Guide type: External link"
+- tapOn: "Guide type: External link"
+- scrollUntilVisible:
+    element:
+      id: guide-title
+- tapOn:
+    id: guide-title
+- inputText: "Map ${GUIDE_RUN}"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: guide-category
+- tapOn:
+    id: guide-category
+- inputText: "Travel"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: guide-url
+- tapOn:
+    id: guide-url
+- inputText: "${GUIDE_URL}"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Save guide"
+- tapOn: "Save guide"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Open external link"
+- assertVisible: "Requires an internet connection.*"
+- tapOn: "Open external link"
+# Observe the real Android resolver/app/browser and destination URL manually.
+# Return with Back. With airplane mode enabled, retry and confirm a clear
+# connection failure, no queued edit, and no claim that the page is saved offline.

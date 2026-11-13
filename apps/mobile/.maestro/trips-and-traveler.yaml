@@ -79,7 +79,7 @@ appId: in.nmtsolutions.travel
 - assertVisible: "Bags are not available yet"
 - tapOn:
     id: tab-guides
-- assertVisible: "Guides are not available yet"
+- assertVisible: "Guide library"
 - tapOn: "Switch trip"
 - scrollUntilVisible:
     element: "Create trip"
@@ -143,11 +143,11 @@ appId: in.nmtsolutions.travel
 - back
 - tapOn:
     id: tab-guides
-- assertVisible: "Guides are not available yet"
+- assertVisible: "Guide library"
 - stopApp
 - launchApp
 - extendedWaitUntil:
-    visible: "Guides are not available yet"
+    visible: "Guide library"
     timeout: 30000
 - assertVisible: "Umrah ${MAESTRO_TRIP_RUN}"
 - tapOn: "Switch trip"

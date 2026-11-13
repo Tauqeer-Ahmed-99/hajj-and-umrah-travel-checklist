@@ -28,6 +28,7 @@ import { FamilyForm, TravelerForm, TripForm } from "./trip-forms";
 import { InvitationInbox } from "./invitation-inbox";
 import { MembershipScreen } from "./membership-screen";
 import { ItineraryOverview, ItineraryScreen } from "./itinerary-screen";
+import { GuidesScreen } from "./guides-screen";
 
 type Route =
   | { screen: "list" }
@@ -84,6 +85,7 @@ export function TripsScreen({
         return true;
       }
       if (route?.screen === "trip") {
+        if (route.destination === "Guides") return false; // Guide reader/forms own Back.
         if (route.destination !== "Overview") openTrip(route.tripId);
         else setRoute({ screen: "list" });
         return true;
@@ -183,6 +185,22 @@ export function TripsScreen({
         onCreate={() => setRoute({ screen: "new-trip" })}
         onAccount={onAccount}
         onInvitations={() => setRoute({ screen: "invitations" })}
+      />
+    );
+  if (route.destination === "Guides")
+    return (
+      <GuidesScreen
+        key={route.tripId}
+        tripId={route.tripId}
+        onBack={() => openTrip(route.tripId)}
+        onSwitch={() => setRoute({ screen: "list" })}
+        onAccount={onAccount}
+        footer={
+          <DestinationNav
+            selected="Guides"
+            onSelect={(destination) => openTrip(route.tripId, destination)}
+          />
+        }
       />
     );
   return (

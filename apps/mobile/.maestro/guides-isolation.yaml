@@ -1,0 +1,20 @@
+appId: in.nmtsolutions.travel
+---
+# Start on Overview as a trip organizer with NO grant to GUIDE_FAMILY.
+# A coordinator must have saved a still-private Arrival GUIDE_RUN note.
+- tapOn:
+    id: tab-guides
+- extendedWaitUntil:
+    visible: "Guide library"
+    timeout: 30000
+- tapOn:
+    id: guide-search
+- inputText: "Arrival ${GUIDE_RUN}"
+- hideKeyboard
+- tapOn: "Search guides"
+- extendedWaitUntil:
+    visible: "0 guides found"
+    timeout: 30000
+- assertNotVisible: "Read Arrival ${GUIDE_RUN}"
+# Repeat after sharing: expect one result. Repeat after returning it to Family
+# only: expect zero again. API tests separately exercise direct IDs/history.
