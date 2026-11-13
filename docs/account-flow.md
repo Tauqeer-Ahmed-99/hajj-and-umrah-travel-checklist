@@ -135,6 +135,14 @@ and scrollable forms. It does not add decorative animation or haptics.
 
 ## Hosted API and preview preparation
 
+Integration setup on November 14, 2026 linked the real EAS project
+[`@tauqeerahmed/nmt-travel`](https://expo.dev/accounts/tauqeerahmed/projects/nmt-travel),
+ID `8c2739c3-9d23-4c92-a50a-836d3ea3a94c`, in `eas-project.json`.
+`eas project:info` and `expo config --type public` confirmed the project ID,
+enabled updates, its actual update URL, and the fingerprint runtime policy.
+This establishes the project configuration only: no EAS build, signing setup,
+OTA publication, or device update check has been performed.
+
 1. Create/configure Neon PostgreSQL and run the migration against the chosen
    database. Verify recovery/backup settings separately; local persistence tests
    are not a backup check.
