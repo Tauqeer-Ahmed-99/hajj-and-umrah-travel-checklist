@@ -1,0 +1,18 @@
+appId: in.nmtsolutions.travel
+---
+# Prepared, unrun. Start at Itinerary; harmless PDF already exists in Files.
+- tapOn: "Files for trip travel details"
+- assertVisible: "Travel attachments"
+- tapOn: "Attach travel file"
+- tapOn: "Choose file"
+- tapOn: "${FILES_PDF_NAME}"
+- tapOn: "Upload and finish"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 90000
+- tapOn: "Open ${FILES_PDF_NAME}"
+- extendedWaitUntil:
+    visible: "PDF ready.*"
+    timeout: 90000
+- assertVisible: "Temporary view.*Not saved offline"
+- tapOn: "Close file"

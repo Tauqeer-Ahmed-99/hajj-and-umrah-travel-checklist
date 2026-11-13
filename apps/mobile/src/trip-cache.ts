@@ -328,7 +328,9 @@ export async function travelFetch(
   const path = new URL(url).pathname;
   const method = init.method ?? "GET";
   const readAuthorization =
-    method === "POST" && /\/(copy-access|open|summary)$/.test(path);
+    method === "POST" &&
+    (/\/(copy-access|open|summary)$/.test(path) ||
+      /^\/api\/trips\/[^/]+\/travel-files\/[^/]+\/access$/.test(path));
   const cleanup = method === "DELETE" && path === "/api/notifications/device";
   // Explicit unregistration must still work after local account invalidation.
   // Its exact token is authorized on the server, and its response owns no cache.
