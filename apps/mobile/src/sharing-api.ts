@@ -57,8 +57,18 @@ async function request<T>(
   return result;
 }
 export const sharingApi = {
-  read: (tripId: string, token: string, signal: AbortSignal) =>
-    request(`${tripId}/shared`, token, signal, sharedContentResponse),
+  read: (
+    tripId: string,
+    token: string,
+    signal: AbortSignal,
+    leg: "outbound" | "return" = "outbound",
+  ) =>
+    request(
+      `${tripId}/shared?leg=${leg}`,
+      token,
+      signal,
+      sharedContentResponse,
+    ),
   visibility: (
     tripId: string,
     familyId: string,

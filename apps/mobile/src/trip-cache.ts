@@ -5,6 +5,7 @@ import {
   travelersResponse,
   checklistResponse,
   packingResponse,
+  returnPreparationResponse,
   sharedContentResponse,
 } from "@nmt/contracts";
 import { TripError } from "./request-error";
@@ -22,14 +23,27 @@ function snapshotSchema(path: string) {
   if (new RegExp(`^/api/trips/${id}$`).test(path)) return tripResponse;
   if (new RegExp(`^/api/trips/${id}/itinerary$`).test(path))
     return itineraryResponse;
-  if (new RegExp(`^/api/trips/${id}/shared$`).test(path))
-    return sharedContentResponse;
+  const shared = path.match(
+    new RegExp(`^/api/trips/${id}/shared\\?leg=(outbound|return)$`),
+  );
+  if (shared)
+    return sharedContentResponse.refine((data) => data.leg === shared[1]);
   if (new RegExp(`^/api/trips/${id}/families/${id}/travelers$`).test(path))
     return travelersResponse;
   if (new RegExp(`^/api/trips/${id}/families/${id}/checklist$`).test(path))
     return checklistResponse;
-  if (new RegExp(`^/api/trips/${id}/families/${id}/packing$`).test(path))
-    return packingResponse;
+  const packing = path.match(
+    new RegExp(
+      `^/api/trips/${id}/families/${id}/packing\\?leg=(outbound|return)$`,
+    ),
+  );
+  if (packing) return packingResponse.refine((data) => data.leg === packing[1]);
+  if (
+    new RegExp(`^/api/trips/${id}/families/${id}/return-preparation$`).test(
+      path,
+    )
+  )
+    return returnPreparationResponse;
   return null;
 }
 type Owner = {
@@ -111,7 +125,20 @@ function current(value: Stamp, signal?: AbortSignal, checkGeneration = true) {
       "This account or its access changed. Refresh before continuing; the outcome of an in-flight save may be uncertain.",
     );
 }
-const name = (path: string) => `${path.replaceAll("/", "_")}.json`;
+function cachePath(url: URL) {
+  if (/\/(packing|shared)$/.test(url.pathname)) {
+    const leg = url.searchParams.get("leg") ?? "outbound";
+    if (
+      (!url.search ||
+        (url.searchParams.size === 1 && url.searchParams.has("leg"))) &&
+      ["outbound", "return"].includes(leg)
+    )
+      return `${url.pathname}?leg=${leg}`;
+  }
+  return `${url.pathname}${url.search}`;
+}
+const name = (path: string) =>
+  `${path.replaceAll("/", "_").replaceAll("?", "_").replaceAll("=", "_")}.json`;
 export function listTripSnapshots(): TripSnapshot[] {
   const value = stamp();
   if (!value || !value.cache.owner.completed()) return [];
@@ -185,7 +212,7 @@ function publish(
   // A failed cleanup remains hidden until a subsequent successful cleanup.
   if (new File(directory, "discard").exists) return;
   let lostSharedAccess = false;
-  if (path.endsWith("/shared")) {
+  if (/\/shared\?leg=(outbound|return)$/.test(path)) {
     try {
       const previous = sharedContentResponse.parse(
         JSON.parse(new File(directory, name(path)).textSync()).data,
@@ -325,7 +352,7 @@ export async function travelFetch(
   url: string,
   init: RequestInit,
 ): Promise<Response> {
-  const path = new URL(url).pathname;
+  const path = cachePath(new URL(url));
   const method = init.method ?? "GET";
   const readAuthorization =
     method === "POST" &&
@@ -405,12 +432,7 @@ export async function travelFetch(
       "A newer refresh replaced this access check. Open the view again.",
     );
   deny(value, path, response.status, method, denialCode);
-  if (
-    response.ok &&
-    method === "GET" &&
-    !new URL(url).search &&
-    snapshotSchema(path)
-  ) {
+  if (response.ok && method === "GET" && snapshotSchema(path)) {
     try {
       const data = await response.clone().json();
       if (readNumber !== null && value.cache.reads.get(path) !== readNumber)

@@ -1,6 +1,7 @@
 import { departureCheckInput } from "@nmt/contracts";
 import {
   packingHttp,
+  packingLeg,
   packingInput,
   type PackingContext,
 } from "../../../../../../../../src/packing-http";
@@ -17,6 +18,7 @@ export function POST(request: Request, context: PackingContext) {
         tripId,
         familyId,
         await packingInput(request, departureCheckInput),
+        packingLeg(request),
       ),
     201,
   );

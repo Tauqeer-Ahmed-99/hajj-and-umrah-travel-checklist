@@ -195,6 +195,7 @@ export function ChecklistEntryForm(
     travelers: Traveler[];
     members: AccessMember[];
     memberId: string;
+    defaultLeg?: "outbound" | "return";
   },
 ) {
   const [requestId] = useState(randomUUID);
@@ -214,7 +215,7 @@ export function ChecklistEntryForm(
       priority: "normal",
       dueDate: null,
       notes: "",
-      leg: "outbound",
+      leg: props.defaultLeg ?? "outbound",
       source: "",
       lastReviewedOn: null,
       taskStatus: props.kind === "task" ? "to_do" : null,

@@ -1,6 +1,7 @@
 import { packingInput as commandSchema } from "@nmt/contracts";
 import {
   packingHttp,
+  packingLeg,
   packingInput,
   type PackingContext,
 } from "../../../../../../../src/packing-http";
@@ -12,7 +13,7 @@ export function GET(request: Request, context: PackingContext) {
     request,
     context,
     async (member, { tripId, familyId, bagId }) =>
-      readPacking(member, tripId, familyId),
+      readPacking(member, tripId, familyId, packingLeg(request)),
     200,
   );
 }

@@ -1,5 +1,10 @@
 # Outbound bags and packing (#8)
 
+[#10 return preparation](return-preparation.md) now adds independently reviewed
+return requirements, possession, reconciliation and selected-leg packing/checks.
+The description below records the original outbound slice; return verification
+must never be inferred from its acquisition or completion records.
+
 Migration `011-packing.sql` depends on existing travelers, family permissions,
 checklist 007 and acquisition 009. It does not depend on concurrent file migration
 010 or reminder migration 012. It adds no environment variables, packages,

@@ -1,0 +1,37 @@
+appId: in.nmtsolutions.travel
+---
+# Prepared, not executed. Run return-reconciliation.yaml online first.
+# Standalone embedded bundle; disable both Wi-Fi and mobile data after seeding.
+- runFlow: return-reconciliation.yaml
+- setAirplaneMode: true
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: "Open cached trips"
+    timeout: 30000
+- tapOn: "Open cached trips"
+- scrollUntilVisible:
+    element: "Cached ${CACHE_TRIP_NAME}"
+- tapOn: "Cached ${CACHE_TRIP_NAME}"
+- scrollUntilVisible:
+    element: "Cached return belongings for ${MAESTRO_PACKING_FAMILY}"
+- tapOn: "Cached return belongings for ${MAESTRO_PACKING_FAMILY}"
+- assertVisible: "Cached return belongings"
+- assertVisible:
+    text: ".*read only.*"
+- assertNotVisible: "Save return reconciliation"
+- assertNotVisible: "Propose return list"
+- tapOn: "Back to cached trips"
+- scrollUntilVisible:
+    element: "Cached bags for ${MAESTRO_PACKING_FAMILY}"
+- tapOn: "Cached bags for ${MAESTRO_PACKING_FAMILY}"
+- tapOn: "Return"
+- scrollUntilVisible:
+    element: "Blue ${MAESTRO_PACKING_RUN}"
+- assertVisible: "Blue ${MAESTRO_PACKING_RUN}"
+- assertNotVisible: "Confirm bag status"
+- setAirplaneMode: false
+# Reconnect and verify current access before manually re-opening editing.
+# Remove the family grant from a second account, refresh, restart offline:
+# return ledger and both packing legs must disappear together. Shared items
+# that remain explicitly shared use only Cached shared items and bags.

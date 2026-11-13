@@ -152,8 +152,13 @@ export function ChecklistScreen({
   tripId,
   familyId,
   memberId,
+  defaultLeg,
   onBack,
-}: ChecklistScope & { memberId: string; onBack: () => void }) {
+}: ChecklistScope & {
+  memberId: string;
+  defaultLeg?: "outbound" | "return";
+  onBack: () => void;
+}) {
   const api = useTripRequest();
   const [data, setData] = useState<Data | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
@@ -248,6 +253,7 @@ export function ChecklistScreen({
     return (
       <ChecklistEntryForm
         {...props}
+        defaultLeg={defaultLeg}
         initial={editor.initial}
         kind={editor.kind}
         checklist={data.checklist}
