@@ -35,7 +35,7 @@ export async function transaction<T>(
   }
 }
 
-async function createOnce(
+export async function createOnce(
   db: PoolClient,
   memberId: string,
   scope: string,
