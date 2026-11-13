@@ -5,6 +5,20 @@ acceptance are **unverified**. EAS project
 `8c2739c3-9d23-4c92-a50a-836d3ea3a94c` is linked, but that does not configure OAuth
 or establish that a signed release works. Nothing was published for this ticket.
 
+On November 14, 2026, integration setup ran
+`eas credentials:configure-build --platform android --profile preview` and created
+the project's remotely managed default Android keystore. `eas credentials`
+confirmed package `in.nmtsolutions.travel` and reported these public certificate
+fingerprints:
+
+- SHA-1: `02:88:61:6A:60:2F:AC:03:2B:2A:0F:F1:CD:37:F0:32:4B:66:BC:F2`
+- SHA-256: `F6:E8:63:0D:67:45:AC:79:20:F1:5C:8B:DE:A8:55:F9:08:80:E4:E1:29:53:64:5F:92:A9:A1:97:92:98:CE:D5`
+
+Preserve this signing identity for APK upgrades. This is the EAS credential
+record, not an inspection of a built release artifact. No keystore/password was
+downloaded or committed, and no EAS APK build was started. Verify the actual APK
+certificate before registering or asserting the installed Google sign-in path.
+
 ## Implementation and integration interface
 
 - Android uses `useSignInWithGoogle` from `@clerk/expo/google` (4.16.0), backed by
