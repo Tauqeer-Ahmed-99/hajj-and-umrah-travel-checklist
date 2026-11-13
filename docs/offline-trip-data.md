@@ -166,3 +166,48 @@ real messages/exports, issue closure, pushes, PRs, APKs and OTA publication are
 outside this implementation. Local/combined verification results follow below.
 
 Primary native reference: [Expo SDK 58 Network](https://docs.expo.dev/versions/v58.0.0/sdk/network/).
+
+## Combined verification and handback
+
+The isolated branch began clean at `92478d79cfcd1150ebe361356dd883f38db54a02`,
+identical to integration. It now includes #18 summaries, #9 sharing and the latest
+integration `43794687218147434cee5f85a2a9e9f0bac54244`. The final implementation
+commit before this verification note is `24ec2646d764f93e444a4275d0a11a9b0c6cc62b`.
+Private family endpoints, server code, contracts, migrations and test fixture
+match that integration. Only the mobile consumer and this runbook differ.
+
+- The clean final `npm test` run passed **89/89 authenticated HTTP/PostgreSQL
+  scenarios**, normal exit, no skips/failures/cancellations/forced exit, in
+  314.5 seconds. It includes sharing redaction/revocation, acquisition/packing
+  retry receipts, summaries, reminders, guide-copy access and profile/session
+  regressions. These API checks do not execute the native read cache.
+- Workspace TypeScript, the final Next production API build, changed-file
+  Prettier and `git diff --check` passed. The API build followed the final test
+  run, restoring the generated Next type references to their tracked form.
+- The final Android JavaScript export with `--no-bytecode` passed (1,075 modules).
+  Expo dependency compatibility, prebuild and Doctor 20/20 passed after installing
+  the sole new current-consumer dependency, `expo-network ~58.0.5`.
+- Android `:app:processDebugMainManifest` passed (95 tasks). The generated Expo
+  package list registers `expo.modules.network.NetworkModule`; the merged
+  manifest includes ACCESS_NETWORK_STATE/ACCESS_WIFI_STATE and excludes the
+  three blocked shared-storage/download permissions. An initial attempt to run
+  a standalone `:expo-network:compileDebugKotlin` task failed because this SDK's
+  module layout has no such Gradle project. No APK/native-module compilation
+  pass is claimed from the manifest check, nor any Hermes/release compilation.
+- One earlier API rerun overlapped the sharing merge and produced five summary
+  errors against the changing source/schema. That run is not acceptance evidence.
+  A fresh seven-scenario summary fixture then passed, followed by the clean full
+  89-scenario run above. No API source changed during that final run; subsequent
+  transport hardening received TypeScript/export checks and remains covered by
+  the prepared native journeys, not by a claimed Node-native test.
+
+`adb devices` was empty and Maestro unavailable. The four new flows and the
+manual corruption/full-storage/in-flight/revocation/account-switch/large-text/
+TalkBack journeys remain **prepared, unrun**. Actual Clerk restoration, Android
+network callbacks, private filesystem cold-start persistence and cleanup must be
+proved on a configured standalone device build with an embedded bundle. Hosted
+Clerk/Neon/private R2/Vercel, real multi-account/provider checks, release signing,
+installation/upgrade and EAS update compatibility remain pending. Adding the
+native network dependency requires an appropriate new binary. No service
+operation, real message/export, issue closure, push, PR, APK or OTA publication
+was performed. #15 remains open for operational acceptance.
