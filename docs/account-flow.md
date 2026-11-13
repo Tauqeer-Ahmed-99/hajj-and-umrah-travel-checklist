@@ -171,6 +171,10 @@ Recreate the Vercel/Neon/Clerk setup under the selected Tauqeer account. Browser
 sign-in is available, but the separate CLI device-authorization attempt could not
 complete because its Allow Access button remained disabled. Do not reuse the
 other account's CLI credentials or its Clerk Marketplace acceptance link.
+The intended account's token settings were subsequently reached with the team
+scope and a one-day expiration selected. Vercel requires the account owner's
+current authenticator code before issuing that token. The secure code request
+expired unanswered, so verification was canceled and no token was issued.
 Production DNS/OAuth, a private R2 bucket, and device verification remain
 unfinished. EAS preview signing setup is recorded in
 [google-sign-in.md](google-sign-in.md). No APK or OTA update has been published,
