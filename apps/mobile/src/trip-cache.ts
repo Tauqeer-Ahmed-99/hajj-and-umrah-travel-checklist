@@ -398,6 +398,10 @@ export async function travelFetch(
         "Current access could not be checked. Your cached data was retained; reconnect and retry.",
       );
   }
+  if (readNumber !== null && value.cache.reads.get(path) !== readNumber)
+    throw new TripError(
+      "A newer refresh replaced this access check. Open the view again.",
+    );
   deny(value, path, response.status, method, denialCode);
   if (
     response.ok &&
