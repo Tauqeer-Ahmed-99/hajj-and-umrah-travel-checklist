@@ -1,0 +1,14 @@
+// Optional local Windows build support for deep worktree paths.
+// Keep this cache separate for each checkout and each native module.
+gradle.beforeProject { project ->
+    ['com.android.library', 'com.android.application'].each { pluginId ->
+        project.plugins.withId(pluginId) {
+            project.androidComponents.finalizeDsl { android ->
+                def checkout = Integer.toHexString(project.rootProject.projectDir.absolutePath.hashCode())
+                android.defaultConfig.externalNativeBuild.cmake.arguments.add('-DCMAKE_OBJECT_PATH_MAX=240')
+                android.externalNativeBuild.cmake.buildStagingDirectory = new File(
+                    System.getProperty('java.io.tmpdir'), "nmt-travel-cxx/${checkout}/${project.name}")
+            }
+        }
+    }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "nmt-travel",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev:api": "npm run dev -w @nmt/api",
+    "dev:android": "npm run start -w @nmt/mobile",
+    "test": "npm run test -w @nmt/api",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "build:api": "npm run build -w @nmt/api",
+    "format:check": "prettier --check .",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "@expo/fingerprint": {
+      "minimatch": "^11.0.1"
+    }
+  }
+}
