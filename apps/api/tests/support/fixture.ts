@@ -31,7 +31,14 @@ export async function startFixture(
     password: "local-test-only",
     persistent: true,
     initdbFlags: ["--encoding=UTF8", "--locale=C"],
-    postgresFlags: ["-h", "127.0.0.1"],
+    // Embedded PostgreSQL 18 I/O workers can outlive the Windows fixture and
+    // lock its executable after shutdown. Synchronous disk I/O keeps normal
+    // real PostgreSQL transactions/concurrency while avoiding those workers.
+    postgresFlags: [
+      "-h",
+      "127.0.0.1",
+      ...(process.platform === "win32" ? ["-c", "io_method=sync"] : []),
+    ],
     onLog: () => {},
     onError: () => {},
   });

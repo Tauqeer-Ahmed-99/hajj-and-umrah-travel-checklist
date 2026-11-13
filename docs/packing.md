@@ -217,6 +217,22 @@ contract parsing and removed-resource retry protection. Only the external identi
 provider is controlled; assertions use HTTP and the real Next handlers, permissions,
 transactions and disposable PostgreSQL. Migrations apply twice in the fixture.
 
+The confirmed-bag response is also parsed against the actual native contract;
+this caught PostgreSQL JSON timestamps with offsets that the mobile schema did
+not accept. Bag confirmation timestamps now serialize as UTC ISO strings. The
+focused seven-scenario run exited normally with all seven passing.
+
+An initial full run through the older `tsx --test` wrapper was interrupted after
+its acquisition assertions stalled during process cleanup. Integration #13 adds
+the normal `node --import tsx --test` runner. Two orphan Windows PostgreSQL 18
+`io_worker` processes from this worktree held the executable open during dependency
+refresh; only those identified workers were stopped. The disposable Windows
+fixture now uses the documented server-start `io_method=sync` option, avoiding
+those disk I/O workers while retaining real concurrent PostgreSQL transactions.
+Other platforms retain their existing mode. This is test configuration, not an
+application environment variable or hosted database change. See
+[PostgreSQL 18 I/O configuration](https://www.postgresql.org/docs/18/runtime-config-resource.html#GUC-IO-METHOD).
+
 Full combined checks and final integration ancestry are recorded below after they
 run. External acceptance remains pending: correct-account Clerk/Neon/Vercel setup,
 deployment and migration 011 with prerequisites, real authenticated Android
