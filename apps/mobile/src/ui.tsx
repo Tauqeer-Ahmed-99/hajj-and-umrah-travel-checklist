@@ -169,7 +169,15 @@ export function AppearancePicker() {
     </View>
   );
 }
-export function Screen({ children }: { children: ReactNode }) {
+export function Screen({
+  children,
+  footer,
+  contentKey,
+}: {
+  children: ReactNode;
+  footer?: ReactNode;
+  contentKey?: string;
+}) {
   const { colors, dark } = useTheme();
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.canvas }]}>
@@ -179,6 +187,7 @@ export function Screen({ children }: { children: ReactNode }) {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
+          key={contentKey}
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
@@ -197,6 +206,7 @@ export function Screen({ children }: { children: ReactNode }) {
             <AppearancePicker />
           </View>
         </ScrollView>
+        {footer}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

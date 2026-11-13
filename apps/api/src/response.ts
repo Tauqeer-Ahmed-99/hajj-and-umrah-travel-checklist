@@ -20,17 +20,16 @@ export function json(data: unknown, status = 200) {
     },
   });
 }
-export function failure(error: unknown) {
+export function failure(
+  error: unknown,
+  message = "Your profile could not be loaded or saved. Check your connection and try again.",
+) {
   const known =
     error instanceof HttpError
       ? error
-      : new HttpError(
-          503,
-          "service_unavailable",
-          "Your profile could not be loaded or saved. Check your connection and try again.",
-        );
+      : new HttpError(503, "service_unavailable", message);
   if (!(error instanceof HttpError))
-    console.error("Account request failed", {
+    console.error("API request failed", {
       name: error instanceof Error ? error.name : "unknown",
     });
   const body: ApiError = {

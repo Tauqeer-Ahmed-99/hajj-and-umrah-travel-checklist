@@ -1,0 +1,181 @@
+appId: in.nmtsolutions.travel
+---
+# Start signed in with a completed profile, on Your trips (or tap Switch trip).
+# MAESTRO_TRIP_RUN is a unique test-run suffix, consumed by Maestro only.
+- assertVisible: "Your trips"
+- scrollUntilVisible:
+    element: "Create trip"
+- tapOn: "Create trip"
+- tapOn:
+    id: trip-name-input
+- inputText: "Umrah ${MAESTRO_TRIP_RUN}"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: trip-start-input
+- tapOn:
+    id: trip-start-input
+- inputText: "2026-11-20"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: trip-end-input
+- tapOn:
+    id: trip-end-input
+- inputText: "2026-12-04"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: trip-destinations-input
+- tapOn:
+    id: trip-destinations-input
+- inputText: "Makkah"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: trip-family-input
+- tapOn:
+    id: trip-family-input
+- inputText: "Ahmed family"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Save trip"
+- tapOn: "Save trip"
+- extendedWaitUntil:
+    visible: "Umrah ${MAESTRO_TRIP_RUN}"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Open Ahmed family"
+- tapOn: "Open Ahmed family"
+- extendedWaitUntil:
+    visible: "No travelers yet"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Add traveler"
+- tapOn: "Add traveler"
+- tapOn:
+    id: traveler-first-input
+- inputText: "Aisha"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: traveler-last-input
+- tapOn:
+    id: traveler-last-input
+- inputText: "Ahmed"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Save traveler"
+- tapOn: "Save traveler"
+- extendedWaitUntil:
+    visible: "Aisha Ahmed"
+    timeout: 30000
+- back
+- tapOn:
+    id: tab-checklist
+- assertVisible: "Checklist is not available yet"
+- tapOn:
+    id: tab-bags
+- assertVisible: "Bags are not available yet"
+- tapOn:
+    id: tab-guides
+- assertVisible: "Guides are not available yet"
+- tapOn: "Switch trip"
+- scrollUntilVisible:
+    element: "Create trip"
+- tapOn: "Create trip"
+- tapOn:
+    id: trip-name-input
+- inputText: "Hajj ${MAESTRO_TRIP_RUN}"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: kind-hajj
+- tapOn:
+    id: kind-hajj
+- scrollUntilVisible:
+    element:
+      id: trip-start-input
+- tapOn:
+    id: trip-start-input
+- inputText: "2027-05-01"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: trip-end-input
+- tapOn:
+    id: trip-end-input
+- inputText: "2027-05-30"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: trip-destinations-input
+- tapOn:
+    id: trip-destinations-input
+- inputText: "Makkah"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: trip-family-input
+- tapOn:
+    id: trip-family-input
+- inputText: "Khan family"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Save trip"
+- tapOn: "Save trip"
+- extendedWaitUntil:
+    visible: "Hajj ${MAESTRO_TRIP_RUN}"
+    timeout: 30000
+- tapOn: "Switch trip"
+- scrollUntilVisible:
+    element: "Open Umrah ${MAESTRO_TRIP_RUN}"
+- tapOn: "Open Umrah ${MAESTRO_TRIP_RUN}"
+- extendedWaitUntil:
+    visible: "Umrah ${MAESTRO_TRIP_RUN}"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Open Ahmed family"
+- tapOn: "Open Ahmed family"
+- extendedWaitUntil:
+    visible: "Aisha Ahmed"
+    timeout: 30000
+- back
+- tapOn:
+    id: tab-guides
+- assertVisible: "Guides are not available yet"
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: "Guides are not available yet"
+    timeout: 30000
+- assertVisible: "Umrah ${MAESTRO_TRIP_RUN}"
+- tapOn: "Switch trip"
+- scrollUntilVisible:
+    element: "Open Hajj ${MAESTRO_TRIP_RUN}"
+- tapOn: "Open Hajj ${MAESTRO_TRIP_RUN}"
+- extendedWaitUntil:
+    visible: "Hajj ${MAESTRO_TRIP_RUN}"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Open Khan family"
+- tapOn: "Open Khan family"
+- extendedWaitUntil:
+    visible: "No travelers yet"
+    timeout: 30000
+- assertNotVisible: "Aisha Ahmed"
+- back
+- tapOn: "Account"
+- scrollUntilVisible:
+    element: "Sign out"
+- tapOn: "Sign out"
+- extendedWaitUntil:
+    visible: "Send email code"
+    timeout: 30000
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: "Send email code"
+    timeout: 30000
+- assertNotVisible: "Aisha Ahmed"
+- assertNotVisible: "Umrah ${MAESTRO_TRIP_RUN}"
