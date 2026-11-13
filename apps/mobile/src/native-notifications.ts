@@ -53,13 +53,26 @@ async function deviceId() {
   }
   return id;
 }
-async function cancelLocal() {
+async function cancelLocal(clearJournal = true) {
   for (const entry of await Notifications.getAllScheduledNotificationsAsync()) {
     if (entry.identifier.startsWith(prefix))
       await Notifications.cancelScheduledNotificationAsync(entry.identifier);
   }
   await Notifications.dismissAllNotificationsAsync();
-  await AsyncStorage.multiRemove([ownerKey, acknowledgedKey]);
+  if (clearJournal) await AsyncStorage.multiRemove([ownerKey, acknowledgedKey]);
+  else {
+    // An intentional cancellation permits a fresh future schedule when alerts
+    // are re-enabled. Keep past attempts so toggling preferences cannot replay them.
+    const previous: { id: string; version: number; at?: number }[] = JSON.parse(
+      (await AsyncStorage.getItem(acknowledgedKey)) ?? "[]",
+    );
+    await AsyncStorage.setItem(
+      acknowledgedKey,
+      JSON.stringify(
+        previous.filter((s) => s.at === undefined || s.at <= Date.now()),
+      ),
+    );
+  }
 }
 export function clearNotifications(token?: string) {
   ++generation;
@@ -106,7 +119,7 @@ export function synchronizeNotifications(
     }
     const permission = await Notifications.getPermissionsAsync(); // Never prompts on startup/refresh.
     if (!permission.granted) {
-      await cancelLocal();
+      await cancelLocal(false);
       await reminderApi.unregister(await deviceId(), token, signal);
       return "Notifications are off on this device. All travel screens remain available.";
     }
@@ -119,7 +132,7 @@ export function synchronizeNotifications(
       !preferences.deadlines &&
       !preferences.tripChanges
     ) {
-      await cancelLocal();
+      await cancelLocal(false);
       await reminderApi.unregister(await deviceId(), token, signal);
       return "Notification types are off. Choose the alerts you want below.";
     }
@@ -144,10 +157,19 @@ export function synchronizeNotifications(
     for (const entry of scheduled)
       if (entry.identifier.startsWith(prefix) && !wanted.has(entry.identifier))
         await Notifications.cancelScheduledNotificationAsync(entry.identifier);
-    const previous: { id: string; version: number; uncertain?: boolean }[] =
-      JSON.parse((await AsyncStorage.getItem(acknowledgedKey)) ?? "[]");
+    const previous: {
+      id: string;
+      version: number;
+      at?: number;
+      uncertain?: boolean;
+    }[] = JSON.parse((await AsyncStorage.getItem(acknowledgedKey)) ?? "[]");
     const acknowledged = previous.filter((s) =>
-      reminders.some((r) => r.id === s.id && r.version === s.version),
+      reminders.some(
+        (r) =>
+          r.id === s.id &&
+          r.version === s.version &&
+          (preferences.deadlines || Date.parse(r.dueAt.dateTime) <= Date.now()),
+      ),
     );
     await Notifications.setNotificationChannelAsync("travel", {
       name: "Important travel reminders",
@@ -164,7 +186,11 @@ export function synchronizeNotifications(
       );
       if (existing.has(identifier)) {
         if (!acknowledgedSchedule) {
-          acknowledgedSchedule = { id: r.id, version: r.version };
+          acknowledgedSchedule = {
+            id: r.id,
+            version: r.version,
+            at: Date.parse(r.dueAt.dateTime),
+          };
           acknowledged.push(acknowledgedSchedule);
         }
         acknowledgedSchedule.uncertain = false;
@@ -178,6 +204,7 @@ export function synchronizeNotifications(
         acknowledgedSchedule = {
           id: r.id,
           version: r.version,
+          at: Date.parse(r.dueAt.dateTime),
           uncertain: true,
         };
         acknowledged.push(acknowledgedSchedule);

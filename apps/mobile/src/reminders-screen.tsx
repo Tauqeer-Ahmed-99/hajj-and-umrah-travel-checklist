@@ -88,7 +88,7 @@ export function RemindersScreen({
   useEffect(() => {
     if (form) return;
     const listener = BackHandler.addEventListener("hardwareBackPress", () => {
-      if (!api.busy && !deviceBusy) onBack();
+      if (!api.busy) onBack();
       return true;
     });
     return () => listener.remove();
@@ -168,7 +168,7 @@ export function RemindersScreen({
       <Action
         title="Back to trip"
         secondary
-        disabled={api.busy || deviceBusy}
+        disabled={api.busy}
         onPress={onBack}
       />
       <Heading>Reminders</Heading>

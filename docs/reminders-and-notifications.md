@@ -77,6 +77,11 @@ same journal suppresses a second server attempt. As with a network claim, a cras
 between journal and submission can therefore miss a notice; no screen claims
 that such a notice was delivered.
 
+Turning alerts off intentionally cancels future schedules; turning them back on
+can schedule those future checks again. Past attempts remain remembered so that
+a preference toggle cannot replay an already attempted reminder. Optional device
+registration does not block returning to the trip screens.
+
 Sign-out/session replacement cancels app schedules, dismisses visible notices and
 clears local ownership/acknowledgment state. Connected sign-out also unregisters
 the device before Clerk sign-out; dispatch independently rejects an ended Clerk
@@ -169,6 +174,17 @@ dependency compatibility, prebuild and Gradle `:app:processDebugMainManifest`
 checks passed. The merged manifest contains notification permission, boot
 recovery and Expo/FCM services without exact-alarm permission. These are build and
 dependency checks, not physical-device delivery tests.
+
+After merging integration `6bc5bc44a59adb2d23e689e0e2d1e560e840cd0f`
+(private-file integration #13) in merge `c4fadde`, `npm test` passed **67/67**
+authenticated HTTP/PostgreSQL scenarios with the integrated direct Node runner;
+no tests were skipped or forced to exit. Shared conflict resolutions retain both
+provider fixtures, both contract exports, all file/notification native plugins and
+dependencies, and optional server configuration. Combined SDK compatibility,
+prebuild, JavaScript export and Gradle manifest processing passed. The combined
+manifest preserves the blocked file-storage/download permissions while including
+notification permission, boot recovery and Expo/FCM services. Final production
+build, workspace TypeScript, formatting and whitespace checks also passed.
 
 Prepared physical journeys (not executed passes):
 
