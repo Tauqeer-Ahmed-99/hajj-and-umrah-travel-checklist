@@ -16,6 +16,7 @@ import { StatusBar } from "expo-status-bar";
 import { GUIDE_FILE_LIMIT } from "@nmt/contracts";
 import { useTripRequest } from "./use-trip-request";
 import { guideFileApi } from "./guide-file-api";
+import { travelFileApi } from "./travel-file-api";
 import { TripError } from "./trip-api";
 import { Action, Copy, Heading, Loading, Notice } from "./ui";
 import { useTheme } from "./theme";
@@ -23,6 +24,7 @@ import {
   openSavedGuide,
   subscribeGuideCopies,
   savedGuideRemoved,
+  assertCopySession,
   type SavedGuide,
 } from "./guide-copies";
 import { useGuideCopies } from "./guide-copy-context";
@@ -32,12 +34,14 @@ export function GuideFileViewer({
   id,
   version,
   savedCopy,
+  travelFile = false,
   onBack,
 }: {
   tripId: string;
   id: string;
   version?: number;
   savedCopy?: SavedGuide;
+  travelFile?: boolean;
   onBack(): void;
 }) {
   const copies = useGuideCopies();
@@ -83,6 +87,29 @@ export function GuideFileViewer({
     };
   }, [savedCopy]);
   useEffect(() => {
+    if (!travelFile || !view || version === undefined) return;
+    // Refresh permission metadata while reading, never the object bytes. A denial
+    // closes the temporary view; transient failures can be explicitly retried.
+    const timer = setInterval(() => {
+      void api.run(async (token, signal) => {
+        try {
+          await travelFileApi.access(tripId, id, version, token, signal);
+        } catch (error) {
+          if (
+            error instanceof TripError &&
+            [401, 403, 404].includes(error.status ?? 0)
+          ) {
+            current.current?.abort();
+            setView(null);
+            close.current();
+          }
+          throw error;
+        }
+      });
+    }, 15_000);
+    return () => clearInterval(timer);
+  }, [travelFile, view, version, tripId, id, api.run]);
+  useEffect(() => {
     const controller = new AbortController();
     current.current = controller;
     // One app-private session cache. Purge remnants from an interrupted prior view
@@ -112,10 +139,12 @@ export function GuideFileViewer({
     void api.run(async (token, requestSignal) => {
       const abort = () => controller.abort();
       requestSignal.addEventListener("abort", abort, { once: true });
-      if (requestSignal.aborted) controller.abort();
+      copies.controller.signal.addEventListener("abort", abort, { once: true });
+      if (requestSignal.aborted || copies.controller.signal.aborted)
+        controller.abort();
       const signal = controller.signal;
       try {
-        const opened = await guideFileApi.open(
+        const opened = await (travelFile ? travelFileApi : guideFileApi).open(
           tripId,
           id,
           version,
@@ -148,6 +177,25 @@ export function GuideFileViewer({
           .join("");
         if (checksum !== opened.file.sha256)
           throw new TripError("The file did not arrive intact. Retry Open.");
+        if (travelFile) {
+          if (version === undefined)
+            throw new TripError("Refresh files before opening.");
+          const allowed = await travelFileApi.access(
+            tripId,
+            id,
+            version,
+            token,
+            signal,
+          );
+          if (
+            allowed.file.id !== opened.file.id ||
+            allowed.file.sha256 !== checksum
+          )
+            throw new TripError(
+              "File access changed. Refresh files before opening.",
+            );
+        }
+        assertCopySession(copies);
         if (signal.aborted) throw new TripError("Opening was interrupted.");
         const extension =
           opened.file.mediaType === "application/pdf"
@@ -159,6 +207,7 @@ export function GuideFileViewer({
           temporary.delete();
           return;
         }
+        assertCopySession(copies);
         setView({
           uri: temporary.uri,
           type: opened.file.mediaType,
@@ -166,20 +215,23 @@ export function GuideFileViewer({
         });
       } finally {
         requestSignal.removeEventListener("abort", abort);
+        copies.controller.signal.removeEventListener("abort", abort);
       }
     });
     return () => {
       controller.abort();
       if (temporary?.exists) temporary.delete();
     };
-  }, [tripId, id, version, attempt, api.run, savedCopy, copies]);
+  }, [tripId, id, version, attempt, api.run, savedCopy, copies, travelFile]);
   return (
     <SafeAreaView
       style={{ flex: 1, backgroundColor: colors.canvas, padding: 16, gap: 12 }}
     >
       <StatusBar style={dark ? "light" : "dark"} />
       <Action title="Close file" secondary onPress={onBack} />
-      <Heading>{view?.name ?? "Guide file"}</Heading>
+      <Heading>
+        {view?.name ?? (travelFile ? "Travel file" : "Guide file")}
+      </Heading>
       <Copy>
         {savedCopy
           ? `Saved offline · Version ${savedCopy.guide.version}`
@@ -224,7 +276,9 @@ export function GuideFileViewer({
           )}
           <View
             style={{ flex: 1, minHeight: 200 }}
-            accessibilityLabel="In-app guide viewer"
+            accessibilityLabel={
+              travelFile ? "In-app travel file viewer" : "In-app guide viewer"
+            }
           >
             {view.type === "application/pdf" ? (
               <Pdf
