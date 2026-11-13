@@ -7,7 +7,8 @@ import {
   type TravelReferences,
 } from "@nmt/contracts";
 import { requireFamilyAccess, requireTripAccess } from "./permissions";
-import { readTrip, transaction } from "./trips";
+import { transaction } from "./trips";
+import type { PoolClient } from "pg";
 import { HttpError } from "./response";
 import { acquisitionColumns } from "./acquisition";
 
@@ -25,27 +26,52 @@ const unavailable = () =>
     "A selected record is no longer available. Review your selection and retry.",
   );
 
+// An absent family grant can authorize only explicitly shared checklist rows.
+// Keep the summary's fixed field allowlist; never obtain a private packing snapshot.
+async function familyReadAccess(
+  db: PoolClient,
+  memberId: string,
+  tripId: string,
+  familyId: string,
+) {
+  try {
+    return await requireFamilyAccess(db, memberId, tripId, familyId);
+  } catch (error) {
+    if (!(error instanceof HttpError && error.status === 404)) throw error;
+  }
+  return null;
+}
 export function readSummaryChoices(memberId: string, tripId: string) {
   return transaction(async (db) => {
-    const detail = await readTrip(db, memberId, tripId);
+    await requireTripAccess(db, memberId, tripId);
     const entries = await db.query<SummaryChoices["itineraryEntries"][number]>(
       "SELECT id, title FROM itinerary_entries WHERE trip_id = $1 ORDER BY position, id",
       [tripId],
     );
+    const candidates = await db.query<{ id: string }>(
+      `SELECT f.id FROM families f WHERE f.trip_id = $1
+      AND (EXISTS (SELECT 1 FROM family_members fm WHERE fm.family_id = f.id AND fm.member_id = $2)
+        OR EXISTS (SELECT 1 FROM checklist_entries e WHERE e.family_id = f.id AND e.audience = 'trip' AND e.removed_at IS NULL)) ORDER BY f.id`,
+      [tripId, memberId],
+    );
     const families: SummaryChoices["families"] = [];
-    for (const family of detail.families) {
-      await requireFamilyAccess(db, memberId, tripId, family.id);
+    for (const candidate of candidates.rows) {
+      const family = await familyReadAccess(db, memberId, tripId, candidate.id);
+      await db.query("SELECT id FROM families WHERE id = $1 FOR SHARE", [
+        candidate.id,
+      ]);
       const records = await db.query<
         SummaryChoices["families"][number]["entries"][number]
       >(
-        "SELECT id, title, kind FROM checklist_entries WHERE family_id = $1 AND removed_at IS NULL ORDER BY created_at, id",
-        [family.id],
+        "SELECT id, title, kind FROM checklist_entries WHERE family_id = $1 AND removed_at IS NULL AND ($2::boolean OR audience = 'trip') ORDER BY created_at, id",
+        [candidate.id, !!family],
       );
-      families.push({
-        id: family.id,
-        name: family.name,
-        entries: records.rows,
-      });
+      if (family || records.rowCount)
+        families.push({
+          id: candidate.id,
+          name: family?.name ?? "Shared with trip",
+          entries: records.rows,
+        });
     }
     return {
       itineraryEntries: entries.rows,
@@ -126,15 +152,17 @@ export function previewSummary(
     for (const chosen of [...input.checklist].sort((a, b) =>
       a.familyId.localeCompare(b.familyId),
     )) {
-      const family = await requireFamilyAccess(
+      const family = await familyReadAccess(
         db,
         memberId,
         tripId,
         chosen.familyId,
       );
-      await db.query("SELECT id FROM families WHERE id = $1 FOR SHARE", [
-        chosen.familyId,
-      ]);
+      const scope = await db.query(
+        "SELECT id FROM families WHERE id = $1 AND trip_id = $2 FOR SHARE",
+        [chosen.familyId, tripId],
+      );
+      if (!scope.rowCount) throw unavailable();
       type SummaryEntry = Pick<
         ChecklistEntry,
         | "id"
@@ -148,11 +176,11 @@ export function previewSummary(
         | "acquisition"
       >;
       const result = await db.query<SummaryEntry>(
-        `SELECT id, kind, title, required_quantity::float8 AS "requiredQuantity", unit, leg, priority, task_status AS "taskStatus", ${acquisitionColumns} FROM checklist_entries WHERE family_id = $1 AND id = ANY($2::uuid[]) AND removed_at IS NULL ORDER BY created_at, id`,
-        [chosen.familyId, chosen.entryIds],
+        `SELECT id, kind, title, required_quantity::float8 AS "requiredQuantity", unit, leg, priority, task_status AS "taskStatus", ${acquisitionColumns} FROM checklist_entries WHERE family_id = $1 AND id = ANY($2::uuid[]) AND removed_at IS NULL AND ($3::boolean OR audience = 'trip') ORDER BY created_at, id`,
+        [chosen.familyId, chosen.entryIds, !!family],
       );
       if (result.rows.length !== chosen.entryIds.length) throw unavailable();
-      const lines = [`Checklist: ${family.name}`];
+      const lines = [`Checklist: ${family?.name ?? "Shared with trip"}`];
       for (const entry of result.rows) {
         lines.push(
           `${entry.kind === "item" ? "Item" : "Task"}: ${entry.title} [${entry.leg}; ${entry.priority}]`,

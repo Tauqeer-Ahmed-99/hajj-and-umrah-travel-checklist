@@ -12,11 +12,20 @@ import { ChecklistChoices, ChecklistSection } from "./checklist-ui";
 import { checklistApi } from "./checklist-api";
 import { useSave, SaveActions, type FormProps } from "./checklist-forms";
 
+type AcquisitionEntry = Pick<
+  ChecklistEntry,
+  "id" | "title" | "unit" | "requiredQuantity" | "acquisition"
+>;
+type Acquire = (
+  input: AcquisitionInput,
+  token: string,
+  signal: AbortSignal,
+) => Promise<unknown>;
 type State = (typeof acquisitionState.options)[number];
 const stockStates = acquisitionState.options.filter(
   (state) => state !== "remaining",
 );
-export function AcquisitionSummary({ entry }: { entry: ChecklistEntry }) {
+export function AcquisitionSummary({ entry }: { entry: AcquisitionEntry }) {
   const stock = entry.acquisition;
   if (!stock) return null;
   if (stock.notNeededReason)
@@ -41,7 +50,9 @@ export function AcquisitionSummary({ entry }: { entry: ChecklistEntry }) {
     </>
   );
 }
-export function AcquisitionForm(props: FormProps & { entry: ChecklistEntry }) {
+export function AcquisitionForm(
+  props: FormProps & { entry: AcquisitionEntry; acquire?: Acquire },
+) {
   const { entry } = props;
   const stock = entry.acquisition!;
   const [requestId] = useState(randomUUID);
@@ -71,7 +82,9 @@ export function AcquisitionForm(props: FormProps & { entry: ChecklistEntry }) {
   const save = useSave<AcquisitionInput>(
     acquisitionInput,
     (input, token, signal) =>
-      checklistApi.acquire(props.scope, entry.id, input, token, signal),
+      props.acquire
+        ? props.acquire(input, token, signal)
+        : checklistApi.acquire(props.scope, entry.id, input, token, signal),
     props,
   );
   const submit = () => {

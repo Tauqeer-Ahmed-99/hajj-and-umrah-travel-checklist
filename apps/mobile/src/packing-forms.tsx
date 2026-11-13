@@ -132,7 +132,16 @@ export function BagForm(props: Props & { initial: Bag | null }) {
     </Screen>
   );
 }
-export function BagStateForm(props: Props & { bag: Bag }) {
+export function BagStateForm(
+  props: FormProps & {
+    bag: Pick<Bag, "id" | "name" | "legs">;
+    setState?: (
+      input: import("@nmt/contracts").BagStateInput,
+      token: string,
+      signal: AbortSignal,
+    ) => Promise<unknown>;
+  },
+) {
   const [requestId] = useState(randomUUID);
   const leg = props.bag.legs.find((leg) => leg.leg === "outbound")!;
   const [status, setStatus] = useState(leg.status);
@@ -140,7 +149,9 @@ export function BagStateForm(props: Props & { bag: Bag }) {
   const save = useSave(
     bagStateInput,
     (input, token, signal) =>
-      packingApi.state(props.scope, props.bag.id, input, token, signal),
+      props.setState
+        ? props.setState(input, token, signal)
+        : packingApi.state(props.scope, props.bag.id, input, token, signal),
     props,
   );
   return (

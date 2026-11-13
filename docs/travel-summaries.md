@@ -33,9 +33,12 @@ session/completed-member gate, central trip/family permissions, transactions and
 private/no-store responses varying by Authorization.
 
 - `GET` returns only `itineraryEntries: [{ id, title }]` and
-  `families: [{ id, name, entries: [{ id, title, kind }] }]`. Family choices require
-  current explicit family access. An organizer does not gain private family
-  choices; viewers can select content they can read.
+  `families: [{ id, name, entries: [{ id, title, kind }] }]`. Private choices require
+  current explicit family access. #9 also includes explicitly trip-shared entries
+  for readers without that grant, under the generic group label "Shared with
+  trip". It exposes no private family name, category, roster, unrelated record or
+  location. Canonical entry IDs occur once even with family access and several
+  beneficiaries. Viewers can select every record they can read.
 - `POST` is a read, returning only `{ text }`. Its strict selection is
   `{ tripDetails, travelFields, itineraryEntryIds, checklist,
 includePreparation, includeTaskProgress }`.
@@ -65,6 +68,11 @@ includePreparation, includeTaskProgress }`.
   401/403; provider/network failures remain retryable without stale fallback.
 
 Each preview/share refresh rechecks current permissions in the read transaction.
+For a selected family without a current explicit grant, every selected entry must
+still be trip-shared. Unsharing, removal or one private selection fails the whole
+preview with 404. The family share lock holds visibility stable through the
+allowlisted projection; sharing never widens the output fields to notes,
+beneficiaries, assignees, packing locations or history.
 Membership share locks serialize with revocation. Trip/family share locks hold
 the existing itinerary/checklist mutation boundary stable while assembling text;
 selected families use a stable lock order. No receipt is needed: this route never
@@ -77,6 +85,9 @@ There is no allocation-table dependency or generic export engine. The summary
 uses acquisition's existing exact quantity projection and central permissions.
 
 ## Local verification and prepared native journeys
+
+The #9 shared-item extension and its combined 89-scenario verification are
+recorded in [sharing](sharing.md#final-combined-evidence).
 
 The approved seam is authenticated HTTP with disposable real PostgreSQL and the
 real Next handlers/Clerk verification. Only the identity provider's external
