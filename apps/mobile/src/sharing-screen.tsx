@@ -40,6 +40,7 @@ export function SharedScreen({
     trip: TripDetail;
     members: AccessMember[];
   } | null>(null);
+  const [leg, setLeg] = useState<"outbound" | "return">("outbound");
   const [editor, setEditor] = useState<Editor | null>(null);
   const [view, setView] = useState<"items" | "bags" | "activity">("items");
   const [query, setQuery] = useState("");
@@ -48,14 +49,14 @@ export function SharedScreen({
     setData(null);
     const result = await api.run(async (token, signal) => {
       const [shared, trip, members] = await Promise.all([
-        sharingApi.read(tripId, token, signal),
+        sharingApi.read(tripId, token, signal, leg),
         tripApi.read(tripId, token, signal),
         invitationApi.members(tripId, undefined, token, signal),
       ]);
       return { shared, trip, members: members.members };
     });
     if (result) setData(result);
-  }, [tripId, api.run]);
+  }, [tripId, api.run, leg]);
   useEffect(() => {
     if (editor) return;
     void load();
@@ -125,6 +126,7 @@ export function SharedScreen({
       if (editor.mode === "move")
         return (
           <SharedMoveForm
+            leg={leg}
             {...props}
             item={editor.item}
             bags={data.shared.bags.filter((b) => b.familyId === scope.familyId)}
@@ -149,6 +151,7 @@ export function SharedScreen({
     if (editor.mode === "status")
       return (
         <BagStateForm
+          leg={leg}
           {...props}
           bag={editor.bag}
           setState={(input, token, signal) =>
@@ -163,6 +166,27 @@ export function SharedScreen({
     <Screen>
       <Action title="Back to trip" secondary onPress={onBack} />
       <Heading>Shared with trip</Heading>
+      <ChecklistChoices
+        label="Shared travel leg"
+        value={leg}
+        locked={api.busy}
+        options={[
+          { value: "outbound", label: "Outbound" },
+          { value: "return", label: "Return" },
+        ]}
+        onChange={(next) => {
+          if (next === leg) return;
+          setData(null);
+          setLeg(next);
+        }}
+      />
+      {leg === "return" && (
+        <Copy>
+          Return packing uses the owning family's fresh requirement review and
+          possession count. Private reconciliation details stay within that
+          family.
+        </Copy>
+      )}
       <Copy>
         These items and bags were explicitly shared by their owning-family
         coordinators. Each item has one requirement and one acquisition ledger
@@ -252,8 +276,17 @@ export function SharedScreen({
                       {entry.dueDate && <Copy>Due: {entry.dueDate}</Copy>}
                       {item.packing && (
                         <>
+                          {leg === "return" && (
+                            <Copy>
+                              Return requirement:{" "}
+                              {item.packing.requiredQuantity} {entry.unit}.
+                              Verified for return packing:{" "}
+                              {item.packing.available} {entry.unit}.
+                            </Copy>
+                          )}
                           <Copy>
-                            Outbound: {item.packing.packed} in bags;{" "}
+                            {leg === "return" ? "Return" : "Outbound"}:{" "}
+                            {item.packing.packed} in bags;{" "}
                             {item.packing.keptWithTraveler} kept with travelers;{" "}
                             {item.packing.notPacked} not packed;{" "}
                             {item.packing.needsRepacking} need repacking.

@@ -38,7 +38,7 @@ export const bagStatusLabels = {
 } as const;
 export const bagStateInput = z.strictObject({
   requestId: z.uuid(),
-  leg: z.literal("outbound"),
+  leg: z.enum(["outbound", "return"]),
   status: bagStatus,
   reviewConfirmed: z.boolean().optional(),
 });
@@ -63,7 +63,7 @@ export const packingLocation = z.discriminatedUnion("kind", [
 export const packingMove = z.strictObject({
   requestId: z.uuid(),
   kind: z.literal("move"),
-  leg: z.literal("outbound"),
+  leg: z.enum(["outbound", "return"]),
   entryId: z.uuid(),
   from: packingLocation,
   to: packingLocation,
@@ -79,7 +79,7 @@ export const packingInput = z.discriminatedUnion("kind", [
   z.strictObject({
     requestId: z.uuid(),
     kind: z.literal("undo"),
-    leg: z.literal("outbound"),
+    leg: z.enum(["outbound", "return"]),
     eventId: z.uuid(),
     reason: note.min(1),
     physicalConfirmed: z.boolean().optional(),
@@ -152,11 +152,12 @@ export const packingRemoval = z.strictObject({
 });
 export const departureCheck = departureFields.extend({
   id: z.uuid(),
-  leg: z.literal("outbound"),
+  leg: z.enum(["outbound", "return"]),
   checkedAt: z.iso.datetime().nullable(),
   checkedBy: z.uuid().nullable(),
 });
 export const packingResponse = z.object({
+  leg: z.enum(["outbound", "return"]),
   bags: z.array(bag),
   items: z.array(packingItem),
   checks: z.array(departureCheck),

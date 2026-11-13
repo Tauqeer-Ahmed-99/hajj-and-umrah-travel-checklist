@@ -1,6 +1,7 @@
 import { departureCheckPatch, packingRemoval } from "@nmt/contracts";
 import {
   packingHttp,
+  packingLeg,
   packingInput,
   type PackingContext,
 } from "../../../../../../../../../src/packing-http";
@@ -18,6 +19,8 @@ export function PATCH(request: Request, context: PackingContext) {
         familyId,
         checkId!,
         await packingInput(request, departureCheckPatch),
+        false,
+        packingLeg(request),
       ),
     200,
   );
@@ -34,6 +37,7 @@ export function DELETE(request: Request, context: PackingContext) {
         checkId!,
         await packingInput(request, packingRemoval),
         true,
+        packingLeg(request),
       ),
     200,
   );

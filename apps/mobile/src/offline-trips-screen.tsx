@@ -5,6 +5,7 @@ import {
   itineraryResponse,
   checklistResponse,
   packingResponse,
+  returnPreparationResponse,
   travelersResponse,
   sharedContentResponse,
   tripPhaseLabels,
@@ -13,7 +14,7 @@ import {
   type TravelReferences,
 } from "@nmt/contracts";
 import { Action, Copy, Heading, Notice, Screen } from "./ui";
-import { ChecklistSection } from "./checklist-ui";
+import { ChecklistChoices, ChecklistSection } from "./checklist-ui";
 import { AcquisitionSummary } from "./acquisition-form";
 import { locationLabel, travelerName } from "./packing-ui";
 import {
@@ -25,8 +26,9 @@ import { subscribeTripCache, useTripConnection } from "./trip-cache-state";
 
 type Route = {
   tripId: string;
-  screen: "trip" | "itinerary" | "checklist" | "packing" | "shared";
+  screen: "trip" | "itinerary" | "checklist" | "packing" | "shared" | "return";
   familyId?: string;
+  leg?: "outbound" | "return";
 };
 function Freshness({ record }: { record?: TripSnapshot }) {
   return (
@@ -105,13 +107,24 @@ export function OfflineTripsScreen({
   const checklist = checklistRecord
     ? checklistResponse.parse(checklistRecord.data)
     : null;
-  const packingRecord = records.find((r) => r.path === `${familyPath}/packing`);
+  const leg = route?.leg ?? "outbound";
+  const packingRecord = records.find(
+    (r) => r.path === `${familyPath}/packing?leg=${leg}`,
+  );
   const packing = packingRecord
     ? packingResponse.parse(packingRecord.data)
     : null;
-  const sharedRecord = records.find((r) => r.path === `${path}/shared`);
+  const sharedRecord = records.find(
+    (r) => r.path === `${path}/shared?leg=${leg}`,
+  );
   const shared = sharedRecord
     ? sharedContentResponse.parse(sharedRecord.data)
+    : null;
+  const returnRecord = records.find(
+    (r) => r.path === `${familyPath}/return-preparation`,
+  );
+  const returning = returnRecord
+    ? returnPreparationResponse.parse(returnRecord.data)
     : null;
   const rosterRecord = records.find(
     (r) => r.path === `${familyPath}/travelers`,
@@ -216,6 +229,18 @@ export function OfflineTripsScreen({
                     }
                   />
                   <Action
+                    title={`Cached return belongings for ${family.name}`}
+                    secondary
+                    onPress={() =>
+                      setRoute({
+                        ...route,
+                        screen: "return",
+                        familyId: family.id,
+                        leg: "return",
+                      })
+                    }
+                  />
+                  <Action
                     title={`Cached bags for ${family.name}`}
                     secondary
                     onPress={() =>
@@ -293,13 +318,67 @@ export function OfflineTripsScreen({
           ))}
         </>
       )}
+      {route && ["packing", "shared"].includes(route.screen) && (
+        <ChecklistChoices
+          label="Cached travel leg"
+          value={leg}
+          options={[
+            { value: "outbound", label: "Outbound" },
+            { value: "return", label: "Return" },
+          ]}
+          onChange={(leg) => setRoute({ ...route, leg })}
+        />
+      )}
+      {route?.screen === "return" && (
+        <>
+          <Heading>Cached return belongings</Heading>
+          <Freshness record={returnRecord} />
+          <Copy>
+            Return requirements and possession reflect a previous confirmed
+            read. Reconnect to count, reconcile or pack again.
+          </Copy>
+          {returning?.items.map((item) => (
+            <ChecklistSection key={item.entryId} title={item.title}>
+              <Copy>
+                Return requirement: {item.requiredQuantity} {item.unit}.
+                Previously confirmed possession: {item.possessionQuantity}{" "}
+                {item.unit}.
+              </Copy>
+              <Copy>
+                {item.reviewed ? "Previously reviewed" : "Needs review"}.{" "}
+                {item.possessionConfirmedAt
+                  ? `Counted: ${item.possessionConfirmedAt}`
+                  : "Possession unverified"}
+              </Copy>
+              <Copy>
+                Unaccounted: {item.unaccounted}. Still to verify:{" "}
+                {item.remainingToVerify}.
+              </Copy>
+              {(["consumed", "gifted", "left", "lost"] as const)
+                .filter((key) => item[key].quantity > 0)
+                .map((key) => (
+                  <Copy key={key}>
+                    {key}: {item[key].quantity} {item.unit};{" "}
+                    {item[key].explanation}
+                  </Copy>
+                ))}
+            </ChecklistSection>
+          ))}
+          {returning?.checkout.map((check) => (
+            <Copy key={check.id}>
+              {check.label}:{" "}
+              {check.checked ? "Previously checked" : "Needs checking"}
+            </Copy>
+          ))}
+        </>
+      )}
       {route?.screen === "packing" && (
         <>
           <Heading>Cached confirmed bag contents</Heading>
           <Freshness record={packingRecord} />
           <Notice>
-            Outbound · last confirmed locations. Current possession and return
-            packing must be checked separately.
+            {leg === "return" ? "Return" : "Outbound"} last confirmed locations.
+            Cached views never confirm current possession or collection.
           </Notice>
           {packing?.bags.map((bag) => (
             <ChecklistSection key={bag.id} title={bag.name}>

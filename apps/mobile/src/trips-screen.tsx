@@ -203,6 +203,7 @@ export function TripsScreen({
   if (route.screen === "bags")
     return (
       <PackingScreen
+        memberId={profile.id}
         key={`${route.tripId}:${route.familyId}`}
         tripId={route.tripId}
         familyId={route.familyId}
