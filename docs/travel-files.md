@@ -186,3 +186,37 @@ R2/Vercel, cross-account hosted authorization, Android picker/PDF/image renderin
 Arabic, filesystem cleanup, accessibility, release/Hermes/signing/install/upgrade
 and OTA acceptance remain unverified. No service operations, real messages or
 exports, issue closure, push, PR, binary or OTA publication were performed.
+
+## Combined verification and handback
+
+The clean task branch started at integration
+`a44bc27f0321060ca0f6faf994820e7b945f069d`. Implementation commit `c503447`
+was followed by merge `e39747c`, bringing in current integration
+`2434253f7a778eb8c1c1bcbd62d4b29a2b0f95d8` and #10's independent return-leg
+implementation. The sole conflict was the family packing screen: its leg selector,
+return review/checkout, search and leg-specific bag states were retained, adding
+only the physical bag's photo destination. No SQL016/018, existing permission,
+shared projection, return API or read-cache schema was changed by this ticket.
+The final implementation revision before this verification note is
+`50ad8198c4d3bd2276a542eca656d2eaf23c4096`.
+
+- Full `npm test` on the combined tree passed **104/104 authenticated HTTP/real
+  PostgreSQL scenarios** in 430.6 seconds, with normal exit, no skips, failures,
+  cancellations or forced process termination. All six travel-file scenarios and
+  the existing return, sharing, summary, reminder, guide-copy and identity
+  regressions passed. API/test/migration source stayed fixed throughout the run.
+- Workspace TypeScript passed after the merge and native retry/accessibility
+  changes. The subsequent Next 16.4.6 production build passed, including its
+  TypeScript and dynamic travel-file routes; it restored generated Next type
+  references to their tracked production form.
+- The combined Android JavaScript export passed with `--no-bytecode` (1,081
+  modules). This verifies bundling, not native rendering, Hermes, a release APK or
+  device acceptance. No new native dependency was introduced.
+- Changed-file Prettier and `git diff --check` passed. The Node test script,
+  PostgreSQL fixture including Windows PG18 `io_method=sync`, lockfile and SQL016
+  match integration. Only SQL017 is introduced by this ticket. Final integration
+  ancestry and clean-worktree checks accompany the handback.
+
+The four new Maestro flows and manual accessibility/error/revocation journeys
+above remain prepared and unrun. No device, real provider or publication gate is
+claimed from the local API suite, type checks, production API build or JS export.
