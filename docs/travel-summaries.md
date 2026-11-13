@@ -86,6 +86,9 @@ uses acquisition's existing exact quantity projection and central permissions.
 
 ## Local verification and prepared native journeys
 
+The #9 shared-item extension and its combined 89-scenario verification are
+recorded in [sharing](sharing.md#final-combined-evidence).
+
 The approved seam is authenticated HTTP with disposable real PostgreSQL and the
 real Next handlers/Clerk verification. Only the identity provider's external
 boundary is controlled. Seven summary scenarios cover selected-only fields and

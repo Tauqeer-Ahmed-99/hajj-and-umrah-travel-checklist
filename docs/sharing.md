@@ -137,3 +137,36 @@ Clerk/Neon/Vercel deployment and migration 015 with prerequisites, real accounts
 device journeys, Hermes compilation, signed APK installation/upgrade and EAS
 update compatibility remain unverified. No service operations, real messages,
 exports, issue closure, pushes, PRs, binary or OTA publication occur in this task.
+
+## Final combined evidence
+
+The prepared worktree started clean on `t3/shared-item-permissions` at
+`92478d79cfcd1150ebe361356dd883f38db54a02`, identical to integration. Feature
+commit `d52c123` implements independent sharing; `e06866e` adds permitted shared
+summary choices after merging #18. Merge `ddeeca3c8c38111a10680519faa06409eff02837`
+includes latest integration `ee5e63a40de10533f2034376c8cd891ea0ff7a7a` and its
+proven notification-test completion wait. Navigation conflicts retained both
+Shared content and Summary destinations. No notification product behavior was
+changed by #9.
+
+Checks on the actual combined runtime tree:
+
+- `npm test`: **89/89 authenticated HTTP/PostgreSQL scenarios passed**, no skips,
+  failures, cancellations or forced exit (466.3 seconds). This includes all seven
+  #9 scenarios and the existing acquisition, packing, summary, reminder, file,
+  invitation and identity regressions. Only external provider boundaries are
+  controlled; no new test asserts domain behavior through SQL.
+- `npm run typecheck`: all workspace TypeScript checks passed.
+- `npm run build:api`: Next production build passed, including all sharing and
+  summary routes, without requiring new service configuration.
+- Android `expo export --platform android --no-bytecode`: passed, 1,068 modules;
+  output stays in ignored `.expo/sharing-verification`. This is JavaScript
+  bundling evidence only, not native/Hermes, installation or OTA acceptance.
+- Repository Prettier and `git diff --check` passed. No dependency, lockfile or
+  environment-variable change was needed. SQL015 is the only new migration.
+
+At this tested integration, #15's trip-cache implementation is not yet present.
+It can consume the exported `SharedContent` contract and authorized shared read
+interface; no speculative cache table or dependency is added here. Return and
+attachment tables remain absent. Hosted/provider and physical-device gaps above
+remain open; Maestro is unavailable and no native demonstration was executed.

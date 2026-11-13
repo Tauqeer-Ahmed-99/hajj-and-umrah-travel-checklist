@@ -139,6 +139,9 @@ vary by Authorization. Actor snapshots include names/username, never email.
 
 ## Exact privacy boundary for #9 and #17
 
+[#9 sharing](sharing.md) implements coordinator visibility and a separate safe
+shared projection; the private snapshot and boundaries below remain in force.
+
 Nothing in #8 shares a bag, item, departure check or event. Unknown sharing fields
 are rejected by strict input schemas. Do **not** grant another family access to
 `readPacking` merely because a checklist item becomes trip-shared.
