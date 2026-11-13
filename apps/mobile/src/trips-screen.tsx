@@ -32,6 +32,7 @@ import { GuidesScreen } from "./guides-screen";
 import { ChecklistDestination, ChecklistScreen } from "./checklist-screen";
 import { BagsDestination, PackingScreen } from "./packing-screen";
 import { RemindersScreen } from "./reminders-screen";
+import { onTripCacheRevoked } from "./trip-cache";
 import { SharedScreen } from "./sharing-screen";
 import { SummaryScreen } from "./summary-screen";
 
@@ -55,13 +56,25 @@ export function TripsScreen({
   profile,
   onAccount,
   onOffline,
+  onCached,
 }: {
   profile: MemberProfile;
   onAccount: () => void;
   onOffline: () => void;
+  onCached: () => void;
 }) {
   const [route, setRoute] = useState<Route | null>(null);
   const [preferenceError, setPreferenceError] = useState("");
+  useEffect(
+    () =>
+      onTripCacheRevoked(() => {
+        setRoute({ screen: "list" });
+        setPreferenceError(
+          "Trip access changed. Open a permitted trip again after refreshing.",
+        );
+      }),
+    [],
+  );
   useEffect(() => {
     let active = true;
     restoreTripNavigation(profile.id)
@@ -237,6 +250,7 @@ export function TripsScreen({
   if (route.screen === "list")
     return (
       <TripList
+        onCached={onCached}
         onOffline={onOffline}
         preferenceError={preferenceError}
         onOpen={openTrip}
@@ -382,6 +396,7 @@ function DestinationNav({
 }
 
 function TripList({
+  onCached,
   onOpen,
   onCreate,
   onAccount,
@@ -389,6 +404,7 @@ function TripList({
   onInvitations,
   onOffline,
 }: {
+  onCached: () => void;
   onOpen: (id: string) => void;
   onCreate: () => void;
   onAccount: () => void;
@@ -406,6 +422,7 @@ function TripList({
   useForegroundRefresh(load);
   return (
     <Screen>
+      <Action title="Open cached trips" secondary onPress={onCached} />
       <TripLink title="Account" onPress={onAccount} />
       <Heading>Your trips</Heading>
       <Action title="Open saved guides" secondary onPress={onOffline} />

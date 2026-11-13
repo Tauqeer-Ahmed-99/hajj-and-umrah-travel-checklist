@@ -87,7 +87,7 @@ function useGuideSave<T>(
     submit,
     cancel,
     uncertain,
-    locked: api.busy || uncertain,
+    locked: api.busy || uncertain || api.readOnly,
     fields: { ...api.error?.fields, ...validation },
   };
 }
@@ -115,6 +115,7 @@ function SaveActions({
         </Notice>
       )}
       <Action
+        requiresConnection
         title={
           save.busy ? "Saving…" : save.uncertain ? "Retry same save" : title
         }

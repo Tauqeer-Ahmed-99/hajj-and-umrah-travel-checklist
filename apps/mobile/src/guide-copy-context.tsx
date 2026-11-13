@@ -9,8 +9,12 @@ import { Action, Heading, Loading, Notice, Screen } from "./ui";
 import {
   startGuideCopies,
   stopGuideCopies,
+  assertCopySession,
+  restoreCopyProfile,
+  clearSessionGuideCopies,
   type CopySession,
 } from "./guide-copies";
+import { startTripCache } from "./trip-cache";
 const Context = createContext<CopySession | null>(null);
 export function GuideCopyProvider({
   accountId,
@@ -24,8 +28,19 @@ export function GuideCopyProvider({
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let current: CopySession | undefined;
+    let stopCache: (() => void) | undefined;
     try {
       current = startGuideCopies(accountId);
+      const owner = current;
+      stopCache = startTripCache({
+        directory: owner.directory,
+        current: () => {
+          assertCopySession(owner);
+          return owner.controller;
+        },
+        completed: () => !!restoreCopyProfile(owner),
+        clearAccount: () => clearSessionGuideCopies(owner),
+      });
       setSession(current);
       setError("");
     } catch {
@@ -34,6 +49,7 @@ export function GuideCopyProvider({
       );
     }
     return () => {
+      stopCache?.();
       if (current) {
         try {
           stopGuideCopies(current);

@@ -88,6 +88,7 @@ export function InvitationInbox({
           </Copy>
           {selected.status === "pending" && (
             <Action
+              requiresConnection
               title={api.busy ? "Accepting…" : "Accept invitation"}
               busy={api.busy}
               disabled={

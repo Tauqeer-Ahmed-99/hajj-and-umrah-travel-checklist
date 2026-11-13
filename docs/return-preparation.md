@@ -151,6 +151,19 @@ lock and was rerun serially; it is not product red/green evidence. Existing unit
 validation correctly returned 422 before the return invariant; the test expectation
 was corrected without changing product validation.
 
+The additional sharing slice ran
+`--test-name-pattern='shared return projections' tests/return.test.ts`: red
+missing explicit leg (16.795s), then green 1/1 (18.624s). It exercises both leg
+projections, private bag/traveler references, hidden reconciliation reasons,
+family-only return endpoints, visibility conflicts across return allocations and
+an authorized shared-editor return move returning only `{saved:true}`.
+
+The retirement slice
+`--test-name-pattern='legacy removal retains' tests/return.test.ts` failed
+**200 vs 409** (18.686s): a new reconciliation could revive active quantities from
+a removed source. Removed sources now retain reconciliation/history and permit
+disposition corrections, but cannot regain a positive requirement or possession.
+
 Final merged checks are recorded after integration below. Fixture migrations run
 twice, and tests assert only public HTTP responses. No private SQL assertions or
 domain/permission mocks are introduced.
@@ -161,3 +174,45 @@ journeys and accessibility, signing/installation/upgrade, Hermes compilation and
 EAS update compatibility. Local HTTP tests and JS exports establish none of these.
 No service operation, real message/export, issue closure, push, PR, binary or OTA
 publication is performed by this task.
+
+## Integration with sharing and cached reads
+
+The task started at verified integration `ee5e63a40de10533f2034376c8cd891ea0ff7a7a`.
+Independent implementation `913ec42` passed seven return scenarios and workspace
+types before merging #9 integration `43794687218147434cee5f85a2a9e9f0bac54244`
+at `f1efe9983763de489ff58614ef7e75e6539ae86f`. Sharing, visibility decisions,
+summary selection, all destinations, direct Node tests and the deterministic
+reminder settlement fix were retained. Shared adaptation/retirement fix is
+`45719e3`. The next integration merge includes #15 at
+`a44bc27f0321060ca0f6faf994820e7b945f069d`.
+
+`GET /api/trips/:tripId/shared?leg=return` uses #9's safe projection with an
+explicit `leg` field and selected-leg bag states/allocations. The default remains
+outbound. Private carrying IDs become generic locations; return dispositions,
+checkout checks, reconciliation history and raw before/after payloads remain
+private. Only already-reviewed/verified shared return quantities can be moved
+through the existing shared command. That command returns a safe save receipt,
+never a raw family snapshot. Private items cannot enter shared bags, and a shared
+item cannot become private while allocated in a shared bag in either leg. Shared
+mobile views now select the leg explicitly; possession review remains a family
+operation.
+
+Return mutations, including proposals and checkout, use #15's `travelFetch` and
+`useSave` connection guard. No parallel network/authorization mechanism or write
+queue was added. Snapshot paths for complete packing/shared reads canonicalize to
+`?leg=outbound` or `?leg=return`; cache schema validation also requires the response
+leg to match. Their per-path read sequence and files are distinct. Other query
+filters are excluded. The complete family-only return ledger has its own cached
+route. Existing account/session/generation gates, pending-file publication,
+scope tombstones, reconnect refresh and removal cover all new views unchanged.
+
+The cached reader offers separate leg selection and Cached return belongings,
+with each projection's refresh time. It never offers return mutation actions or
+reconstructs private family data from shared rows. Older snapshots without an
+explicit leg are incompatible and cannot be mistaken for new verified returns.
+Prepared **unrun** `return-offline.yaml` checks the return ledger and bags after
+cold offline restart, no write controls, reconnect and family-revocation cleanup.
+Also repeat #15's account-switch, interrupted publication, tombstone/full-storage,
+same-save retry and shared-only privacy journeys for both leg keys. The integrated
+`expo-network` dependency needs a compatible native binary; this task publishes
+none.

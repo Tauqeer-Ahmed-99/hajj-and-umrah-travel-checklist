@@ -9,6 +9,7 @@ import {
   type InvitationInput,
 } from "@nmt/contracts";
 import { apiOrigin } from "./api";
+import { travelFetch } from "./trip-cache";
 import { TripError } from "./trip-api";
 
 export type AccessChange = {
@@ -27,7 +28,7 @@ async function request<T>(
   const origin = apiOrigin();
   if (!origin)
     throw new TripError("This build could not connect to NMT Travel.");
-  const response = await fetch(`${origin}/api${path}`, {
+  const response = await travelFetch(`${origin}/api${path}`, {
     method,
     signal,
     headers: {

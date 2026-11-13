@@ -1,0 +1,25 @@
+appId: in.nmtsolutions.travel
+---
+# Prepared before the shared cache consumer; unrun. Open Shared with trip online
+# as a different-family member without the owning family's grant, then cold start.
+# Provide a shared item/bag and an unrelated private bag note from the fixture.
+- setAirplaneMode: enabled
+- stopApp
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible: "Open cached trips"
+    timeout: 45000
+- tapOn: "Open cached trips"
+- tapOn: "Cached ${CACHE_TRIP_NAME}"
+- tapOn: "Cached shared items and bags"
+- assertVisible: "Cached shared items and bags"
+- scrollUntilVisible:
+    element: "${CACHE_SHARED_ITEM}"
+- assertVisible: "${CACHE_SHARED_ITEM}"
+- assertNotVisible: "${CACHE_PRIVATE_BAG_NOTE}"
+- assertNotVisible: "Save visibility"
+- setAirplaneMode: disabled
+- tapOn: "Refresh cached trips"
+# Repeat after coordinator makes the fixture item/bag family-only. Require their
+# removal here and after a disconnected restart, while permitted data remains.

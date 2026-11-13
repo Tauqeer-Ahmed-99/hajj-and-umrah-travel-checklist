@@ -1,0 +1,22 @@
+appId: in.nmtsolutions.travel
+---
+# Prepared, unrun. Begin in an existing checklist item's Edit form online.
+# Verify no request is queued while offline, including after reconnect/relaunch.
+- tapOn:
+    id: "checklist-entry-title"
+- eraseText
+- inputText: "${CACHE_UNSAVED_TITLE}"
+- setAirplaneMode: enabled
+- assertVisible: "Offline.*read only.*"
+- assertVisible: "${CACHE_UNSAVED_TITLE}"
+- assertVisible:
+    text: "Save item"
+    enabled: false
+- setAirplaneMode: disabled
+- extendedWaitUntil:
+    visible:
+      text: "Save item"
+      enabled: true
+    timeout: 45000
+- assertVisible: "${CACHE_UNSAVED_TITLE}"
+# No tap of Save: inspect another device/API to prove the original title remains.
