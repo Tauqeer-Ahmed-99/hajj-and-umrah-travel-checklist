@@ -33,6 +33,7 @@ import { ChecklistDestination, ChecklistScreen } from "./checklist-screen";
 import { BagsDestination, PackingScreen } from "./packing-screen";
 import { RemindersScreen } from "./reminders-screen";
 import { SharedScreen } from "./sharing-screen";
+import { SummaryScreen } from "./summary-screen";
 
 type Route =
   | { screen: "list" }
@@ -44,6 +45,7 @@ type Route =
   | { screen: "itinerary"; tripId: string }
   | { screen: "shared"; tripId: string }
   | { screen: "reminders"; tripId: string }
+  | { screen: "summary"; tripId: string }
   | { screen: "checklist"; tripId: string; familyId: string }
   | { screen: "bags"; tripId: string; familyId: string }
   | { screen: "family"; tripId: string; familyId: string }
@@ -145,6 +147,14 @@ export function TripsScreen({
   if (route.screen === "shared")
     return (
       <SharedScreen
+        key={route.tripId}
+        tripId={route.tripId}
+        onBack={() => openTrip(route.tripId)}
+      />
+    );
+  if (route.screen === "summary")
+    return (
+      <SummaryScreen
         key={route.tripId}
         tripId={route.tripId}
         onBack={() => openTrip(route.tripId)}
@@ -273,6 +283,7 @@ export function TripsScreen({
       onReminders={() =>
         setRoute({ screen: "reminders", tripId: route.tripId })
       }
+      onSummary={() => setRoute({ screen: "summary", tripId: route.tripId })}
       onChecklist={(familyId) =>
         setRoute({ screen: "checklist", tripId: route.tripId, familyId })
       }
@@ -452,6 +463,7 @@ function TripHome({
   onItinerary,
   onReminders,
   onShared,
+  onSummary,
   onChecklist,
   onBags,
 }: {
@@ -467,6 +479,7 @@ function TripHome({
   onItinerary: () => void;
   onReminders: () => void;
   onShared: () => void;
+  onSummary: () => void;
   onChecklist: (familyId: string) => void;
   onBags: (familyId: string) => void;
 }) {
@@ -515,6 +528,7 @@ function TripHome({
         <>
           <Heading>{detail.trip.name}</Heading>
           <TripLink title="Trip members & invitations" onPress={onAccess} />
+          <TripLink title="Share travel summary" onPress={onSummary} />
           <Copy muted>
             {detail.trip.kind === "hajj" ? "Hajj" : "Umrah"} ·{" "}
             {detail.trip.role === "organizer"

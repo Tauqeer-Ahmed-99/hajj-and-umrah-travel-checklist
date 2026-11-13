@@ -4,6 +4,7 @@ export * from "./invitations";
 export * from "./itinerary";
 export * from "./guides";
 export * from "./checklist";
+export * from "./summaries";
 export * from "./packing";
 export * from "./sharing";
 
