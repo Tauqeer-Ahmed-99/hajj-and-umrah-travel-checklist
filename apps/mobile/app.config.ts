@@ -20,6 +20,9 @@ const config: ExpoConfig = {
     package: "in.nmtsolutions.travel",
     versionCode: 1,
     softwareKeyboardLayoutMode: "resize",
+    ...(process.env.GOOGLE_SERVICES_JSON
+      ? { googleServicesFile: process.env.GOOGLE_SERVICES_JSON }
+      : {}),
     // File picking and temporary in-app viewing need no shared-storage grants.
     // Remove defaults contributed by the PDF dependency's filesystem library.
     blockedPermissions: [
@@ -31,6 +34,7 @@ const config: ExpoConfig = {
   plugins: [
     "expo-dev-client",
     "expo-secure-store",
+    "expo-notifications",
     "expo-document-picker",
     "react-native-blob-util",
     "@config-plugins/react-native-pdf",

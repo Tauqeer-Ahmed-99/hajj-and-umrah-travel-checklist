@@ -21,6 +21,7 @@ export async function freePort() {
 
 export async function startFixture(
   fileEnvironment: Record<string, string> = {},
+  options: { notifications?: boolean } = {},
 ) {
   const directory = await mkdtemp(resolve(tmpdir(), "nmt-profile-"));
   const pgPort = await freePort();
@@ -59,10 +60,40 @@ export async function startFixture(
   >();
   const sessions = new Map<string, { userId: string; status: string }>();
   let providerUnavailable = false;
-  const provider = createServer((req, res) => {
+  const pushes: unknown[] = [];
+  let pushOutcome: "ok" | "unknown" | "unregistered" = "ok";
+  const provider = createServer(async (req, res) => {
     const path = new URL(req.url ?? "/", "http://localhost").pathname;
     output += `\nProvider: ${path}\n`;
     res.setHeader("Content-Type", "application/json");
+    if (path === "/push/send") {
+      let body = "";
+      for await (const chunk of req) body += chunk;
+      pushes.push(JSON.parse(body));
+      if (pushOutcome === "unknown") {
+        req.socket.destroy();
+        return;
+      }
+      res.end(
+        JSON.stringify({
+          data:
+            pushOutcome === "unregistered"
+              ? { status: "error", details: { error: "DeviceNotRegistered" } }
+              : { status: "ok", id: `ticket-${pushes.length}` },
+        }),
+      );
+      return;
+    }
+    if (path === "/push/getReceipts") {
+      res.end(
+        JSON.stringify({
+          data: Object.fromEntries(
+            pushes.map((_, i) => [`ticket-${i + 1}`, { status: "ok" }]),
+          ),
+        }),
+      );
+      return;
+    }
     if (providerUnavailable) {
       res.writeHead(503).end("{}");
       return;
@@ -192,6 +223,14 @@ export async function startFixture(
           CLERK_PUBLISHABLE_KEY: `pk_test_${Buffer.from("nmt-fixture.clerk.accounts.dev$").toString("base64")}`,
           CLERK_API_URL: `http://127.0.0.1:${providerPort}`,
           ...fileEnvironment,
+          EXPO_ACCESS_TOKEN: "",
+          ...(options.notifications
+            ? {
+                CRON_SECRET: "fixture-dispatch-only",
+                EXPO_ACCESS_TOKEN: "fixture-push-only",
+                EXPO_PUSH_API_URL: `http://127.0.0.1:${providerPort}/push`,
+              }
+            : {}),
         },
         stdio: ["ignore", "pipe", "pipe"],
       },
@@ -249,6 +288,10 @@ export async function startFixture(
     },
     close: cleanup,
     logs: () => output,
+    pushes,
+    pushOutcome: (value: typeof pushOutcome) => {
+      pushOutcome = value;
+    },
     providerAvailable: (available: boolean) => {
       providerUnavailable = !available;
     },

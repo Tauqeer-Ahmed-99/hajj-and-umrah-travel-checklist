@@ -14,6 +14,8 @@ import { Action, Copy, Field, Heading, Loading, Notice, Screen } from "./ui";
 import { useTheme } from "./theme";
 import { TripsScreen } from "./trips-screen";
 import { clearTripNavigation } from "./trip-navigation";
+import { useNotificationSession } from "./notification-session";
+import { clearNotifications } from "./native-notifications";
 
 export function AccountScreen() {
   const { getToken } = useAuth();
@@ -37,6 +39,7 @@ export function AccountScreen() {
   const generation = useRef(0);
   const signedOut = useRef(false);
   const initializedDraft = useRef(false);
+  useNotificationSession(hidden ? null : (account?.profile?.id ?? null));
 
   const load = useCallback(async () => {
     if (signedOut.current) return;
@@ -117,6 +120,9 @@ export function AccountScreen() {
     setHidden(true);
     setLeaving(true);
     try {
+      await clearNotifications(
+        (await getToken().catch(() => null)) ?? undefined,
+      );
       if (memberId) await clearTripNavigation(memberId).catch(() => {});
       await signOut();
     } catch {

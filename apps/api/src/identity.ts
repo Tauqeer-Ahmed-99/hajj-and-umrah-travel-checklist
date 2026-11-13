@@ -4,6 +4,20 @@ import { profileInput, type ProfileInput } from "@nmt/contracts";
 import { HttpError } from "./response";
 
 let client: ReturnType<typeof createClerkClient> | undefined;
+export function clerkClient() {
+  const secretKey = process.env.CLERK_SECRET_KEY;
+  const publishableKey = process.env.CLERK_PUBLISHABLE_KEY;
+  if (!secretKey || !publishableKey)
+    throw new Error("The API requires its Clerk keys.");
+  return (client ??= createClerkClient({
+    secretKey,
+    publishableKey,
+    apiUrl:
+      process.env.NODE_ENV === "production"
+        ? undefined
+        : process.env.CLERK_API_URL,
+  }));
+}
 export async function identify(request: Request) {
   if (!/^Bearer \S+$/i.test(request.headers.get("authorization") ?? "")) {
     throw new HttpError(401, "invalid_session", "Sign in to continue.");
@@ -13,16 +27,7 @@ export async function identify(request: Request) {
   if (!secretKey || !publishableKey)
     throw new Error("The API requires its Clerk keys.");
   const key = parsePublishableKey(publishableKey, { fatal: true });
-  client ??= createClerkClient({
-    secretKey,
-    publishableKey,
-    // The HTTP integration fixture controls only Clerk's external boundary.
-    // Production always uses Clerk's real Backend API.
-    apiUrl:
-      process.env.NODE_ENV === "production"
-        ? undefined
-        : process.env.CLERK_API_URL,
-  });
+  const client = clerkClient();
   const state = await client.authenticateRequest(request, {
     acceptsToken: "session_token",
     issuer: `https://${key.frontendApi}`,
@@ -119,6 +124,7 @@ export async function identify(request: Request) {
   }
   return {
     clerkUserId: auth.userId,
+    sessionId: auth.sessionId,
     email: email.emailAddress,
     profileDefaults,
   };
