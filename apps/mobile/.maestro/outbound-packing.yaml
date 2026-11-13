@@ -1,0 +1,223 @@
+appId: in.nmtsolutions.travel
+---
+# Prepared, not executed. Start on Overview with an authenticated editor in a
+# family with at least one traveler. Use a fresh checklist and unique run suffix.
+# Runner parameters: MAESTRO_PACKING_FAMILY, MAESTRO_PACKING_RUN.
+- tapOn:
+    id: tab-checklist
+- scrollUntilVisible:
+    element: "Checklist for ${MAESTRO_PACKING_FAMILY}"
+- tapOn: "Checklist for ${MAESTRO_PACKING_FAMILY}"
+- extendedWaitUntil:
+    visible: "Add category"
+    timeout: 30000
+- tapOn: "Add category"
+- tapOn:
+    id: checklist-category-name
+- inputText: "Packing ${MAESTRO_PACKING_RUN}"
+- hideKeyboard
+- tapOn: "Save category"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- tapOn: "Add item"
+- tapOn:
+    id: checklist-entry-title
+- inputText: "Adapters ${MAESTRO_PACKING_RUN}"
+- scrollUntilVisible:
+    element:
+      id: checklist-quantity
+- tapOn:
+    id: checklist-quantity
+- eraseText
+- inputText: "3"
+- scrollUntilVisible:
+    element:
+      id: checklist-unit
+- tapOn:
+    id: checklist-unit
+- inputText: "pieces"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Essential"
+- tapOn: "Essential"
+- scrollUntilVisible:
+    element: "Save item"
+- tapOn: "Save item"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Acquisition for Adapters ${MAESTRO_PACKING_RUN}"
+- tapOn: "Acquisition for Adapters ${MAESTRO_PACKING_RUN}"
+- scrollUntilVisible:
+    element: "To Received"
+- tapOn: "To Received"
+- scrollUntilVisible:
+    element:
+      id: acquisition-quantity
+- tapOn:
+    id: acquisition-quantity
+- eraseText
+- inputText: "3"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "I checked this quantity and have it physically"
+- tapOn: "I checked this quantity and have it physically"
+- scrollUntilVisible:
+    element: "Save acquisition"
+- tapOn: "Save acquisition"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Back to family checklists"
+    direction: UP
+- tapOn: "Back to family checklists"
+- tapOn:
+    id: tab-bags
+- scrollUntilVisible:
+    element: "Bags for ${MAESTRO_PACKING_FAMILY}"
+- tapOn: "Bags for ${MAESTRO_PACKING_FAMILY}"
+- tapOn: "Add bag"
+- tapOn:
+    id: bag-name
+- inputText: "Blue ${MAESTRO_PACKING_RUN}"
+- tapOn:
+    id: bag-type
+- inputText: "Checked suitcase"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Save bag"
+- tapOn: "Save bag"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- tapOn: "Add bag"
+- tapOn:
+    id: bag-name
+- inputText: "Cabin ${MAESTRO_PACKING_RUN}"
+- tapOn:
+    id: bag-type
+- inputText: "Cabin bag"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Save bag"
+- tapOn: "Save bag"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- tapOn: "Items to pack"
+- scrollUntilVisible:
+    element: "Pack or move Adapters ${MAESTRO_PACKING_RUN}"
+- tapOn: "Pack or move Adapters ${MAESTRO_PACKING_RUN}"
+- scrollUntilVisible:
+    element:
+      id: packing-quantity
+- tapOn:
+    id: packing-quantity
+- eraseText
+- inputText: "2"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "I physically placed this quantity at the new location"
+- tapOn: "I physically placed this quantity at the new location"
+- scrollUntilVisible:
+    element: "Save packing move"
+- tapOn: "Save packing move"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- tapOn: "Bags"
+- scrollUntilVisible:
+    element: "Confirm status for Blue ${MAESTRO_PACKING_RUN}"
+- tapOn: "Confirm status for Blue ${MAESTRO_PACKING_RUN}"
+- tapOn: "Ready"
+- scrollUntilVisible:
+    element: "Confirm bag status"
+- tapOn: "Confirm bag status"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- tapOn: "Items to pack"
+- scrollUntilVisible:
+    element: "Pack or move Adapters ${MAESTRO_PACKING_RUN}"
+- tapOn: "Pack or move Adapters ${MAESTRO_PACKING_RUN}"
+- tapOn: "Blue ${MAESTRO_PACKING_RUN}: 2 pieces"
+- scrollUntilVisible:
+    element: "Bag: Cabin ${MAESTRO_PACKING_RUN}"
+- tapOn: "Bag: Cabin ${MAESTRO_PACKING_RUN}"
+- scrollUntilVisible:
+    element: "I physically placed this quantity at the new location"
+- tapOn: "I physically placed this quantity at the new location"
+- scrollUntilVisible:
+    element: "Save packing move"
+- tapOn: "Save packing move"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Pack or move Adapters ${MAESTRO_PACKING_RUN}"
+- tapOn: "Pack or move Adapters ${MAESTRO_PACKING_RUN}"
+- tapOn: "Cabin ${MAESTRO_PACKING_RUN}: 1 pieces"
+- scrollUntilVisible:
+    element: "Not packed / needs repacking"
+- tapOn: "Not packed / needs repacking"
+- scrollUntilVisible:
+    element:
+      id: packing-quantity
+- tapOn:
+    id: packing-quantity
+- eraseText
+- inputText: "0.5"
+- tapOn:
+    id: packing-reason
+- inputText: "Check plug type"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Save packing move"
+- tapOn: "Save packing move"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Removed / needs repacking: 0.5 pieces"
+- assertVisible: "Removed / needs repacking: 0.5 pieces"
+- tapOn: "Bags"
+- scrollUntilVisible:
+    element: "Bag review needed: check changed contents and details."
+- assertVisible: "Bag review needed: check changed contents and details."
+- scrollUntilVisible:
+    element: "Confirm status for Blue ${MAESTRO_PACKING_RUN}"
+- tapOn: "Confirm status for Blue ${MAESTRO_PACKING_RUN}"
+- tapOn: "Collected"
+- scrollUntilVisible:
+    element: "I reviewed the changed bag and contents"
+- tapOn: "I reviewed the changed bag and contents"
+- scrollUntilVisible:
+    element: "Confirm bag status"
+- tapOn: "Confirm bag status"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: "Family bags"
+    timeout: 30000
+- tapOn: "Bags for ${MAESTRO_PACKING_FAMILY}"
+- scrollUntilVisible:
+    element: "Outbound: Collected"
+- assertVisible: "Outbound: Collected"
+- tapOn: "Items to pack"
+- scrollUntilVisible:
+    element: "Available: 3 pieces"
+- assertVisible: "Available: 3 pieces"
+- scrollUntilVisible:
+    element: "Packing history for Adapters ${MAESTRO_PACKING_RUN}"
+- tapOn: "Packing history for Adapters ${MAESTRO_PACKING_RUN}"
+- scrollUntilVisible:
+    element:
+      text: ".*Check plug type.*"
+- assertVisible:
+    text: ".*Check plug type.*"
