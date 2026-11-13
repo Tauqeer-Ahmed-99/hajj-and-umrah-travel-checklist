@@ -1,0 +1,104 @@
+appId: in.nmtsolutions.travel
+---
+# Start on Overview as the owning family's coordinator. Use a fresh GUIDE_RUN.
+- tapOn:
+    id: tab-guides
+- extendedWaitUntil:
+    visible: "Guide library"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Add guide"
+- tapOn: "Add guide"
+- scrollUntilVisible:
+    element: "Owning family: ${GUIDE_FAMILY}"
+- tapOn: "Owning family: ${GUIDE_FAMILY}"
+- scrollUntilVisible:
+    element:
+      id: guide-title
+- tapOn:
+    id: guide-title
+- inputText: "Arrival ${GUIDE_RUN}"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: guide-category
+- tapOn:
+    id: guide-category
+- inputText: "Travel"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: guide-source
+- tapOn:
+    id: guide-source
+- inputText: "Family planning"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: guide-text
+- tapOn:
+    id: guide-text
+- inputText: "Meet at reception."
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Save guide"
+- tapOn: "Save guide"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Family only"
+- assertVisible: "Family only"
+# Before continuing, run guides-isolation.yaml as the ungranted organizer on
+# another device/account. This flow then makes the explicit sharing decision.
+- scrollUntilVisible:
+    element: "Change guide audience"
+- tapOn: "Change guide audience"
+- scrollUntilVisible:
+    element: "Audience: Shared with trip"
+- tapOn: "Audience: Shared with trip"
+- scrollUntilVisible:
+    element: "Save audience"
+- tapOn: "Save audience"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Pin guide"
+- tapOn: "Pin guide"
+- scrollUntilVisible:
+    element: "Confirm pin"
+- tapOn: "Confirm pin"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- tapOn: "Back to guides"
+- extendedWaitUntil:
+    visible: "Guide library"
+    timeout: 30000
+- tapOn:
+    id: guide-search
+- inputText: "Arrival ${GUIDE_RUN}"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Show guides: Pinned only"
+- tapOn: "Show guides: Pinned only"
+- tapOn: "Search guides"
+- extendedWaitUntil:
+    visible: "1 guide found"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Read Arrival ${GUIDE_RUN}"
+- tapOn: "Read Arrival ${GUIDE_RUN}"
+- scrollUntilVisible:
+    element: "Version history"
+- tapOn: "Version history"
+- extendedWaitUntil:
+    visible: "Version history"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Read version 1"
+- tapOn: "Read version 1"
+- scrollUntilVisible:
+    element: "Meet at reception."
+- assertVisible: "Meet at reception."

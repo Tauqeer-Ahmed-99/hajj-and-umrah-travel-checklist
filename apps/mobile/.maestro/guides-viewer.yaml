@@ -1,0 +1,36 @@
+appId: in.nmtsolutions.travel
+---
+# Start on Overview as a trip viewer; the guide is explicitly trip-shared.
+- tapOn:
+    id: tab-guides
+- extendedWaitUntil:
+    visible: "Guide library"
+    timeout: 30000
+- tapOn:
+    id: guide-search
+- inputText: "Arrival ${GUIDE_RUN}"
+- hideKeyboard
+- tapOn: "Search guides"
+- extendedWaitUntil:
+    visible: "1 guide found"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Read Arrival ${GUIDE_RUN}"
+- tapOn: "Read Arrival ${GUIDE_RUN}"
+- scrollUntilVisible:
+    element: "Read-only guide"
+- assertVisible: "Read-only guide"
+- assertNotVisible: "Edit guide"
+- assertNotVisible: "Pin guide"
+- assertNotVisible: "Unpin guide"
+- assertNotVisible: "Change guide audience"
+- scrollUntilVisible:
+    element: "Meet at reception."
+    direction: UP
+- assertVisible: "Meet at reception."
+- back
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: "Guide library"
+    timeout: 30000

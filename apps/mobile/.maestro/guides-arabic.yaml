@@ -1,0 +1,30 @@
+appId: in.nmtsolutions.travel
+---
+# Use the real app and device keyboard to save a text note titled Arabic GUIDE_RUN
+# with two paragraphs: السلام عليكم and Meet at reception.
+# Set Automatic per paragraph. Start on that trip's Overview with permitted access.
+# Manual setup avoids assuming the installed Maestro supports Unicode input.
+- tapOn:
+    id: tab-guides
+- extendedWaitUntil:
+    visible: "Guide library"
+    timeout: 30000
+- tapOn:
+    id: guide-search
+- inputText: "Arabic ${GUIDE_RUN}"
+- hideKeyboard
+- tapOn: "Search guides"
+- extendedWaitUntil:
+    visible: "1 guide found"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Read Arabic ${GUIDE_RUN}"
+- tapOn: "Read Arabic ${GUIDE_RUN}"
+- scrollUntilVisible:
+    element: "السلام عليكم"
+- assertVisible: "السلام عليكم"
+- scrollUntilVisible:
+    element: "Meet at reception."
+- assertVisible: "Meet at reception."
+# Visually inspect joining/diacritics, paragraph direction, mixed punctuation,
+# selectable text, maximum font scale and TalkBack; visibility is not rendering QA.
