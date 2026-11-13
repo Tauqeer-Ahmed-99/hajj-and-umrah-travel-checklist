@@ -195,13 +195,16 @@ transactions; every behavior assertion uses HTTP/file responses, never direct
 SQL. Red/green slices observed missing upload/authorization endpoints before
 their implementations.
 
-Local verification after merging integration tip `9180975` (including #6):
+Local verification after merging integration tip `7bef411` (including #6 and #7):
 
-- All 53 authenticated HTTP/PostgreSQL tests passed using the normal Node test
-  runner with `--import tsx`, without forced exit or skipped tests. The earlier
+- `npm test` passed all 59 authenticated HTTP/PostgreSQL tests using the normal
+  Node test runner with `--import tsx`, without forced exit or skipped tests.
+  All 53 tests also passed after the earlier Checklist-only merge. The earlier
   `tsx --test` wrapper stalled after the merged Checklist assertions and process
   cleanup; the npm test command now uses the successful direct Node invocation.
   Before merging, the original npm invocation passed all 46 tests.
+  Migration 010 was therefore exercised twice per disposable database both
+  without, and after merging, concurrent migrations 007/009.
 - Workspace TypeScript checks, Next production API build without service
   credentials, repository Prettier and `git diff --check` passed.
 - Expo Android prebuild, SDK dependency compatibility, Expo Doctor **20/20**,

@@ -12,6 +12,7 @@ import Pdf from "react-native-pdf";
 import { Directory, File, Paths } from "expo-file-system";
 import { fetch as fileFetch } from "expo/fetch";
 import { digest, CryptoDigestAlgorithm, randomUUID } from "expo-crypto";
+import { StatusBar } from "expo-status-bar";
 import { GUIDE_FILE_LIMIT } from "@nmt/contracts";
 import { useTripRequest } from "./use-trip-request";
 import { guideFileApi } from "./guide-file-api";
@@ -31,7 +32,7 @@ export function GuideFileViewer({
   onBack(): void;
 }) {
   const api = useTripRequest(90_000),
-    { colors } = useTheme();
+    { colors, dark } = useTheme();
   const [view, setView] = useState<{
     uri: string;
     type: string;
@@ -143,6 +144,7 @@ export function GuideFileViewer({
     <SafeAreaView
       style={{ flex: 1, backgroundColor: colors.canvas, padding: 16, gap: 12 }}
     >
+      <StatusBar style={dark ? "light" : "dark"} />
       <Action title="Close file" secondary onPress={onBack} />
       <Heading>{view?.name ?? "Guide file"}</Heading>
       <Copy>Temporary view · Not saved offline</Copy>
