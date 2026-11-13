@@ -218,6 +218,7 @@ export function MembershipScreen({
                 choices={familyId ? familyRoleChoices : tripRoleChoices}
               />
               <Action
+                requiresConnection
                 title="Save member access"
                 disabled={pending || !canManage}
                 busy={api.busy}
@@ -255,6 +256,7 @@ export function MembershipScreen({
                     )}
                     {(canManage || m.id === profile.id) && (
                       <Action
+                        requiresConnection
                         title={
                           m.id === profile.id
                             ? familyId
@@ -323,6 +325,7 @@ export function MembershipScreen({
                         {!i.tripApproved &&
                           data.detail.trip.role === "organizer" && (
                             <Action
+                              requiresConnection
                               title={`Approve trip admission for ${i.recipient}`}
                               disabled={pending || api.busy}
                               onPress={() =>
@@ -342,6 +345,7 @@ export function MembershipScreen({
                             (f) => f.id === i.family?.id && f.canCoordinate,
                           ) && (
                             <Action
+                              requiresConnection
                               title={`Approve family access for ${i.recipient}`}
                               disabled={pending || api.busy}
                               onPress={() =>
@@ -357,6 +361,7 @@ export function MembershipScreen({
                             />
                           )}
                         <Action
+                          requiresConnection
                           title={`Revoke invitation for ${i.recipient}`}
                           secondary
                           disabled={pending || api.busy}

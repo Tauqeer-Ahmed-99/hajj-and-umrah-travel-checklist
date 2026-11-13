@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useTheme, type Appearance } from "./theme";
+import { useTripConnection } from "./trip-cache-state";
 
 export function Copy({
   children,
@@ -64,14 +65,19 @@ export function Action({
   busy = false,
   disabled = false,
   secondary = false,
+  requiresConnection = false,
 }: {
   title: string;
   onPress: () => void;
   busy?: boolean;
   disabled?: boolean;
   secondary?: boolean;
+  requiresConnection?: boolean;
 }) {
   const { colors } = useTheme();
+  const connection = useTripConnection();
+  disabled = disabled || (requiresConnection && connection.status !== "online");
+  if (busy && requiresConnection) title = "Saving…";
   return (
     <Pressable
       accessibilityRole="button"
@@ -179,6 +185,7 @@ export function Screen({
   contentKey?: string;
 }) {
   const { colors, dark } = useTheme();
+  const connection = useTripConnection();
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.canvas }]}>
       <StatusBar style={dark ? "light" : "dark"} />
@@ -202,7 +209,12 @@ export function Screen({
               </Text>
               <Copy muted>Hajj & Umrah, together</Copy>
             </View>
-            <View style={styles.body}>{children}</View>
+            <View style={styles.body}>
+              {connection.status !== "online" && (
+                <Notice>{connection.message}</Notice>
+              )}
+              {children}
+            </View>
             <AppearancePicker />
           </View>
         </ScrollView>

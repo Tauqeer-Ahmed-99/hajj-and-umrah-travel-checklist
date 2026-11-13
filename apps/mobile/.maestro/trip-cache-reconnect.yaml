@@ -1,0 +1,21 @@
+appId: in.nmtsolutions.travel
+---
+# Prepared, unrun. Start on Cached trips with CACHE_TRIP_NAME loaded. A second
+# fixture account must remove this member's trip membership while disconnected.
+# Do not use a notification, exported summary or filtered list as proof of access.
+- assertVisible: "Cached ${CACHE_TRIP_NAME}"
+- setAirplaneMode: disabled
+- tapOn: "Refresh cached trips"
+- extendedWaitUntil:
+    notVisible: "Cached ${CACHE_TRIP_NAME}"
+    timeout: 45000
+- stopApp
+- setAirplaneMode: enabled
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible: "Open cached trips"
+    timeout: 45000
+- tapOn: "Open cached trips"
+- assertNotVisible: "Cached ${CACHE_TRIP_NAME}"
+- setAirplaneMode: disabled

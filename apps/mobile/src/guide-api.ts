@@ -8,6 +8,7 @@ import {
   type ApiError,
 } from "@nmt/contracts";
 import { apiOrigin } from "./api";
+import { travelFetch } from "./trip-cache";
 import { TripError } from "./trip-api";
 
 export async function guideRequest<T>(
@@ -22,15 +23,18 @@ export async function guideRequest<T>(
   const origin = apiOrigin();
   if (!origin)
     throw new TripError("This build could not connect to NMT Travel.");
-  const response = await fetch(`${origin}/api/trips/${tripId}/guides${path}`, {
-    method,
-    signal,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      ...(body ? { "Content-Type": "application/json" } : {}),
+  const response = await travelFetch(
+    `${origin}/api/trips/${tripId}/guides${path}`,
+    {
+      method,
+      signal,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(body ? { "Content-Type": "application/json" } : {}),
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
     },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
+  );
   if (!response.ok) {
     let error: ApiError | undefined;
     try {

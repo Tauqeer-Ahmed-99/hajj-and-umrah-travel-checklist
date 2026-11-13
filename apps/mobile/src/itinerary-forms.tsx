@@ -94,7 +94,7 @@ function useSave<T>(
   return {
     ...api,
     uncertain,
-    locked: api.busy || uncertain,
+    locked: api.busy || uncertain || api.readOnly,
     fields: { ...api.error?.fields, ...validation },
     submit,
     cancel,
@@ -121,6 +121,7 @@ function SaveActions({
         </Notice>
       )}
       <Action
+        requiresConnection
         title={
           save.busy ? "Saving…" : save.uncertain ? "Retry same save" : title
         }

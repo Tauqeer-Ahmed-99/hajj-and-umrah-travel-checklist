@@ -8,8 +8,13 @@ import {
   View,
 } from "react-native";
 import { useAuth, useClerk } from "@clerk/expo";
+import {
+  addNetworkStateListener,
+  getNetworkStateAsync,
+  type NetworkState,
+} from "expo-network";
 import { profileInput, type Account, type ProfileInput } from "@nmt/contracts";
-import { AccountError, accountRequest } from "./api";
+import { AccountError, accountRequest, apiOrigin } from "./api";
 import { Action, Copy, Field, Heading, Loading, Notice, Screen } from "./ui";
 import { useTheme } from "./theme";
 import { TripsScreen } from "./trips-screen";
@@ -23,8 +28,18 @@ import {
   rememberCopyProfile,
   restoreCopyProfile,
   refreshSavedGuideAccess,
+  subscribeGuideCopies,
 } from "./guide-copies";
 import { OfflineGuidesScreen } from "./guide-copy-ui";
+import { OfflineTripsScreen } from "./offline-trips-screen";
+import { refreshTripCache } from "./trip-cache";
+import {
+  connectionState,
+  setConnection,
+  setDeviceNetworkAvailable,
+  useTripConnection,
+} from "./trip-cache-state";
+import { acceptedTravelChange } from "./accepted-travel-change";
 
 export function AccountScreen() {
   const copies = useGuideCopies();
@@ -46,6 +61,8 @@ export function AccountScreen() {
   const [saveUncertain, setSaveUncertain] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
   const [showOffline, setShowOffline] = useState(false);
+  const [showCached, setShowCached] = useState(false);
+  const connection = useTripConnection();
   const [offlineProfile, setOfflineProfile] = useState(() =>
     restoreCopyProfile(copies),
   );
@@ -54,6 +71,25 @@ export function AccountScreen() {
   const signedOut = useRef(false);
   const initializedDraft = useRef(false);
   useNotificationSession(hidden ? null : (account?.profile?.id ?? null));
+  useEffect(
+    () =>
+      subscribeGuideCopies(() => {
+        let restored: ReturnType<typeof restoreCopyProfile> = null;
+        try {
+          restored = restoreCopyProfile(copies);
+        } catch {
+          /* Session was invalidated before deleting private files. */
+        }
+        setOfflineProfile(restored);
+        if (!restored) {
+          setAccount((previous) => (previous?.profile ? null : previous));
+          setShowOffline(false);
+          setShowCached(false);
+          void clearNotifications().catch(() => {});
+        }
+      }),
+    [copies],
+  );
 
   const load = useCallback(async () => {
     if (signedOut.current) return;
@@ -63,8 +99,16 @@ export function AccountScreen() {
     const current = ++generation.current;
     setLoading(true);
     setError("");
+    if (connectionState().status === "online")
+      setConnection({
+        status: "checking",
+        refreshing: true,
+        message:
+          "Checking current account and trip access before enabling changes…",
+      });
     const timeout = setTimeout(() => {
       controller.abort();
+      if (request.current === controller) request.current = null;
       if (current === generation.current) {
         setLoading(false);
         setError(
@@ -73,13 +117,28 @@ export function AccountScreen() {
       }
     }, 15_000);
     try {
-      const token = await getToken();
+      const token = await Promise.race([
+        getToken(),
+        new Promise<never>((_, reject) => {
+          const aborted = () =>
+            reject(
+              new AccountError(
+                "Current access could not be refreshed. Open cached trips or saved guides, then reconnect and retry.",
+              ),
+            );
+          if (controller.signal.aborted) aborted();
+          else
+            controller.signal.addEventListener("abort", aborted, {
+              once: true,
+            });
+        }),
+      ]);
       if (!token)
         throw new AccountError(
           "Connect to refresh sign-in. Previously saved guides remain available for this restored account.",
         );
       const result = await accountRequest(token, controller.signal);
-      if (current === generation.current) {
+      if (current === generation.current && !controller.signal.aborted) {
         if (!result.profile && !initializedDraft.current) {
           initializedDraft.current = true;
           setDraft({
@@ -95,14 +154,25 @@ export function AccountScreen() {
           rememberCopyProfile(copies, result.profile);
           setOfflineProfile(result.profile);
           // Metadata checks only; this never obtains or downloads guide objects.
+          const origin = apiOrigin();
+          if (origin) await refreshTripCache(origin, token, controller.signal);
+          // Metadata checks only. No object downloads, exports or save retries.
           void refreshSavedGuideAccess(copies, token, controller.signal).catch(
             () => {},
           );
+          if (current === generation.current && !controller.signal.aborted)
+            acceptedTravelChange();
         } else {
           clearSessionGuideCopies(copies);
           setOfflineProfile(null);
           setShowOffline(false);
         }
+        if (!result.profile)
+          setConnection({
+            status: "online",
+            refreshing: false,
+            message: "Connected. Complete your profile to open trips.",
+          });
       }
     } catch (error) {
       if (
@@ -121,8 +191,19 @@ export function AccountScreen() {
             ? error.message
             : "Could not load your profile. Check your connection, then try again.",
         );
+      if (
+        current === generation.current &&
+        connectionState().status !== "online"
+      )
+        setConnection({
+          status: "offline",
+          refreshing: false,
+          message:
+            "Current access could not be refreshed. Cached trips are read only; reconnect and retry.",
+        });
     } finally {
       clearTimeout(timeout);
+      if (request.current === controller) request.current = null;
       if (current === generation.current) setLoading(false);
     }
   }, [getToken, copies]);
@@ -139,6 +220,35 @@ export function AccountScreen() {
     });
     return () => listener.remove();
   }, [load, saving, hidden]);
+  useEffect(() => {
+    let active = true;
+    let previous: boolean | null = null;
+    const changed = (state: NetworkState) => {
+      if (!active || hidden || state.isConnected === undefined) return;
+      const available =
+        state.isConnected && state.isInternetReachable !== false;
+      if (previous === available) return;
+      previous = available;
+      setDeviceNetworkAvailable(available);
+      if (!available) request.current?.abort();
+      else if (!saving) void load();
+    };
+    const listener = addNetworkStateListener(changed);
+    void getNetworkStateAsync()
+      .then(changed)
+      .catch(() => {});
+    return () => {
+      active = false;
+      listener.remove();
+    };
+  }, [load, saving, hidden]);
+  useEffect(() => {
+    if (hidden || saving || connection.status === "online") return;
+    const timer = setInterval(() => {
+      if (AppState.currentState === "active" && !request.current) void load();
+    }, 15_000);
+    return () => clearInterval(timer);
+  }, [load, saving, hidden, connection.status]);
 
   async function logout() {
     if (leaving) return;
@@ -157,6 +267,7 @@ export function AccountScreen() {
       clearGuideCopies();
       setOfflineProfile(null);
       setShowOffline(false);
+      setShowCached(false);
       await clearNotifications(
         (await getToken().catch(() => null)) ?? undefined,
       );
@@ -280,10 +391,24 @@ export function AccountScreen() {
     );
   if (showOffline && offlineProfile)
     return <OfflineGuidesScreen onBack={() => setShowOffline(false)} />;
+  if (showCached && offlineProfile)
+    return (
+      <OfflineTripsScreen
+        onBack={() => setShowCached(false)}
+        onGuides={() => setShowOffline(true)}
+        onRefresh={() => void load()}
+      />
+    );
   if (loading && !account)
     return (
       <Screen>
         <Loading message="Loading your saved profile…" />
+        {offlineProfile && (
+          <Action
+            title="Open cached trips"
+            onPress={() => setShowCached(true)}
+          />
+        )}
         {offlineProfile && (
           <Action
             title="Open saved guides"
@@ -304,9 +429,13 @@ export function AccountScreen() {
           <>
             <Copy muted>
               Your previously completed profile is restored for this account.
-              Saved guides are read only; connect for current trip access and
-              changes.
+              Cached trips and saved guides are read only; connect for current
+              trip access and changes.
             </Copy>
+            <Action
+              title="Open cached trips"
+              onPress={() => setShowCached(true)}
+            />
             <Action
               title="Open saved guides"
               onPress={() => setShowOffline(true)}
@@ -326,6 +455,7 @@ export function AccountScreen() {
         profile={profile}
         onAccount={() => setShowAccount(true)}
         onOffline={() => setShowOffline(true)}
+        onCached={() => setShowCached(true)}
       />
     );
   return (
@@ -354,6 +484,10 @@ export function AccountScreen() {
           </View>
           <Notice>Profile saved</Notice>
           <Action title="Open trips" onPress={() => setShowAccount(false)} />
+          <Action
+            title="Open cached trips"
+            onPress={() => setShowCached(true)}
+          />
           <Action
             title="Open saved guides"
             secondary
