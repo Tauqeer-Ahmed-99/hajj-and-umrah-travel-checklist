@@ -19,7 +19,9 @@ export async function freePort() {
   return address.port;
 }
 
-export async function startFixture() {
+export async function startFixture(
+  fileEnvironment: Record<string, string> = {},
+) {
   const directory = await mkdtemp(resolve(tmpdir(), "nmt-profile-"));
   const pgPort = await freePort();
   const postgres = new EmbeddedPostgres({
@@ -189,6 +191,7 @@ export async function startFixture() {
           CLERK_SECRET_KEY: "sk_test_fixture_not_a_real_secret",
           CLERK_PUBLISHABLE_KEY: `pk_test_${Buffer.from("nmt-fixture.clerk.accounts.dev$").toString("base64")}`,
           CLERK_API_URL: `http://127.0.0.1:${providerPort}`,
+          ...fileEnvironment,
         },
         stdio: ["ignore", "pipe", "pipe"],
       },

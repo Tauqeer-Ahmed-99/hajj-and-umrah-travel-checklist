@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@clerk/expo";
 import { TripError } from "./trip-api";
 
-export function useTripRequest() {
+export function useTripRequest(timeoutMs = 15_000) {
   const { getToken } = useAuth();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<TripError | null>(null);
@@ -24,7 +24,7 @@ export function useTripRequest() {
       running.current = controller;
       setBusy(true);
       setError(null);
-      const timer = setTimeout(() => controller.abort(), 15_000);
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
         // Race token retrieval too: a stalled provider must not leave Save disabled.
         const aborted = new Promise<never>((_, reject) =>
@@ -69,7 +69,7 @@ export function useTripRequest() {
         if (active.current) setBusy(false);
       }
     },
-    [getToken],
+    [getToken, timeoutMs],
   );
   return { run, busy, error };
 }

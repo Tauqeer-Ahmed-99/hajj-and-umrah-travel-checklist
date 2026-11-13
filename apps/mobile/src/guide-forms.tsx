@@ -147,7 +147,7 @@ export function GuideForm({
   const [familyId, setFamilyId] = useState(
     initial?.familyId ?? families[0]?.id ?? "",
   );
-  const [kind, setKind] = useState<"text" | "link">(initial?.kind ?? "text");
+  const [kind, setKind] = useState<Guide["kind"]>(initial?.kind ?? "text");
   const [title, setTitle] = useState(initial?.title ?? "");
   const [category, setCategory] = useState(initial?.category ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
@@ -172,7 +172,11 @@ export function GuideForm({
       category,
       description,
       source,
-      ...(kind === "text" ? { text, textDirection } : { url }),
+      ...(kind === "text"
+        ? { text, textDirection }
+        : kind === "link"
+          ? { url }
+          : {}),
     };
     const changes = initial
       ? Object.fromEntries(
@@ -201,7 +205,7 @@ export function GuideForm({
               label: family.name,
             }))}
           />
-          <GuideChoices<"text" | "link">
+          <GuideChoices<Guide["kind"]>
             label="Guide type"
             value={kind}
             onChange={setKind}
@@ -277,7 +281,7 @@ export function GuideForm({
             error={save.fields.text}
           />
         </>
-      ) : (
+      ) : kind === "link" ? (
         <Field
           label="External URL"
           testID="guide-url"
@@ -291,7 +295,7 @@ export function GuideForm({
           hint="Use http or https. Opening needs an internet connection; the linked page is not saved in the app."
           error={save.fields.url}
         />
-      )}
+      ) : null}
       <SaveActions save={save} title="Save guide" onSave={submit} />
     </Screen>
   );

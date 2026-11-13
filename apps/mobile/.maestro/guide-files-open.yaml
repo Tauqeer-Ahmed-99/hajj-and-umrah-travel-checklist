@@ -1,0 +1,53 @@
+appId: in.nmtsolutions.travel
+---
+# Prepared, unrun. Start on Overview with current family/trip access. First use
+# the real app picker to upload a readable PDF and PNG/JPEG/WebP with these unique
+# titles; wait for successful finalization. See docs/guide-files.md for upload,
+# failure, Arabic, revocation, storage/network and physical-device checks.
+- tapOn:
+    id: tab-guides
+- extendedWaitUntil:
+    visible: "Guide library"
+    timeout: 30000
+- tapOn:
+    id: guide-search
+- inputText: "${GUIDE_PDF_TITLE}"
+- hideKeyboard
+- tapOn: "Search guides"
+- extendedWaitUntil:
+    visible: "Read ${GUIDE_PDF_TITLE}"
+    timeout: 30000
+- tapOn: "Read ${GUIDE_PDF_TITLE}"
+- scrollUntilVisible:
+    element: "Open file"
+- tapOn: "Open file"
+- extendedWaitUntil:
+    visible: "PDF ready.*"
+    timeout: 90000
+- assertVisible: "Close file"
+- assertVisible: "Temporary view.*Not saved offline"
+- assertNotVisible: "Available offline"
+- tapOn: "Close file"
+- tapOn: "Back to guides"
+- tapOn:
+    id: guide-search
+- eraseText
+- inputText: "${GUIDE_IMAGE_TITLE}"
+- hideKeyboard
+- tapOn: "Search guides"
+- extendedWaitUntil:
+    visible: "Read ${GUIDE_IMAGE_TITLE}"
+    timeout: 30000
+- tapOn: "Read ${GUIDE_IMAGE_TITLE}"
+- scrollUntilVisible:
+    element: "Open file"
+- tapOn: "Open file"
+- extendedWaitUntil:
+    visible: "Image ready"
+    timeout: 90000
+- assertVisible: "Close file"
+- assertVisible: "Temporary view.*Not saved offline"
+- tapOn: "Zoom in"
+- tapOn: "Zoom out"
+- back
+- assertVisible: "${GUIDE_IMAGE_TITLE}"

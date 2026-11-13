@@ -10,7 +10,7 @@ import {
 import { apiOrigin } from "./api";
 import { TripError } from "./trip-api";
 
-async function request<T>(
+export async function guideRequest<T>(
   tripId: string,
   path: string,
   token: string,
@@ -58,7 +58,7 @@ export const guideApi = {
     token: string,
     signal: AbortSignal,
   ) =>
-    request(
+    guideRequest(
       tripId,
       `?${new URLSearchParams({ q: query.q, ...(query.pinned ? { pinned: query.pinned } : {}) })}`,
       token,
@@ -66,20 +66,21 @@ export const guideApi = {
       guidesResponse,
     ),
   read: (tripId: string, id: string, token: string, signal: AbortSignal) =>
-    request(tripId, `/${id}`, token, signal, guideResponse),
+    guideRequest(tripId, `/${id}`, token, signal, guideResponse),
   history: (tripId: string, id: string, token: string, signal: AbortSignal) =>
-    request(tripId, `/${id}/history`, token, signal, guideHistoryResponse),
+    guideRequest(tripId, `/${id}/history`, token, signal, guideHistoryResponse),
   create: (
     tripId: string,
     body: GuideInput,
     token: string,
     signal: AbortSignal,
-  ) => request(tripId, "", token, signal, guideResponse, "POST", body),
+  ) => guideRequest(tripId, "", token, signal, guideResponse, "POST", body),
   edit: (
     tripId: string,
     id: string,
     body: GuidePatch,
     token: string,
     signal: AbortSignal,
-  ) => request(tripId, `/${id}`, token, signal, guideResponse, "PATCH", body),
+  ) =>
+    guideRequest(tripId, `/${id}`, token, signal, guideResponse, "PATCH", body),
 };
