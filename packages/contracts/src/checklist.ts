@@ -12,6 +12,17 @@ const note = z.string().trim().max(800, "Use 800 characters or fewer.");
 export const checklistBeneficiaries = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("family") }),
   z.strictObject({
+    kind: z.literal("families"),
+    familyIds: z
+      .array(z.uuid())
+      .min(1)
+      .max(100)
+      .refine(
+        (ids) => new Set(ids).size === ids.length,
+        "Choose each family once.",
+      ),
+  }),
+  z.strictObject({
     kind: z.literal("travelers"),
     travelerIds: z
       .array(z.uuid())

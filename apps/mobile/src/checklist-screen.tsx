@@ -24,6 +24,7 @@ import {
 } from "./checklist-forms";
 import { ChecklistChoices, ChecklistSection } from "./checklist-ui";
 import { AcquisitionForm, AcquisitionSummary } from "./acquisition-form";
+import { VisibilityForm } from "./sharing-forms";
 
 export function ChecklistDestination({
   families,
@@ -64,6 +65,7 @@ type Data = {
   views: AcquisitionViews;
 };
 type Editor =
+  | { mode: "visibility"; entry: ChecklistEntry }
   | { mode: "category"; initial: ChecklistCategory | null }
   | { mode: "entry"; initial: ChecklistEntry | null; kind: "item" | "task" }
   | { mode: "starter" }
@@ -80,14 +82,16 @@ type Editor =
 function beneficiaries(entry: ChecklistEntry, travelers: Traveler[]) {
   return entry.beneficiaries.kind === "family"
     ? "Whole family"
-    : entry.beneficiaries.travelerIds
-        .map((id) => {
-          const traveler = travelers.find((traveler) => traveler.id === id);
-          return traveler
-            ? `${traveler.firstName} ${traveler.lastName}`
-            : "Former traveler";
-        })
-        .join(", ");
+    : entry.beneficiaries.kind === "families"
+      ? `Shared with ${entry.beneficiaries.familyIds.length} families`
+      : entry.beneficiaries.travelerIds
+          .map((id) => {
+            const traveler = travelers.find((traveler) => traveler.id === id);
+            return traveler
+              ? `${traveler.firstName} ${traveler.lastName}`
+              : "Former traveler";
+          })
+          .join(", ");
 }
 const fieldLabels: Record<string, string> = {
   name: "Category name",
@@ -220,6 +224,17 @@ export function ChecklistScreen({
   };
   if (data && editor && editor.mode !== "history") {
     const props = { scope, onSaved, onCancel };
+    if (editor.mode === "visibility")
+      return (
+        <VisibilityForm
+          {...props}
+          target={{
+            kind: "entry",
+            id: editor.entry.id,
+            title: editor.entry.title,
+          }}
+        />
+      );
     if (editor.mode === "category")
       return <ChecklistCategoryForm {...props} initial={editor.initial} />;
     if (editor.mode === "starter") return <ChecklistStarterForm {...props} />;
@@ -369,8 +384,9 @@ export function ChecklistScreen({
       {data && (
         <>
           <Copy>
-            Family-private preparation. Only physically checked supplies count
-            as available. Availability does not confirm packing.
+            Preparation is family-private until its coordinator shares it. Only
+            physically checked supplies count as available. Availability does
+            not confirm packing.
           </Copy>
           <ChecklistChoices
             label="Preparation view"
@@ -548,6 +564,13 @@ export function ChecklistScreen({
                               }
                             />
                           </>
+                        )}
+                        {data.family.canCoordinate && (
+                          <Action
+                            title={`Visibility for ${entry.title}`}
+                            secondary
+                            onPress={() => edit({ mode: "visibility", entry })}
+                          />
                         )}
                         <Action
                           title={`History for ${entry.title}`}

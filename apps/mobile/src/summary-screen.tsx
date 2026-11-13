@@ -413,8 +413,8 @@ export function SummaryScreen({
               />
               {choices.families.length === 0 && (
                 <Copy muted>
-                  No family checklist access. Travel references can still be
-                  selected.
+                  No permitted family or trip-shared checklist entries. Travel
+                  references can still be selected.
                 </Copy>
               )}
               {choices.families.map((family) => (

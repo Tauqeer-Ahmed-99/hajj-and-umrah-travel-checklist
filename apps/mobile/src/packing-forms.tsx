@@ -132,9 +132,21 @@ export function BagForm(props: Props & { initial: Bag | null }) {
     </Screen>
   );
 }
-export function BagStateForm(props: Props & { bag: Bag }) {
+export function BagStateForm(
+  props: FormProps & {
+    bag: Pick<Bag, "id" | "name" | "legs">;
+    leg?: "outbound" | "return";
+    setState?: (
+      input: import("@nmt/contracts").BagStateInput,
+      token: string,
+      signal: AbortSignal,
+    ) => Promise<unknown>;
+  },
+) {
   const [requestId] = useState(randomUUID);
-  const leg = props.bag.legs.find((leg) => leg.leg === props.data.leg) ?? {
+  const leg = props.bag.legs.find(
+    (leg) => leg.leg === (props.leg ?? "outbound"),
+  ) ?? {
     status: "packing",
     needsReview: false,
   };
@@ -143,20 +155,22 @@ export function BagStateForm(props: Props & { bag: Bag }) {
   const save = useSave(
     bagStateInput,
     (input, token, signal) =>
-      packingApi.state(
-        { ...props.scope, leg: props.data.leg },
-        props.bag.id,
-        input,
-        token,
-        signal,
-      ),
+      props.setState
+        ? props.setState(input, token, signal)
+        : packingApi.state(
+            { ...props.scope, leg: props.leg ?? "outbound" },
+            props.bag.id,
+            input,
+            token,
+            signal,
+          ),
     props,
   );
   return (
     <Screen>
       <Heading>
-        {props.data.leg === "return" ? "Return" : "Outbound"} status for{" "}
-        {props.bag.name}
+        {(props.leg ?? "outbound") === "return" ? "Return" : "Outbound"} status
+        for {props.bag.name}
       </Heading>
       <Copy>
         Confirm the physical bag yourself. Dates and itinerary changes do not
@@ -194,7 +208,7 @@ export function BagStateForm(props: Props & { bag: Bag }) {
         onSave={() =>
           void save.submit({
             requestId,
-            leg: props.data.leg,
+            leg: props.leg ?? "outbound",
             status,
             reviewConfirmed: reviewed,
           })

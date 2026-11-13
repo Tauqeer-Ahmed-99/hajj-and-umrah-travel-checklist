@@ -34,6 +34,7 @@ import {
   PackingUndoForm,
 } from "./packing-forms";
 import { locationLabel, travelerName } from "./packing-ui";
+import { VisibilityForm } from "./sharing-forms";
 
 export function BagsDestination({
   families,
@@ -67,6 +68,7 @@ export function BagsDestination({
   );
 }
 type Editor =
+  | { mode: "visibility"; bag: Bag }
   | { mode: "proposal" }
   | { mode: "reconcile"; item: ReturnItem }
   | { mode: "checkout"; check: ReturnPreparation["checkout"][number] }
@@ -158,6 +160,7 @@ export function PackingScreen({
     packing: Packing;
     travelers: Traveler[];
     returnPreparation: ReturnPreparation | null;
+    canShare: boolean;
   } | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [leg, setLeg] = useState<"outbound" | "return">("outbound");
@@ -171,14 +174,20 @@ export function PackingScreen({
   const load = useCallback(async () => {
     setData(null);
     const result = await api.run(async (token, signal) => {
-      const [packing, roster, returnPreparation] = await Promise.all([
+      const [packing, roster, returnPreparation, trip] = await Promise.all([
         packingApi.read({ tripId, familyId, leg }, token, signal),
         tripApi.travelers(tripId, familyId, token, signal),
         leg === "return"
           ? packingApi.returnRead({ tripId, familyId }, token, signal)
           : Promise.resolve(null),
+        tripApi.read(tripId, token, signal),
       ]);
-      return { packing, travelers: roster.travelers, returnPreparation };
+      return {
+        packing,
+        travelers: roster.travelers,
+        returnPreparation,
+        canShare: !!trip.families.find((f) => f.id === familyId)?.canCoordinate,
+      };
     });
     if (result) setData(result);
   }, [api.run, tripId, familyId, leg]);
@@ -217,6 +226,13 @@ export function PackingScreen({
         setEditor(null);
       },
     };
+    if (editor.mode === "visibility")
+      return (
+        <VisibilityForm
+          {...props}
+          target={{ kind: "bag", id: editor.bag.id, title: editor.bag.name }}
+        />
+      );
     if (editor.mode === "proposal") return <ReturnProposalForm {...props} />;
     if (editor.mode === "reconcile")
       return <ReturnReconciliationForm {...props} item={editor.item} />;
@@ -234,7 +250,9 @@ export function PackingScreen({
     if (editor.mode === "bag")
       return <BagForm {...props} initial={editor.initial} />;
     if (editor.mode === "status")
-      return <BagStateForm {...props} bag={editor.bag} />;
+      return (
+        <BagStateForm {...props} leg={data.packing.leg} bag={editor.bag} />
+      );
     if (editor.mode === "move")
       return <PackingMoveForm {...props} item={editor.item} />;
     if (editor.mode === "check")
@@ -509,6 +527,13 @@ export function PackingScreen({
                             title={`Confirm status for ${bag.name}`}
                             onPress={() => open({ mode: "status", bag })}
                           />
+                          {data.canShare && (
+                            <Action
+                              title={`Visibility for ${bag.name}`}
+                              secondary
+                              onPress={() => open({ mode: "visibility", bag })}
+                            />
+                          )}
                           <Action
                             title={`Edit ${bag.name}`}
                             secondary
