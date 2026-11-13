@@ -17,7 +17,7 @@ import {
 // Only complete, unfiltered, authorized read projections belong here. Never cache
 // signed URLs, file bytes, rosters of accounts, search results, drafts or writes.
 const id = "[a-f0-9-]{36}";
-export function snapshotSchema(path: string) {
+function snapshotSchema(path: string) {
   if (new RegExp(`^/api/trips/${id}$`).test(path)) return tripResponse;
   if (new RegExp(`^/api/trips/${id}/itinerary$`).test(path))
     return itineraryResponse;
@@ -41,6 +41,7 @@ type Cache = {
   generation: number;
   directory: Directory;
   reads: Map<string, number>;
+  blocked: Set<string>;
 };
 type Stamp = { cache: Cache; generation: number; controller: AbortController };
 export type TripSnapshot = {
@@ -64,7 +65,11 @@ export function startTripCache(owner: Owner) {
     generation: 0,
     directory: new Directory(owner.directory, "trip-cache"),
     reads: new Map(),
+    blocked: new Set(),
   };
+  if (cache.directory.exists && new File(cache.directory, "discard").exists)
+    cache.directory.delete();
+  finishRevokedCleanup(cache.directory);
   active = cache;
   setConnection({
     status: "checking",
@@ -112,10 +117,13 @@ export function listTripSnapshots(): TripSnapshot[] {
   if (!directory.exists) return [];
   if (new File(directory, "discard").exists) return [];
   const snapshots: TripSnapshot[] = [];
-  const revoked = directory
-    .list()
-    .filter((file) => file.name.endsWith(".revoked"))
-    .map((file) => file.name.slice(0, -8));
+  const revoked = [
+    ...value.cache.blocked,
+    ...directory
+      .list()
+      .filter((file) => file.name.endsWith(".revoked"))
+      .map((file) => file.name.slice(0, -8)),
+  ];
   for (const file of directory.list()) {
     if (!(file instanceof File) || !file.name.endsWith(".json")) continue;
     if (
@@ -136,7 +144,15 @@ export function listTripSnapshots(): TripSnapshot[] {
         record.refreshedAt <= 0
       )
         continue;
-      snapshots.push({ ...record, data: schema.parse(record.data) });
+      const data = schema.parse(record.data);
+      if ("families" in data && "trip" in data)
+        data.families = data.families.filter(
+          (family) =>
+            !revoked.includes(
+              `${record.path.replaceAll("/", "_")}_families_${family.id}`,
+            ),
+        );
+      snapshots.push({ ...record, data });
     } catch {
       /* Partial or incompatible data never proves a usable snapshot. */
     }
@@ -180,6 +196,7 @@ export function clearTripCache() {
     tripCacheChanged();
     value.cache.directory.delete();
   }
+  value.cache.blocked.clear();
   tripCacheChanged();
 }
 function deny(value: Stamp, path: string, status: number, method: string) {
@@ -204,17 +221,21 @@ function deny(value: Stamp, path: string, status: number, method: string) {
   // Invalidate *all* pending publications before removing a denied scope. A late
   // success authorized before this denial must not recreate revoked snapshots.
   value.cache.generation++;
+  const encodedPrefix = prefix.replaceAll("/", "_");
+  value.cache.blocked.add(encodedPrefix);
   const directory = value.cache.directory;
-  directory.create({ idempotent: true });
   // Durable tombstone precedes deletion. An interrupted removal remains hidden
   // after restart, and must finish before a newly authorized read can publish.
-  new File(directory, `${prefix.replaceAll("/", "_")}.revoked`).writeSync(
-    "revoked",
-  );
   tripCacheChanged();
   try {
+    directory.create({ idempotent: true });
+    new File(directory, `${encodedPrefix}.revoked`).writeSync("revoked");
     finishRevokedCleanup(directory);
+    value.cache.blocked.delete(encodedPrefix);
   } catch {
+    // If even the tombstone cannot be written, invalidate the account gate as
+    // well. Keep old callbacks unable to open or publish private data.
+    value.cache.owner.clearAccount();
     throw new TripError(
       "Private cache cleanup could not finish. Retry Refresh cached trips.",
     );
@@ -229,6 +250,32 @@ function finishRevokedCleanup(directory: Directory) {
     if (!(marker instanceof File) || !marker.name.endsWith(".revoked"))
       continue;
     const prefix = marker.name.slice(0, -8);
+    // A definitive family denial also removes its name/navigation from an older
+    // trip detail. Retain the original refresh time: redaction is not a new read.
+    const familyScope = prefix.match(
+      /^_api_trips_([a-f0-9-]{36})_families_([a-f0-9-]{36})$/,
+    );
+    if (familyScope) {
+      const detailFile = new File(
+        directory,
+        `_api_trips_${familyScope[1]}.json`,
+      );
+      if (detailFile.exists) {
+        try {
+          const record = JSON.parse(detailFile.textSync());
+          const detail = tripResponse.parse(record.data);
+          detail.families = detail.families.filter(
+            (family) => family.id !== familyScope[2],
+          );
+          const pending = new File(directory, `${detailFile.name}.pending`);
+          pending.writeSync(JSON.stringify({ ...record, data: detail }));
+          pending.moveSync(detailFile, { overwrite: true });
+        } catch {
+          // Never leave a denied family's name behind if redaction fails.
+          detailFile.delete();
+        }
+      }
+    }
     for (const file of directory.list())
       if (
         file instanceof File &&
@@ -245,12 +292,14 @@ export async function travelFetch(
   url: string,
   init: RequestInit,
 ): Promise<Response> {
-  const value = stamp();
   const path = new URL(url).pathname;
   const method = init.method ?? "GET";
   const readAuthorization =
     method === "POST" && /\/(copy-access|open|summary)$/.test(path);
   const cleanup = method === "DELETE" && path === "/api/notifications/device";
+  // Explicit unregistration must still work after local account invalidation.
+  // Its exact token is authorized on the server, and its response owns no cache.
+  const value = cleanup ? null : stamp();
   const readNumber =
     value && method === "GET" ? (value.cache.reads.get(path) ?? 0) + 1 : null;
   if (value && readNumber !== null) value.cache.reads.set(path, readNumber);
@@ -338,6 +387,7 @@ export async function refreshTripCache(
     value.cache.directory.delete();
   }
   finishRevokedCleanup(value.cache.directory);
+  value.cache.blocked.clear();
   const paths = listTripSnapshots().map((record) => record.path);
   for (const path of paths) {
     const attempt = stamp();
