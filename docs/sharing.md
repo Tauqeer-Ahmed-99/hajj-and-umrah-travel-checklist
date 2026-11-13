@@ -64,6 +64,13 @@ family grant. They must not fetch private family snapshots just because an item
 is shared. Selected item notes are intentionally shared; private bag and history
 free text never enter the shared projection.
 
+The integrated [summary API](travel-summaries.md) now offers permitted shared
+checklist records to readers without a family grant, using a generic group label
+and its existing fixed field allowlist. Private family names, notes, categories,
+rosters, locations and history remain absent. A mixed private/shared selection or
+an item made private after selection fails the whole preview; canonical IDs and
+selected procurement counts are never duplicated.
+
 ## Atomicity and retries
 
 Shared writes hold the current trip membership share lock, then the same owning
@@ -112,12 +119,14 @@ family beneficiaries, absent shared bag commands, privacy-safe activity and
 atomic visibility/allocation rules. The fixture applies migrations twice and
 retains the direct Node test runner and Windows PG18 `io_method=sync` fix.
 
-Prepared native journeys, **not executed**: `shared-bag-publish.yaml` and
-`shared-bag-reader.yaml`. Seed a fresh trip using the outbound packing journey,
+Prepared native journeys, **not executed**: `shared-bag-publish.yaml`,
+`shared-bag-reader.yaml` and `shared-bag-editor.yaml`. Seed a fresh trip using the outbound packing journey,
 then run the publish flow as its owning coordinator. Run the reader flow from
 another invited family with no owning-family grant, first as editor and then as
-viewer. Runner-only `MAESTRO_SHARED_ITEM` and `MAESTRO_SHARED_BAG` name the seeded
-records; these are not app configuration. Also exercise concurrent packing versus
+viewer. Runner-only `MAESTRO_SHARED_ITEM`, `MAESTRO_SHARED_BAG` and
+`MAESTRO_PACKING_FAMILY` name the seeded records; these are not app configuration.
+The editor flow requires at least 0.5 physically available, unpacked pieces and
+the named shared bag. Also exercise concurrent packing versus
 visibility, access removal with an open form, a lost response and explicit same-
 save retry, account switching, offline/foreground/restart, TalkBack, maximum font
 and display scaling, light/dark, Arabic/long labels, keyboard/landscape and scroll

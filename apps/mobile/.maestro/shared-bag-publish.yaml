@@ -1,7 +1,8 @@
 appId: in.nmtsolutions.travel
 ---
 # Prepared, not executed. Start in the owning family's Checklist as coordinator.
-# Seed an acquired item allocated in a bag. Supply MAESTRO_SHARED_ITEM and BAG.
+# Seed an acquired item allocated in a bag. Supply MAESTRO_SHARED_ITEM,
+# MAESTRO_SHARED_BAG and MAESTRO_PACKING_FAMILY.
 - scrollUntilVisible:
     element: "Visibility for ${MAESTRO_SHARED_ITEM}"
 - tapOn: "Visibility for ${MAESTRO_SHARED_ITEM}"
@@ -18,7 +19,6 @@ appId: in.nmtsolutions.travel
 - tapOn: "Back to family checklists"
 - tapOn:
     id: tab-bags
-# Open the seeded family's Bags screen manually, then continue this flow.
 - tapOn: "Bags for ${MAESTRO_PACKING_FAMILY}"
 - scrollUntilVisible:
     element: "Visibility for ${MAESTRO_SHARED_BAG}"

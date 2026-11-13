@@ -355,12 +355,15 @@ export function SharedMoveForm(
       />
       <Field
         label="Quantity"
+        testID="shared-packing-quantity"
         value={quantity}
         onChangeText={setQuantity}
         keyboardType="decimal-pad"
         editable={!save.locked}
         error={save.fields.quantity}
       />
+      {save.fields.to && <Notice error>{save.fields.to}</Notice>}
+      {save.fields.from && <Notice error>{save.fields.from}</Notice>}
       <Field
         label="Reason for removal or correction"
         value={reason}

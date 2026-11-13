@@ -762,3 +762,115 @@ test("racing visibility and packing serialize on current content and coordinator
     403,
   );
 });
+
+test("summary readers without a family grant can select shared canonical items while private records and all private fields remain excluded", async () => {
+  const j = await setup("sharing_summary");
+  const viewer = await admit(j, "sharing_summary_viewer", "viewer");
+  const organizer = await admit(j, "sharing_summary_organizer", "organizer");
+  const id = await item(j, "One canonical adapter supply");
+  const hidden = await item(j, "Hidden medicine title");
+  const b = await bag(j, "Secret summary bag");
+  await receive(j, id, 2);
+  await fixture.request(
+    `${j.family}/checklist/entries/${id}`,
+    j.owner.token,
+    {
+      requestId: randomUUID(),
+      notes: "Private note withheld from summary",
+      source: "https://secret.test/file?token=private",
+    },
+    "PATCH",
+  );
+  await fixture.request(
+    `${j.family}/packing`,
+    j.owner.token,
+    movement(id, unpacked, inBag(b)),
+    "POST",
+  );
+  await share(j, "entry", id);
+  const selection = {
+    tripDetails: false,
+    travelFields: [],
+    itineraryEntryIds: [],
+    checklist: [{ familyId: j.familyId, entryIds: [id] }],
+    includePreparation: true,
+    includeTaskProgress: false,
+  };
+  for (const person of [viewer, organizer]) {
+    const choices = await fixture.request(`${j.trip}/summary`, person.token);
+    assert.equal(choices.status, 200, fixture.logs());
+    assert.equal(choices.data.families.length, 1);
+    assert.deepEqual(choices.data.families[0].entries, [
+      { id, title: "One canonical adapter supply", kind: "item" },
+    ]);
+    const preview = await fixture.request(
+      `${j.trip}/summary`,
+      person.token,
+      selection,
+      "POST",
+    );
+    assert.equal(preview.status, 200, fixture.logs());
+    assert.match(preview.data.text, /Item: One canonical adapter supply/);
+    assert.match(
+      preview.data.text,
+      /2 pieces available; 2 pieces still to arrange/,
+    );
+    assert.match(preview.data.text, /Preparation items selected: 1;/);
+    for (const secret of [
+      hidden,
+      b,
+      j.travelerId,
+      j.categoryId,
+      "Hidden medicine title",
+      "Secret summary bag",
+      "Private note",
+      "secret.test",
+      "Private ribbon",
+      "Owning family",
+    ])
+      assert.ok(
+        !JSON.stringify({
+          choices: choices.data,
+          preview: preview.data,
+        }).includes(secret),
+        secret,
+      );
+    assert.equal(
+      (
+        await fixture.request(
+          `${j.trip}/summary`,
+          person.token,
+          {
+            ...selection,
+            checklist: [{ familyId: j.familyId, entryIds: [id, hidden] }],
+          },
+          "POST",
+        )
+      ).status,
+      404,
+    );
+  }
+  const own = await fixture.request(`${j.trip}/summary`, j.owner.token);
+  assert.equal(
+    own.data.families
+      .flatMap((f: { entries: { id: string }[] }) => f.entries)
+      .filter((e: { id: string }) => e.id === id).length,
+    1,
+  );
+  await share(j, "entry", id, "family");
+  assert.deepEqual(
+    (await fixture.request(`${j.trip}/summary`, viewer.token)).data.families,
+    [],
+  );
+  assert.equal(
+    (
+      await fixture.request(
+        `${j.trip}/summary`,
+        viewer.token,
+        selection,
+        "POST",
+      )
+    ).status,
+    404,
+  );
+});
