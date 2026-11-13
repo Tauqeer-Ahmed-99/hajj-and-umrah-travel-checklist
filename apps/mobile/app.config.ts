@@ -20,10 +20,14 @@ const config: ExpoConfig = {
     package: "in.nmtsolutions.travel",
     versionCode: 1,
     softwareKeyboardLayoutMode: "resize",
+    ...(process.env.GOOGLE_SERVICES_JSON
+      ? { googleServicesFile: process.env.GOOGLE_SERVICES_JSON }
+      : {}),
   },
   plugins: [
     "expo-dev-client",
     "expo-secure-store",
+    "expo-notifications",
     ["@clerk/expo", { appleSignIn: false }],
     "@clerk/expo-google-signin",
   ],

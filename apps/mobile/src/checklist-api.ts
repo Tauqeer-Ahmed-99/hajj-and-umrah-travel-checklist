@@ -1,3 +1,4 @@
+import { acceptedTravelChange } from "./accepted-travel-change";
 import {
   checklistResponse,
   acquisitionViewsResponse,
@@ -54,7 +55,9 @@ async function request<T>(
     );
   }
   try {
-    return schema.parse(await response.json());
+    const result = schema.parse(await response.json());
+    if (method !== "GET") acceptedTravelChange();
+    return result;
   } catch {
     throw new TripError(
       "Could not read the response. Check the saved checklist before retrying.",
