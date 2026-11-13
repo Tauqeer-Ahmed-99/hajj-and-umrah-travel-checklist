@@ -91,7 +91,12 @@ export function OfflineTripsScreen({
   const [route, setRoute] = useState<Route | null>(null);
   const { sessionId } = useAuth();
   const copies = useGuideCopies();
-  const memberId = restoreCopyProfile(copies)?.id;
+  let memberId: string | undefined;
+  try {
+    memberId = restoreCopyProfile(copies)?.id;
+  } catch {
+    /* Account cleanup can invalidate the owner before this reader unmounts. */
+  }
   useEffect(() => {
     let active = true;
     if (memberId && sessionId)

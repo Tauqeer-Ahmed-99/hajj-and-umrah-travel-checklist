@@ -219,10 +219,12 @@ const actionLabels: Record<string, string> = {
 function Activity({
   tripId,
   row,
+  refreshedAt,
   onBack,
 }: {
   tripId: string;
   row: OverviewRecord;
+  refreshedAt: string;
   onBack(): void;
 }) {
   const { getToken } = useAuth();
@@ -237,7 +239,6 @@ function Activity({
       if (active)
         setError("Activity refresh took too long. Reconnect and retry.");
     }, 15_000);
-    setData(null);
     setError("");
     void (async () => {
       try {
@@ -256,12 +257,18 @@ function Activity({
         );
         if (active && !controller.signal.aborted) setData(result);
       } catch (failure) {
-        if (active && !controller.signal.aborted)
+        if (active && !controller.signal.aborted) {
+          if (
+            failure instanceof TripError &&
+            [401, 403, 404].includes(failure.status)
+          )
+            setData(null);
           setError(
             failure instanceof TripError
               ? failure.message
               : "Could not refresh item activity. Reconnect and retry.",
           );
+        }
       } finally {
         clearTimeout(timer);
       }
@@ -271,7 +278,7 @@ function Activity({
       controller.abort();
       clearTimeout(timer);
     };
-  }, [getToken, tripId, row.id, row.leg, attempt]);
+  }, [getToken, tripId, row.id, row.leg, refreshedAt, attempt]);
   return (
     <ChecklistSection title="Accepted item activity">
       <Copy>{row.title}</Copy>
@@ -279,7 +286,9 @@ function Activity({
         Only accepted changes for this item and permitted travel leg appear.
         Private location details and free-text reasons are omitted.
       </Copy>
-      {error && <Notice error>{error}</Notice>}
+      {error && (
+        <Notice error>{error} Previously shown activity may be stale.</Notice>
+      )}
       {!data && !error && <Loading message="Checking item activity…" />}
       {data?.history.length === 0 && (
         <Notice>
@@ -535,6 +544,7 @@ export function OverviewScreen({
                   key={`${row.id}:${row.leg}`}
                   tripId={tripId}
                   row={row}
+                  refreshedAt={data.asOf}
                   onBack={() => setActivity(null)}
                 />
               ) : null

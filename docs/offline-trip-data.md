@@ -1,5 +1,13 @@
 # Cached trip data (#15)
 
+[Overview and search #17](overview-and-search.md) adds separate complete outbound
+and return overview snapshots, saved permitted-record search and account/session
+view restoration. Family/shared access loss invalidates combined overviews using
+the same tombstone/generation lifecycle; unrelated authorized snapshots remain.
+Filtered searches and item activity are never persisted. The reader can now open
+the last useful trip/view directly; return to its trip list before older native
+flows that assume an initial list.
+
 [#10 return preparation](return-preparation.md) extends this reader with explicit
 outbound/return packing and shared snapshot keys, plus a separate private return
 reconciliation view. Its mutations use the same connection guard described below.

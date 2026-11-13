@@ -9,12 +9,28 @@ appId: in.nmtsolutions.travel
 - scrollUntilVisible:
     element: "${OVERVIEW_ESSENTIAL}"
 - assertVisible: ${OVERVIEW_ESSENTIAL}
+- scrollUntilVisible:
+    element: "Show all records"
+    direction: UP
 - tapOn: "Show all records"
+- scrollUntilVisible:
+    element: "My items"
+    direction: UP
 - tapOn: "My items"
 - scrollUntilVisible:
     element: "${OVERVIEW_MINE}"
 - assertVisible: ${OVERVIEW_MINE}
 - assertNotVisible: ${OVERVIEW_OTHER}
+- scrollUntilVisible:
+    element: "My family"
+    direction: UP
+- tapOn: "My family"
+- scrollUntilVisible:
+    element: "${OVERVIEW_MINE}"
+- assertVisible: ${OVERVIEW_MINE}
+- scrollUntilVisible:
+    element: "Shared with trip"
+    direction: UP
 - tapOn: "Shared with trip"
 - scrollUntilVisible:
     element: "${OVERVIEW_SHARED}"
@@ -26,8 +42,9 @@ appId: in.nmtsolutions.travel
 - scrollUntilVisible:
     element: "${OVERVIEW_SHARED}"
 - assertVisible: ${OVERVIEW_SHARED}
-- tapOn: "Back to Overview"
-- tapOn: "Checklist"
+- back
+- tapOn:
+    id: tab-checklist
 - stopApp
 - launchApp
 - assertVisible: "Family checklists"

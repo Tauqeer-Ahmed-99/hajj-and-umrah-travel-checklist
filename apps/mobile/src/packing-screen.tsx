@@ -353,6 +353,21 @@ export function PackingScreen({
         ]}
       />
       {saved && <Notice>Saved</Notice>}
+      {selectedId &&
+        data &&
+        ![
+          ...data.packing.bags.map((b) => b.id),
+          ...data.packing.items.map((i) => i.entryId),
+          ...data.packing.checks.map((c) => c.id),
+          ...(data.returnPreparation?.items.map((i) => i.entryId) ?? []),
+          ...(data.returnPreparation?.checkout.map((c) => c.id) ?? []),
+        ].includes(selectedId) && (
+          <Notice>
+            The selected record is not yet in this view or is no longer
+            available. Refresh, review the return list, or show all family
+            packing records.
+          </Notice>
+        )}
       {selectedId && (
         <Action
           title="Show all family packing records"

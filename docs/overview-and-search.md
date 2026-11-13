@@ -6,7 +6,9 @@ The prepared isolated branch started clean at integration
 offline guide copies #14 and the reminder overlap regression. Integration #15
 (`a44bc27f0321060ca0f6faf994820e7b945f069d`) and #10
 (`2434253f7a778eb8c1c1bcbd62d4b29a2b0f95d8`) were subsequently merged.
-The final verification section records the precise integrated revision.
+The final verification section records the precise integrated revision. Latest
+integration also brought #19 at `5f05bae8cc4446490d6b6b90aacf39cede5d6b96`;
+private bag-photo/attachment destinations and their guarded requests are retained.
 
 ## Authorized read contract
 
@@ -129,6 +131,10 @@ protected state. Query changes cancel older overview requests, and late response
 cannot replace the new query/account. Same-view refresh preserves input focus and
 native scroll position structurally; physical TalkBack/scroll behavior still
 requires the device checks below.
+
+Inline activity refreshes after the enclosing overview refresh without first
+removing its existing keyed rows. Transient activity failures retain accepted
+history with stale feedback; a definitive denial clears it.
 
 The new API client crosses #15's `travelFetch` boundary. Complete, schema-validated
 overview reads are cached separately for outbound and return; their query scope
@@ -262,8 +268,8 @@ cannot prove them.
 
 No intended-account Clerk/Neon/Vercel deployment or real-provider acceptance was
 performed. Hosted multi-account permissions and persistence remain unverified.
-Normal Hermes compilation remains blocked by the previously documented Windows
-Application Control restriction; this ticket uses only `--no-bytecode` JS export.
+Normal Hermes compilation was not rerun here. Earlier attempts were blocked by
+Windows Application Control; this ticket uses only `--no-bytecode` JS export.
 Signed APK installation/upgrade, native runtime compatibility (including #15's
 expo-network dependency), Google/email-code provider flows, EAS update delivery
 and physical-device acceptance remain open. No service provisioning, real
@@ -271,4 +277,35 @@ message/export, issue closure, push, PR, binary or OTA publication occurred.
 
 ## Final combined verification
 
-Pending the final combined run. Results will be recorded here before handoff.
+Latest integration `5f05bae8cc4446490d6b6b90aacf39cede5d6b96` (#19 over #10,
+#15, #9 and the summary/reminder baseline) was merged at
+`53138fe1eabff76d6335e7afa2ebdfa06d68a925`. Import/export conflicts retained
+both navigation contracts and private bag-photo destinations. Earlier #10
+conflicts retained selected-leg sharing, item-filtered safe activity, both
+cached leg keys, return review/checkout and the central write/session guard.
+
+- Full `npm test` on the actual combined API tree: **111/111 authenticated
+  HTTP/real PostgreSQL scenarios passed**, 0 failures, 0 skipped, 0 cancellations,
+  normal exit in **569.0 seconds**. All seven new overview scenarios and existing
+  return, sharing, summary, reminder-overlap, acquisition, identity, invitation,
+  guide and travel-file regressions passed. API/test/migration source stayed
+  fixed throughout the run.
+- Final workspace `npm run typecheck` passed. Native inspection subsequently
+  improved inline history refresh, guarded a reader rendering during account
+  cleanup, and explained unavailable exact-record restoration. These are mobile
+  changes; final TypeScript and JS export cover them without repeating the
+  unchanged HTTP suite.
+- `npm run build:api` passed the Next 16.4.6 production build without service
+  credentials. Its dynamic route list includes overview, return overview and
+  item activity alongside existing return/shared/summary/travel-file routes.
+- Android JS export with `--no-bytecode` passed, bundling **1,085 modules** to
+  ignored `.expo/overview-verification`. This is a JavaScript bundle only.
+- Changed-file Prettier and `git diff --check` passed. Generated Next declarations
+  returned to their tracked production form. The direct Node runner, PostgreSQL
+  fixture including PG18 Windows `io_method=sync`, dependency lockfile and
+  SQL014/016/017 match latest integration. #17 adds no migration or environment
+  variable.
+
+The final integration ancestry and clean committed branch accompany the handoff.
+The prepared native journeys and all device/provider/release gates above remain
+unrun; local checks do not establish them.
