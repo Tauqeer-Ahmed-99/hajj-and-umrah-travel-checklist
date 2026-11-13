@@ -222,9 +222,19 @@ export function clearTripCache() {
   value.cache.blocked.clear();
   tripCacheChanged();
 }
-function deny(value: Stamp, path: string, status: number, method: string) {
+function deny(
+  value: Stamp,
+  path: string,
+  status: number,
+  method: string,
+  code?: string,
+) {
   current(value, undefined, method === "GET");
-  if (status === 401 || (path === "/api/me" && [403, 404].includes(status))) {
+  if (
+    status === 401 ||
+    ["profile_incomplete", "email_unverified"].includes(code ?? "") ||
+    (path === "/api/me" && [403, 404].includes(status))
+  ) {
     value.cache.generation++;
     value.cache.owner.clearAccount();
     setConnection({
@@ -358,7 +368,37 @@ export async function travelFetch(
     throw new TripError(
       "A newer refresh replaced this read. Open the view again.",
     );
-  deny(value, path, response.status, method);
+  let denialCode: string | undefined;
+  if ([401, 403, 404].includes(response.status)) {
+    try {
+      const body = await response.clone().json();
+      if (
+        typeof body.error?.code === "string" &&
+        typeof body.error?.message === "string"
+      )
+        denialCode = body.error.code;
+    } catch {
+      /* A proxy/HTML error is not an application permission decision. */
+    }
+    current(value, init.signal ?? undefined, method === "GET");
+    if (
+      !denialCode ||
+      ((method === "GET" || readAuthorization) &&
+        ![
+          "invalid_session",
+          "profile_incomplete",
+          "email_unverified",
+          "not_found",
+          "trip_forbidden",
+          "family_forbidden",
+          "guide_forbidden",
+        ].includes(denialCode))
+    )
+      throw new TripError(
+        "Current access could not be checked. Your cached data was retained; reconnect and retry.",
+      );
+  }
+  deny(value, path, response.status, method, denialCode);
   if (
     response.ok &&
     method === "GET" &&

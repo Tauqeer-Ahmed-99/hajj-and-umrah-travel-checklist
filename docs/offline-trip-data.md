@@ -90,6 +90,8 @@ gate clears that gate; a 403/404 on a complete resource read removes the denied
 trip/family scope. A write denial does not prove loss of read permission.
 Filtered/partial listings and transient network/provider failures do not purge
 other snapshots. Current family endpoints keep their existing authorization.
+Removal requires a recognized structured application denial; an intermediary
+HTML/error page cannot establish membership loss or erase good cached data.
 Saved guide versions still receive their independent historical copy-access
 checks through #14; listing omission never revokes a saved version.
 
