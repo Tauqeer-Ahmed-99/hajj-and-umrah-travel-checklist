@@ -233,8 +233,24 @@ Other platforms retain their existing mode. This is test configuration, not an
 application environment variable or hosted database change. See
 [PostgreSQL 18 I/O configuration](https://www.postgresql.org/docs/18/runtime-config-resource.html#GUC-IO-METHOD).
 
-Full combined checks and final integration ancestry are recorded below after they
-run. External acceptance remains pending: correct-account Clerk/Neon/Vercel setup,
+Final combined verification at `bad7d206caca0fdd6f2d51cd393a477d58dcbac0`
+passed **74/74 authenticated HTTP/PostgreSQL scenarios**, without skips or forced
+exit. Workspace TypeScript, the production API build without service credentials,
+Android JavaScript export with `--no-bytecode`, repository formatting and
+`git diff --check` also passed. All migrations, including independent 010, 011 and
+012, were exercised twice per fixture. No test mocks application permissions or
+packing/acquisition logic or asserts behavior through direct SQL.
+
+The task branch started clean at `7bef411f9646ffb1bf481f0a76bb8ba1d0ac48d8`.
+Implementation commit `706acd7` was followed by integration merges, most recently
+`f6f8d03e08094a6b8ee137995c7d2689c01bdbee` (#13 files and #16 reminders).
+The final merge retained both packing/assignment-history imports and all Bags,
+Checklist, Guides, itinerary and reminder destinations. The full 74-scenario run
+and build/type/export checks followed that merge. An earlier 66-scenario combined
+checkpoint after #13 also passed; the repeat was needed for #16's identity,
+permission and checklist-history changes.
+
+External acceptance remains pending: correct-account Clerk/Neon/Vercel setup,
 deployment and migration 011 with prerequisites, real authenticated Android
 accounts/devices, signing/installation/upgrade, native Hermes compilation and EAS
 update compatibility. `adb devices` reported no device and Maestro is unavailable.
