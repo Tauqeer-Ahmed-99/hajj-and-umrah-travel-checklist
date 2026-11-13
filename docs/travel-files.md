@@ -163,12 +163,12 @@ configuration):
    `FILES_PDF_NAME`, attach/open a PDF and wait for native PDF ready. Repeat on a
    stop, with embedded Arabic and multiple pages. Ensure no Downloads entry,
    external viewer or offline badge appears. Inspect actual app-private cleanup.
-3. With another family/organizer/viewer, read the itinerary and shared item/bag;
+3. `travel-file-revocation.yaml`: with another family/organizer/viewer, read the itinerary and shared item/bag;
    private file names, photo controls and historical uploads must remain absent.
    Share one ready attachment, verify only its permitted current version opens,
    then revoke family/trip access or make it private. Reconnect/reopen, and test
    denial during a paused transfer and while actively reading (metadata check).
-4. Disconnect before creation, during PUT and after accepted finalization but
+4. `travel-file-error.yaml` checks an invalid replacement and its retained input/connection guard. Also disconnect before creation, during PUT and after accepted finalization but
    before response delivery. Require retained input and disabled mutation controls;
    reconnect must not submit. Explicit Retry same upload or Finish uploaded file
    must produce one accepted version. Reopen pending attempts after process death.

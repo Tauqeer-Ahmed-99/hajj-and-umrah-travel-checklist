@@ -17,6 +17,17 @@ import { travelFetch } from "./trip-cache";
 import { TripError } from "./trip-api";
 import { acceptedTravelChange } from "./accepted-travel-change";
 
+class FileRequestError extends TripError {
+  constructor(
+    message: string,
+    status: number,
+    fields: Record<string, string> | undefined,
+    public code: string | undefined,
+  ) {
+    super(message, status, fields);
+  }
+}
+
 async function request<T>(
   tripId: string,
   path: string,
@@ -42,11 +53,12 @@ async function request<T>(
   );
   if (!response.ok) {
     const error = await response.json().catch(() => null);
-    throw new TripError(
+    throw new FileRequestError(
       error?.error?.message ??
         "Could not confirm this file request. Reconnect and explicitly retry.",
       response.status,
       error?.error?.fields,
+      error?.error?.code,
     );
   }
   try {
@@ -172,7 +184,18 @@ export const travelFileApi = {
       signal,
       fileAuthorization,
       {},
-    );
+    ).catch((error: unknown) => {
+      // This explicit retry may follow an accepted finalize whose response was
+      // lost. Skip rewriting staging and let the same action confirm its receipt.
+      if (
+        error instanceof FileRequestError &&
+        error.status === 409 &&
+        error.code === "upload_ready"
+      )
+        return null;
+      throw error;
+    });
+    if (!auth) return;
     const response = await fileFetch(auth.url, {
       method: "PUT",
       headers: auth.headers,

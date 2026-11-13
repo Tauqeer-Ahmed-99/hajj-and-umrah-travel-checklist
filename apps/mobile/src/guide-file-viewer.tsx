@@ -276,7 +276,9 @@ export function GuideFileViewer({
           )}
           <View
             style={{ flex: 1, minHeight: 200 }}
-            accessibilityLabel="In-app guide viewer"
+            accessibilityLabel={
+              travelFile ? "In-app travel file viewer" : "In-app guide viewer"
+            }
           >
             {view.type === "application/pdf" ? (
               <Pdf
