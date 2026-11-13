@@ -1,0 +1,281 @@
+appId: in.nmtsolutions.travel
+---
+# Prepared, not executed. Fresh editor family and unique MAESTRO_PACKING_RUN.
+# The seed creates three received adapters and Blue/Cabin physical bags.
+- runFlow: outbound-packing.yaml
+- scrollUntilVisible:
+    element: "Return"
+- tapOn: "Return"
+- scrollUntilVisible:
+    element: "Propose return list"
+- tapOn: "Propose return list"
+- scrollUntilVisible:
+    element: "Propose return list"
+- tapOn: "Propose return list"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- assertVisible: "Return packing"
+- scrollUntilVisible:
+    element: "Reconcile Adapters ${MAESTRO_PACKING_RUN}"
+- tapOn: "Reconcile Adapters ${MAESTRO_PACKING_RUN}"
+- scrollUntilVisible:
+    element:
+      id: return-required
+- tapOn:
+    id: return-required
+- eraseText
+- inputText: "2"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: return-possession
+- tapOn:
+    id: return-possession
+- eraseText
+- inputText: "2"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: return-consumed
+- tapOn:
+    id: return-consumed
+- eraseText
+- inputText: "1"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: return-consumed-reason
+- tapOn:
+    id: return-consumed-reason
+- eraseText
+- inputText: "Used during our stay"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: return-reason
+- tapOn:
+    id: return-reason
+- eraseText
+- inputText: "Counted before checkout"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "I reviewed what we need to bring home"
+- tapOn: "I reviewed what we need to bring home"
+- scrollUntilVisible:
+    element: "I physically counted what we have now"
+- tapOn: "I physically counted what we have now"
+- scrollUntilVisible:
+    element: "Save return reconciliation"
+- tapOn: "Save return reconciliation"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Items to pack"
+- tapOn: "Items to pack"
+- scrollUntilVisible:
+    element: "Pack or move Adapters ${MAESTRO_PACKING_RUN}"
+- tapOn: "Pack or move Adapters ${MAESTRO_PACKING_RUN}"
+- scrollUntilVisible:
+    element: "Bag: Blue ${MAESTRO_PACKING_RUN}"
+- tapOn: "Bag: Blue ${MAESTRO_PACKING_RUN}"
+- scrollUntilVisible:
+    element:
+      id: packing-quantity
+- tapOn:
+    id: packing-quantity
+- eraseText
+- inputText: "2"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "I physically placed this quantity at the new location"
+- tapOn: "I physically placed this quantity at the new location"
+- scrollUntilVisible:
+    element: "Save packing move"
+- tapOn: "Save packing move"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Review belongings"
+- tapOn: "Review belongings"
+- scrollUntilVisible:
+    element: "Destination purchases, gifts and replacements"
+- tapOn: "Destination purchases, gifts and replacements"
+- scrollUntilVisible:
+    element: "Add item"
+- tapOn: "Add item"
+- scrollUntilVisible:
+    element:
+      id: checklist-entry-title
+- tapOn:
+    id: checklist-entry-title
+- eraseText
+- inputText: "Dates ${MAESTRO_PACKING_RUN}"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: checklist-unit
+- tapOn:
+    id: checklist-unit
+- eraseText
+- inputText: "box"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Save item"
+- tapOn: "Save item"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Acquisition for Dates ${MAESTRO_PACKING_RUN}"
+- tapOn: "Acquisition for Dates ${MAESTRO_PACKING_RUN}"
+- scrollUntilVisible:
+    element: "To Bought"
+- tapOn: "To Bought"
+- scrollUntilVisible:
+    element: "I checked this quantity and have it physically"
+- tapOn: "I checked this quantity and have it physically"
+- scrollUntilVisible:
+    element: "Save acquisition"
+- tapOn: "Save acquisition"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Back to family checklists"
+- tapOn: "Back to family checklists"
+- scrollUntilVisible:
+    element: "Propose return list"
+- tapOn: "Propose return list"
+- scrollUntilVisible:
+    element: "Propose return list"
+- tapOn: "Propose return list"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Reconcile Dates ${MAESTRO_PACKING_RUN}"
+- tapOn: "Reconcile Dates ${MAESTRO_PACKING_RUN}"
+- scrollUntilVisible:
+    element:
+      id: return-required
+- tapOn:
+    id: return-required
+- eraseText
+- inputText: "1"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: return-possession
+- tapOn:
+    id: return-possession
+- eraseText
+- inputText: "1"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: return-reason
+- tapOn:
+    id: return-reason
+- eraseText
+- inputText: "Counted before checkout"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "I reviewed what we need to bring home"
+- tapOn: "I reviewed what we need to bring home"
+- scrollUntilVisible:
+    element: "I physically counted what we have now"
+- tapOn: "I physically counted what we have now"
+- scrollUntilVisible:
+    element: "Save return reconciliation"
+- tapOn: "Save return reconciliation"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Items to pack"
+- tapOn: "Items to pack"
+- scrollUntilVisible:
+    element: "Pack or move Dates ${MAESTRO_PACKING_RUN}"
+- tapOn: "Pack or move Dates ${MAESTRO_PACKING_RUN}"
+- scrollUntilVisible:
+    element: "Bag: Blue ${MAESTRO_PACKING_RUN}"
+- tapOn: "Bag: Blue ${MAESTRO_PACKING_RUN}"
+- scrollUntilVisible:
+    element:
+      id: packing-quantity
+- tapOn:
+    id: packing-quantity
+- eraseText
+- inputText: "1"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "I physically placed this quantity at the new location"
+- tapOn: "I physically placed this quantity at the new location"
+- scrollUntilVisible:
+    element: "Save packing move"
+- tapOn: "Save packing move"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Bags"
+- tapOn: "Bags"
+- scrollUntilVisible:
+    element: "Confirm status for Blue ${MAESTRO_PACKING_RUN}"
+- tapOn: "Confirm status for Blue ${MAESTRO_PACKING_RUN}"
+- scrollUntilVisible:
+    element: "Ready"
+- tapOn: "Ready"
+- scrollUntilVisible:
+    element: "Confirm bag status"
+- tapOn: "Confirm bag status"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Return: Ready"
+- assertVisible: "Return: Ready"
+- scrollUntilVisible:
+    element: "Checkout"
+- tapOn: "Checkout"
+- scrollUntilVisible:
+    element: "Check: Check charging points"
+- tapOn: "Check: Check charging points"
+- scrollUntilVisible:
+    element: "I physically checked this area"
+- tapOn: "I physically checked this area"
+- scrollUntilVisible:
+    element: "Save checkout check"
+- tapOn: "Save checkout check"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: "Family bags"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Bags for ${MAESTRO_PACKING_FAMILY}"
+- tapOn: "Bags for ${MAESTRO_PACKING_FAMILY}"
+- scrollUntilVisible:
+    element: "Outbound"
+- tapOn: "Outbound"
+- scrollUntilVisible:
+    element: "Bags"
+- tapOn: "Bags"
+- scrollUntilVisible:
+    element: "Outbound: Collected"
+- assertVisible: "Outbound: Collected"
+- scrollUntilVisible:
+    element: "Return"
+- tapOn: "Return"
+- scrollUntilVisible:
+    element: "Bags"
+- tapOn: "Bags"
+- scrollUntilVisible:
+    element: "Return: Ready"
+- assertVisible: "Return: Ready"

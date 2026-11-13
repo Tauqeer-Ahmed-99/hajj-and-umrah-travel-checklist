@@ -34,6 +34,7 @@ async function packingState(
   db: PoolClient,
   familyId: string,
   canEdit: boolean,
+  leg: "outbound" | "return" = "outbound",
 ): Promise<Packing> {
   const bags = await db.query<Bag>(
     `SELECT ${bagColumns} FROM bags b WHERE b.family_id = $1 AND b.removed_at IS NULL ORDER BY b.created_at, b.id`,
@@ -42,22 +43,31 @@ async function packingState(
   const history = await db.query<PackingEvent>(
     `SELECT h.id, h.leg, h.entry_id AS "entryId", h.bag_ids AS "bagIds", h.action, h.at, h.actor, h.changes,
     (h.command IS NOT NULL AND NOT EXISTS (SELECT 1 FROM packing_history undo WHERE undo.undoes = h.id)) AS "canUndo"
-    FROM packing_history h WHERE h.family_id = $1 ORDER BY h.sequence DESC LIMIT 200`,
-    [familyId],
+    FROM packing_history h WHERE h.family_id = $1 AND h.leg = $2 ORDER BY h.sequence DESC LIMIT 200`,
+    [familyId, leg],
   );
   const checks = await db.query<DepartureCheck>(
-    `SELECT ${checkColumns} FROM departure_checks WHERE family_id = $1 AND leg = 'outbound' AND removed_at IS NULL ORDER BY created_at,id`,
-    [familyId],
+    `SELECT ${checkColumns} FROM departure_checks WHERE family_id = $1 AND leg = $2 AND removed_at IS NULL ORDER BY created_at,id`,
+    [familyId, leg],
   );
   return {
-    bags: bags.rows,
-    items: await packingItems(db, familyId),
+    leg,
+    bags: bags.rows.map((bag) => ({
+      ...bag,
+      legs: bag.legs.filter((row) => row.leg === leg),
+    })),
+    items: await packingItems(db, familyId, leg),
     checks: checks.rows,
     history: history.rows,
     canEdit,
   };
 }
-async function packingItems(db: PoolClient, familyId: string) {
+async function packingItems(
+  db: PoolClient,
+  familyId: string,
+  leg: "outbound" | "return" = "outbound",
+) {
+  if (leg === "return") return returnPackingItems(db, familyId);
   const items = await db.query<PackingItem>(
     `WITH totals AS (
     SELECT entry_id, sum(quantity) AS allocated,
@@ -82,13 +92,14 @@ export function readPacking(
   memberId: string,
   tripId: string,
   familyId: string,
+  leg: "outbound" | "return" = "outbound",
 ) {
   return transaction(async (db) => {
     const family = await requireFamilyAccess(db, memberId, tripId, familyId);
     await db.query("SELECT id FROM families WHERE id = $1 FOR SHARE", [
       familyId,
     ]);
-    return packingState(db, familyId, family.canEdit);
+    return packingState(db, familyId, family.canEdit, leg);
   });
 }
 async function activeBag(db: PoolClient, familyId: string, id: string) {
@@ -146,6 +157,10 @@ export function createBag(
           "INSERT INTO bag_legs (family_id,bag_id,leg) VALUES ($1,$2,'outbound')",
           [familyId, id],
         );
+        await db.query(
+          "INSERT INTO bag_legs (family_id,bag_id,leg) SELECT $1,$2,'return' WHERE EXISTS(SELECT 1 FROM return_checkout WHERE family_id=$1) ON CONFLICT DO NOTHING",
+          [familyId, id],
+        );
         const { requestId, ...fields } = input;
         await record(db, memberId, familyId, "bag_created", [id], fields);
       },
@@ -179,7 +194,14 @@ export function setBagState(
       input,
       async () => {
         const bag = await activeBag(db, familyId, bagId);
-        const before = bag.legs.find((leg) => leg.leg === input.leg)!;
+        if (input.leg === "return")
+          await db.query(
+            "INSERT INTO bag_legs (family_id,bag_id,leg) VALUES ($1,$2,'return') ON CONFLICT DO NOTHING",
+            [familyId, bagId],
+          );
+        const before = (await activeBag(db, familyId, bagId)).legs.find(
+          (leg) => leg.leg === input.leg,
+        )!;
         if (
           before.needsReview &&
           input.status === "ready" &&
@@ -212,10 +234,11 @@ export function setBagState(
             ...(input.reviewConfirmed ? { reviewConfirmed: true } : {}),
           },
           before,
+          { leg: input.leg },
         );
       },
     );
-    return packingState(db, familyId, true);
+    return packingState(db, familyId, true, input.leg);
   });
 }
 
@@ -240,20 +263,21 @@ async function adjustLocation(
   entryId: string,
   location: PackingLocation,
   amount: number,
+  leg: "outbound" | "return",
 ) {
   if (location.kind === "unpacked") return;
   const bagId = location.kind === "bag" ? location.id : null;
   const travelerId = location.kind === "traveler" ? location.id : null;
   if (amount === 0)
     await db.query(
-      `DELETE FROM packing_allocations WHERE entry_id = $1 AND leg = 'outbound' AND bag_id IS NOT DISTINCT FROM $2::uuid AND traveler_id IS NOT DISTINCT FROM $3::uuid`,
-      [entryId, bagId, travelerId],
+      `DELETE FROM packing_allocations WHERE entry_id = $1 AND leg = $4 AND bag_id IS NOT DISTINCT FROM $2::uuid AND traveler_id IS NOT DISTINCT FROM $3::uuid`,
+      [entryId, bagId, travelerId, leg],
     );
   else
     await db.query(
-      `INSERT INTO packing_allocations (family_id,entry_id,leg,bag_id,traveler_id,quantity) VALUES ($1,$2,'outbound',$3,$4,$5)
+      `INSERT INTO packing_allocations (family_id,entry_id,leg,bag_id,traveler_id,quantity) VALUES ($1,$2,$6,$3,$4,$5)
     ON CONFLICT (entry_id,leg,bag_id,traveler_id) DO UPDATE SET quantity = EXCLUDED.quantity`,
-      [familyId, entryId, bagId, travelerId, amount / 1000],
+      [familyId, entryId, bagId, travelerId, amount / 1000, leg],
     );
 }
 async function applyMove(
@@ -280,7 +304,7 @@ async function applyMove(
       "Enter a reason for removing this quantity.",
       { reason: "Enter a removal reason." },
     );
-  const current = (await packingItems(db, familyId)).find(
+  const current = (await packingItems(db, familyId, input.leg)).find(
     (item) => item.entryId === input.entryId,
   );
   if (!current)
@@ -309,6 +333,7 @@ async function applyMove(
     input.entryId,
     input.from,
     at(input.from) - amount,
+    input.leg,
   );
   await adjustLocation(
     db,
@@ -316,6 +341,7 @@ async function applyMove(
     input.entryId,
     input.to,
     at(input.to) + amount,
+    input.leg,
   );
   const repacking =
     input.to.kind === "unpacked"
@@ -324,8 +350,8 @@ async function applyMove(
         ? Math.max(0, milli(current.needsRepacking) - amount)
         : milli(current.needsRepacking);
   await db.query(
-    `INSERT INTO packing_items (family_id,entry_id,leg,repacking_quantity) VALUES ($1,$2,'outbound',$3) ON CONFLICT (entry_id,leg) DO UPDATE SET repacking_quantity = EXCLUDED.repacking_quantity`,
-    [familyId, input.entryId, repacking / 1000],
+    `INSERT INTO packing_items (family_id,entry_id,leg,repacking_quantity) VALUES ($1,$2,$4,$3) ON CONFLICT (entry_id,leg) DO UPDATE SET repacking_quantity = EXCLUDED.repacking_quantity`,
+    [familyId, input.entryId, repacking / 1000, input.leg],
   );
   const bagIds = [
     ...new Set(
@@ -335,8 +361,8 @@ async function applyMove(
     ),
   ];
   await db.query(
-    `UPDATE bag_legs SET needs_review = true WHERE bag_id = ANY($1::uuid[]) AND leg = 'outbound' AND status <> 'packing'`,
-    [bagIds],
+    `UPDATE bag_legs SET needs_review = true WHERE bag_id = ANY($1::uuid[]) AND leg = $2 AND status <> 'packing'`,
+    [bagIds, input.leg],
   );
   await invalidateDepartureChecks(
     db,
@@ -344,8 +370,10 @@ async function applyMove(
     familyId,
     input.entryId,
     bagIds,
+    false,
+    input.leg,
   );
-  const next = (await packingItems(db, familyId)).find(
+  const next = (await packingItems(db, familyId, input.leg)).find(
     (item) => item.entryId === input.entryId,
   )!;
   await record(
@@ -372,6 +400,7 @@ async function applyMove(
     },
     {
       id,
+      leg: input.leg,
       entryId: input.entryId,
       ...(!undoes ? { command: input } : { undoes }),
     },
@@ -388,7 +417,7 @@ export function mutatePacking(
     await createOnce(
       db,
       memberId,
-      `packing:${tripId}:${familyId}`,
+      `packing:${tripId}:${familyId}${input.leg === "return" ? ":return" : ""}`,
       input,
       async (id) => {
         if (input.kind === "move")
@@ -398,8 +427,8 @@ export function mutatePacking(
             command: PackingMove;
             undone: boolean;
           }>(
-            `SELECT command, EXISTS(SELECT 1 FROM packing_history u WHERE u.undoes = h.id) AS undone FROM packing_history h WHERE h.id = $1 AND h.family_id = $2 AND h.leg = 'outbound'`,
-            [input.eventId, familyId],
+            `SELECT command, EXISTS(SELECT 1 FROM packing_history u WHERE u.undoes = h.id) AS undone FROM packing_history h WHERE h.id = $1 AND h.family_id = $2 AND h.leg = $3`,
+            [input.eventId, familyId, input.leg],
           );
           const original = event.rows[0];
           if (!original?.command || original.undone)
@@ -425,7 +454,7 @@ export function mutatePacking(
       },
     );
     // Never replay a receipt's previous locations over newer accepted edits.
-    return packingState(db, familyId, true);
+    return packingState(db, familyId, true, input.leg);
   });
 }
 
@@ -469,6 +498,15 @@ export function patchBag(
           [bagId],
         );
         await invalidateDepartureChecks(db, memberId, familyId, null, [bagId]);
+        await invalidateDepartureChecks(
+          db,
+          memberId,
+          familyId,
+          null,
+          [bagId],
+          false,
+          "return",
+        );
         await record(
           db,
           memberId,
@@ -520,6 +558,15 @@ export function removeBag(
           [bagId],
           true,
         );
+        await invalidateDepartureChecks(
+          db,
+          memberId,
+          familyId,
+          null,
+          [bagId],
+          true,
+          "return",
+        );
         await db.query(
           "UPDATE bags SET removed_at = clock_timestamp() WHERE id = $1",
           [bagId],
@@ -543,10 +590,11 @@ async function validateCheck(
   familyId: string,
   check: Pick<DepartureCheck, "entryId" | "location" | "checked">,
   physicalConfirmed?: boolean,
+  leg: "outbound" | "return" = "outbound",
 ) {
   if (check.location) await validLocation(db, familyId, check.location);
   const item = check.entryId
-    ? (await packingItems(db, familyId)).find(
+    ? (await packingItems(db, familyId, leg)).find(
         (item) => item.entryId === check.entryId,
       )
     : null;
@@ -574,19 +622,20 @@ export function createDepartureCheck(
   tripId: string,
   familyId: string,
   input: DepartureCheckInput,
+  leg: "outbound" | "return" = "outbound",
 ) {
   return transaction(async (db) => {
     await lockPacking(db, memberId, tripId, familyId);
     const id = await createOnce(
       db,
       memberId,
-      `departure-check:${tripId}:${familyId}`,
+      `departure-check:${tripId}:${familyId}${leg === "return" ? ":return" : ""}`,
       input,
       async (id) => {
-        await validateCheck(db, familyId, input, input.physicalConfirmed);
+        await validateCheck(db, familyId, input, input.physicalConfirmed, leg);
         const { requestId, physicalConfirmed, ...fields } = input;
         await db.query(
-          `INSERT INTO departure_checks (id,family_id,leg,label,entry_id,bag_id,traveler_id,checked,checked_at,checked_by) VALUES ($1,$2,'outbound',$3,$4,$5,$6,$7,CASE WHEN $7 THEN clock_timestamp() ELSE NULL END,CASE WHEN $7 THEN $8::uuid ELSE NULL END)`,
+          `INSERT INTO departure_checks (id,family_id,leg,label,entry_id,bag_id,traveler_id,checked,checked_at,checked_by) VALUES ($1,$2,$9,$3,$4,$5,$6,$7,CASE WHEN $7 THEN clock_timestamp() ELSE NULL END,CASE WHEN $7 THEN $8::uuid ELSE NULL END)`,
           [
             id,
             familyId,
@@ -596,6 +645,7 @@ export function createDepartureCheck(
             input.location?.kind === "traveler" ? input.location.id : null,
             input.checked,
             memberId,
+            leg,
           ],
         );
         await record(
@@ -606,7 +656,7 @@ export function createDepartureCheck(
           input.location?.kind === "bag" ? [input.location.id] : [],
           { checkId: id, ...fields },
           {},
-          { entryId: input.entryId ?? undefined },
+          { leg, entryId: input.entryId ?? undefined },
         );
       },
     );
@@ -620,7 +670,7 @@ export function createDepartureCheck(
         "check_removed",
         "This saved departure check was removed. Refresh bags.",
       );
-    return packingState(db, familyId, true);
+    return packingState(db, familyId, true, leg);
   });
 }
 export function patchDepartureCheck(
@@ -630,6 +680,7 @@ export function patchDepartureCheck(
   checkId: string,
   input: DepartureCheckPatch | PackingRemoval,
   remove = false,
+  leg: "outbound" | "return" = "outbound",
 ) {
   return transaction(async (db) => {
     await lockPacking(db, memberId, tripId, familyId);
@@ -637,12 +688,12 @@ export function patchDepartureCheck(
     await createOnce(
       db,
       memberId,
-      `departure-check-${remove ? "remove" : "edit"}:${tripId}:${familyId}:${checkId}`,
+      `departure-check-${remove ? "remove" : "edit"}:${tripId}:${familyId}:${checkId}${leg === "return" ? ":return" : ""}`,
       input,
       async () => {
         const found = await db.query<DepartureCheck>(
-          `SELECT ${checkColumns} FROM departure_checks WHERE id = $1 AND family_id = $2 AND leg = 'outbound' AND removed_at IS NULL`,
-          [checkId, familyId],
+          `SELECT ${checkColumns} FROM departure_checks WHERE id = $1 AND family_id = $2 AND leg = $3 AND removed_at IS NULL`,
+          [checkId, familyId, leg],
         );
         const current = found.rows[0];
         if (!current) {
@@ -668,7 +719,7 @@ export function patchDepartureCheck(
             oldBags,
             { checkId, label: current.label, removed: true },
             { removed: false },
-            { entryId: current.entryId ?? undefined },
+            { leg, entryId: current.entryId ?? undefined },
           );
           return;
         }
@@ -686,7 +737,7 @@ export function patchDepartureCheck(
           ["label", "entryId", "location"].some((key) => key in fields)
         )
           next.checked = false;
-        await validateCheck(db, familyId, next, physicalConfirmed);
+        await validateCheck(db, familyId, next, physicalConfirmed, leg);
         await db.query(
           `UPDATE departure_checks SET label=$2,entry_id=$3,bag_id=$4,traveler_id=$5,checked=$6,checked_at=CASE WHEN $6 THEN clock_timestamp() ELSE NULL END,checked_by=CASE WHEN $6 THEN $7::uuid ELSE NULL END WHERE id=$1`,
           [
@@ -718,10 +769,39 @@ export function patchDepartureCheck(
             checked: next.checked,
           },
           current,
-          { entryId: next.entryId ?? undefined },
+          { leg, entryId: next.entryId ?? undefined },
         );
       },
     );
-    return packingState(db, familyId, true);
+    return packingState(db, familyId, true, leg);
   });
+}
+
+async function returnPackingItems(
+  db: PoolClient,
+  familyId: string,
+): Promise<PackingItem[]> {
+  return (
+    await db.query<PackingItem>(
+      `WITH totals AS (
+    SELECT entry_id,sum(quantity) AS allocated,
+    sum(CASE WHEN bag_id IS NOT NULL THEN quantity ELSE 0 END) AS packed,
+    sum(CASE WHEN traveler_id IS NOT NULL THEN quantity ELSE 0 END) AS carried,
+    jsonb_agg(jsonb_build_object('location',CASE WHEN bag_id IS NOT NULL THEN jsonb_build_object('kind','bag','id',bag_id)
+      ELSE jsonb_build_object('kind','traveler','id',traveler_id) END,'quantity',quantity) ORDER BY bag_id NULLS LAST,traveler_id) AS allocations
+    FROM packing_allocations WHERE family_id=$1 AND leg='return' GROUP BY entry_id
+  ), verified AS (
+    SELECT r.*,CASE WHEN reviewed_at IS NOT NULL AND possession_confirmed_at IS NOT NULL
+      THEN least(r.possession_quantity,r.required_quantity) ELSE 0 END AS available
+    FROM return_items r WHERE r.family_id=$1
+  ) SELECT r.entry_id AS "entryId",e.title,e.unit,e.priority,r.required_quantity::float8 AS "requiredQuantity",
+    r.available::float8 AS available,coalesce(t.packed,0)::float8 AS packed,coalesce(t.carried,0)::float8 AS "keptWithTraveler",
+    (r.available-coalesce(t.allocated,0))::float8 AS "notPacked",coalesce(p.repacking_quantity,0)::float8 AS "needsRepacking",
+    coalesce(t.allocations,'[]') AS allocations
+    FROM verified r JOIN checklist_entries e ON e.id=r.entry_id LEFT JOIN totals t ON t.entry_id=r.entry_id
+    LEFT JOIN packing_items p ON p.entry_id=r.entry_id AND p.leg='return'
+    ORDER BY CASE WHEN e.priority='essential' THEN 0 ELSE 1 END,e.created_at,e.id`,
+      [familyId],
+    )
+  ).rows;
 }

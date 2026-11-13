@@ -134,18 +134,30 @@ export function BagForm(props: Props & { initial: Bag | null }) {
 }
 export function BagStateForm(props: Props & { bag: Bag }) {
   const [requestId] = useState(randomUUID);
-  const leg = props.bag.legs.find((leg) => leg.leg === "outbound")!;
+  const leg = props.bag.legs.find((leg) => leg.leg === props.data.leg) ?? {
+    status: "packing",
+    needsReview: false,
+  };
   const [status, setStatus] = useState(leg.status);
   const [reviewed, setReviewed] = useState(false);
   const save = useSave(
     bagStateInput,
     (input, token, signal) =>
-      packingApi.state(props.scope, props.bag.id, input, token, signal),
+      packingApi.state(
+        { ...props.scope, leg: props.data.leg },
+        props.bag.id,
+        input,
+        token,
+        signal,
+      ),
     props,
   );
   return (
     <Screen>
-      <Heading>Outbound status for {props.bag.name}</Heading>
+      <Heading>
+        {props.data.leg === "return" ? "Return" : "Outbound"} status for{" "}
+        {props.bag.name}
+      </Heading>
       <Copy>
         Confirm the physical bag yourself. Dates and itinerary changes do not
         collect it or verify its contents.
@@ -182,7 +194,7 @@ export function BagStateForm(props: Props & { bag: Bag }) {
         onSave={() =>
           void save.submit({
             requestId,
-            leg: "outbound",
+            leg: props.data.leg,
             status,
             reviewConfirmed: reviewed,
           })
@@ -307,7 +319,7 @@ export function PackingMoveForm(props: Props & { item: PackingItem }) {
           void save.submit({
             requestId,
             kind: "move",
-            leg: "outbound",
+            leg: props.data.leg,
             entryId: item.entryId,
             from: locationFromKey(from),
             to: locationFromKey(to),
@@ -382,7 +394,7 @@ export function PackingUndoForm(props: Props & { event: PackingEvent }) {
           void save.submit({
             requestId,
             kind: "undo",
-            leg: "outbound",
+            leg: props.data.leg,
             eventId: props.event.id,
             reason,
             physicalConfirmed: confirmed,
@@ -407,7 +419,7 @@ export function DepartureCheckForm(
     props.initial ? departureCheckPatch : departureCheckInput,
     (input, token, signal) =>
       packingApi.check(
-        props.scope,
+        { ...props.scope, leg: props.data.leg },
         props.initial?.id ?? null,
         input,
         token,
@@ -438,7 +450,7 @@ export function DepartureCheckForm(
         maxLength={120}
       />
       <ChecklistChoices
-        label="Linked outbound item"
+        label="Linked item"
         options={[
           { value: "none", label: "Standalone physical check" },
           ...props.data.items.map((item) => ({
@@ -511,7 +523,12 @@ export function DepartureCheckForm(
   );
 }
 export function PackingRemovalForm(
-  props: FormProps & { kind: "bag" | "check"; id: string; title: string },
+  props: FormProps & {
+    data: Packing;
+    kind: "bag" | "check";
+    id: string;
+    title: string;
+  },
 ) {
   const [requestId] = useState(randomUUID);
   const [reason, setReason] = useState("");
@@ -519,7 +536,7 @@ export function PackingRemovalForm(
     packingRemoval,
     (input, token, signal) =>
       packingApi.remove(
-        props.scope,
+        { ...props.scope, leg: props.data.leg },
         props.kind,
         props.id,
         input,

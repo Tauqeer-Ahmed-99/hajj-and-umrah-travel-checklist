@@ -1,0 +1,163 @@
+# Return belongings and packing (#10)
+
+Approved test seams: authenticated HTTP application requests with real disposable
+PostgreSQL, controlling only external identity; prepared native Android journeys
+for forms, restart, accessibility and physical confirmation. These seams were
+approved in spec #1 and the implementation brief. No device/provider acceptance
+is inferred from fixtures.
+
+## Persisted contract
+
+SQL016 owns `return_items` and `return_checkout`. It depends on checklist,
+acquisition and packing migrations, adds no providers, dependencies or environment
+variables, and leaves the direct Node runner and Windows PG18 `io_method=sync`
+fixture configuration intact.
+
+All routes below start at `/api/trips/:tripId/families/:familyId`. The raw family
+authorization is unchanged: a trip organizer needs an explicit family grant;
+viewers read but cannot mutate. Reads are private/no-store and Authorization-varying.
+
+- `GET /return-preparation` returns `{leg:"return",items,checkout,canEdit}`.
+- `POST /return-preparation` accepts strict `ReturnPreparationInput` commands.
+  `propose` with a UUID `requestId` adds active items not already proposed, reusable
+  bag return rows and four editable checkout tasks. It never resets an existing
+  review, packs anything, copies verification or confirms a bag. Repeating with a
+  new request ID picks up later destination acquisitions.
+- `reconcile` takes `entryId`, `fields`, a nonempty `reason`, optional
+  `reviewConfirmed` and `physicalConfirmed`. Fields are changed-only
+  `requiredQuantity`, `possessionQuantity`, and/or `consumed`, `gifted`, `left`,
+  `lost`. Each disposition is `{quantity,explanation}`; nonzero amounts need an
+  explanation. Quantities use integer thousandths and the existing 1,000,000 limit.
+  Initial review and every changed requirement require explicit review. Every
+  submitted possession count, including zero/reductions, requires a fresh physical
+  confirmation. Actor IDs and server times are stored independently for each.
+- `checkout` takes `checkId`, changed `label` and/or `checked`, plus
+  `physicalConfirmed:true` when checking. Relabeling clears old confirmation unless
+  explicitly checked again. Initial rooms, cupboards, safes and charging-point
+  tasks are suggestions, not inferred completion.
+- `GET /packing?leg=return` selects the independent return quantities, checks,
+  history and bag states. All packing snapshots now identify `leg` explicitly;
+  omitted leg retains outbound behavior. Invalid legs fail with 422.
+- Existing packing move/undo and bag-state bodies accept `leg:"return"`.
+  Departure-check create/patch/delete select the leg with `?leg=return`.
+  Each mutation returns the current selected-leg snapshot. Bags are physical IDs
+  reused across legs; no return status inherits outbound Ready/Collected.
+
+Return requirements, possession and disposition amounts live independently of the
+outbound acquisition ledger. For an outbound proposal, `sourceQuantity` freezes
+physically available outbound stock at proposal time, and `proposedQuantity`
+records its then-current requirement. A later outbound correction cannot rewrite
+this return ledger. A destination-only item (`leg:return` in Checklist) derives
+its source from the approved Bought/Received/Already available quantities. Payment,
+Ordered and Delivered remain unavailable. Acquire purchases after pickup and gifts
+after inspection through the existing acquisition UI/API, then explicitly verify
+return possession. Add replacements as separate destination items so lost source
+quantities and replacement acquisitions retain their own histories.
+
+`possession + consumed + gifted + left + lost <= source`; the difference is
+`unaccounted`. Return requirements may remain above possession to keep outstanding
+belongings visible. `remainingToVerify=max(0,requirement-possession)`. Packing uses
+`min(return requirement, confirmed possession)` only after review and possession
+confirmation, never outbound availability. Acquisition, bag status and item packing
+do not complete each other. Collection confirms the physical bag at home, not all
+its belongings. Reconcile anything outstanding deliberately.
+
+Example: four outbound pieces can reconcile as two possessed, 0.5 consumed,
+0.5 gifted, 0.5 intentionally left and 0.5 lost, each explained. Reviewing a return
+requirement of two permits packing those two, with zero unaccounted. Outbound
+requirement, acquisition and allocations remain four. A destination purchase of
+one replacement starts as a separate requirement; Bought establishes source stock,
+and a fresh return count establishes possession before packing.
+
+## Atomic writes, history and privacy
+
+All commands retain current membership locks and the same owning-family update
+lock as every acquisition, checklist, visibility and packing mutation. The server
+merges supplied fields into current accepted state under that lock. Return
+allocation totals cannot exceed the current reviewed requirement or possession.
+Unpack first before a correction that would violate that bound; failed corrections
+roll back history, checks and receipts together. Accepted reductions clamp only
+outstanding return repacking quantities, without deleting allocations.
+
+`preservePacking` covers all legacy checklist PATCH/removal and acquisition routes.
+It prevents orphaning active return requirements/possession, changing the unit or
+origin leg of a proposed item, or reducing destination stock below possession plus
+dispositions. Set return requirement/possession to zero before removing a source
+requirement; reconciliation/history remain retained. An outbound Not needed or
+stock correction cannot silently remove independent return records. All existing
+outbound allocation invariants still apply separately.
+
+Return events append immutable actor/time packing history with `leg:return`.
+Moves and undo, review invalidation and departure checks operate on that leg only.
+Existing outbound events and allocations are never updated by return commands.
+Physical bag metadata remains reusable; its existing changed-details review rules
+apply to confirmed physical bags. A UUID receipt is member/operation scoped.
+Permission is rechecked before receipts; identical retries return current state,
+never replay old quantities or locations. Changed input/scope returns 409.
+
+`lastConfirmedLocations` is private, contains an explicit leg, and initially points
+to outbound carrying records as historical clues. Once return packing has been
+recorded, return locations take precedence; removing them never resurrects older
+outbound locations. The raw return route never becomes accessible merely because
+an item is shared. Disposition explanations, checkout labels, private location IDs,
+travelers and raw history require the same family access as [packing](packing.md).
+Shared consumers must use the separate safe projection described in [sharing](sharing.md).
+
+## Mobile and prepared native checks
+
+The Bags destination selects Outbound/Return explicitly. Return offers Review
+belongings, Checkout, Bags, Items to pack, Departure checks and Packing activity.
+Search filters bag/item names; review shows quantities, explained dispositions,
+unaccounted amounts and leg-labeled last locations. Destination purchases open the
+existing Checklist forms with new items defaulting to Return, retaining approved
+acquisition actions and their safe same-save retry protocol.
+
+Design follows the existing native palette: brand `#185C43`, ink `#17382B`, canvas
+`#F6F5EF`, surface `#FFFFFF`, muted `#526357`, border `#85978A`, with the existing
+dark equivalents. Scalable native type, left alignment, section dividers and
+wrapping 56 dp choices separate review, physical placement and checkout. No new
+font, decorative motion or unrelated layout system is introduced. Review fields
+merge changed values; explicit confirmation and in-memory drafts remain distinct
+from saved data. Forms use `useSave` for cancel/Back, uncertainty and exact retry;
+there is no durable queue. Foreground reads reauthorize; sign-out unmounts state.
+
+Prepared, **not executed**: `apps/mobile/.maestro/return-reconciliation.yaml`
+extends the existing outbound seed using runner-only `MAESTRO_PACKING_FAMILY`
+and unique `MAESTRO_PACKING_RUN`. It proposes, reconciles a partially consumed
+item, creates/acquires a destination purchase, verifies it independently, repacks
+the same physical bag and checks return readiness versus preserved outbound
+collection. Run additional manual journeys for checkout relabel/recheck, accessible
+essentials, home collection and missing belongings; two editors; viewer/organizer
+isolation; revocation with an open form; interrupted responses and Retry same save;
+foreground/restart; account switching; TalkBack, large fonts/display, light/dark,
+Arabic/long labels, keyboard/landscape, focus and scroll stability.
+
+## Red/green evidence and gates
+
+Commands run from `apps/api` use `node --import tsx --test --test-concurrency=1`.
+The first `tests/return.test.ts` run failed **404 vs 200** for the absent return
+route (29.009s). The initial proposal/selected-leg implementation passed 1/1
+(18.050s). Focused `--test-name-pattern='partly consumed' tests/return.test.ts`
+failed **200 vs 409** on legacy deletion (14.100s); adding the shared write-path
+invariant passed the two-scenario file (22.604s).
+
+`--test-name-pattern='changing a reviewed' tests/return.test.ts` failed **200 vs
+422** on stale requirement review (12.862s); the review gate passed alongside
+the checkout test. That checkout slice failed because removal resurrected an old
+outbound location, then passed after retaining return location precedence. The
+five-scenario file passed 5/5 (18.611s). The combined outbound/return checkpoint
+passed 10/10 (66.134s). One concurrent focused test launch hit Next's existing-dev
+lock and was rerun serially; it is not product red/green evidence. Existing unit
+validation correctly returned 422 before the return invariant; the test expectation
+was corrected without changing product validation.
+
+Final merged checks are recorded after integration below. Fixture migrations run
+twice, and tests assert only public HTTP responses. No private SQL assertions or
+domain/permission mocks are introduced.
+
+Live gates remain unresolved: intended-account Clerk/Neon/Vercel deployment,
+migration 016 with prerequisites, real authenticated Android accounts, native
+journeys and accessibility, signing/installation/upgrade, Hermes compilation and
+EAS update compatibility. Local HTTP tests and JS exports establish none of these.
+No service operation, real message/export, issue closure, push, PR, binary or OTA
+publication is performed by this task.

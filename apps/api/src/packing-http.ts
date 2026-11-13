@@ -50,3 +50,14 @@ export async function packingHttp(
     );
   }
 }
+
+export function packingLeg(request: Request): "outbound" | "return" {
+  const leg = new URL(request.url).searchParams.get("leg") ?? "outbound";
+  if (leg !== "outbound" && leg !== "return")
+    throw new HttpError(
+      422,
+      "invalid_packing",
+      "Choose outbound or return packing.",
+    );
+  return leg;
+}
