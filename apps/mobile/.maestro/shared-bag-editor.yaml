@@ -1,0 +1,34 @@
+appId: in.nmtsolutions.travel
+---
+# Prepared, not executed. Start on Checklist destination as a trip editor with
+# no owning-family grant. Seed the shared item with >=0.5 unpacked pieces.
+- tapOn: "Shared with trip"
+- extendedWaitUntil:
+    visible: "${MAESTRO_SHARED_ITEM}"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Pack shared ${MAESTRO_SHARED_ITEM}"
+- tapOn: "Pack shared ${MAESTRO_SHARED_ITEM}"
+- scrollUntilVisible:
+    element: "${MAESTRO_SHARED_BAG}"
+- tapOn: "${MAESTRO_SHARED_BAG}"
+- scrollUntilVisible:
+    element:
+      id: shared-packing-quantity
+- tapOn:
+    id: shared-packing-quantity
+- eraseText
+- inputText: "0.5"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "I physically placed this quantity"
+- tapOn: "I physically placed this quantity"
+- scrollUntilVisible:
+    element: "Save shared packing"
+- tapOn: "Save shared packing"
+- extendedWaitUntil:
+    visible: "Saved"
+    timeout: 30000
+- assertNotVisible: "Visibility for ${MAESTRO_SHARED_ITEM}"
+- tapOn: "Shared bags"
+- assertVisible: "${MAESTRO_SHARED_BAG}"

@@ -352,13 +352,23 @@ export function ChecklistEntryForm(
       {save.fields.taskStatus && (
         <Notice error>{save.fields.taskStatus}</Notice>
       )}
-      <ChecklistChoices
+      {value.beneficiaries.kind === "families" && (
+        <Copy>
+          This one item serves several families. Use Shared with trip to change
+          its family beneficiaries.
+        </Copy>
+      )}
+      <ChecklistChoices<"family" | "travelers">
         label="Who is this for?"
         options={[
           { value: "family", label: "Whole family" },
           { value: "travelers", label: "Choose travelers" },
         ]}
-        value={value.beneficiaries.kind}
+        value={
+          value.beneficiaries.kind === "families"
+            ? []
+            : value.beneficiaries.kind
+        }
         onChange={(kind) =>
           update(
             "beneficiaries",

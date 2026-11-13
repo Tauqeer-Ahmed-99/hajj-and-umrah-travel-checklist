@@ -25,9 +25,10 @@ import { createOnce, transaction } from "./trips";
 import { HttpError } from "./response";
 import { preservePacking } from "./packing-invariants";
 import { assignmentChanged } from "./notification-events";
+import { lockSharedContent } from "./sharing-access";
 
 const categoryColumns = `id, family_id AS "familyId", name`;
-const entryColumns = `id, family_id AS "familyId", category_id AS "categoryId", kind, title,
+export const entryColumns = `id, family_id AS "familyId", category_id AS "categoryId", kind, title,
   required_quantity::float8 AS "requiredQuantity", unit, beneficiaries, responsible_member_id AS "responsibleMemberId",
   priority, due_date::text AS "dueDate", notes, leg, source, last_reviewed_on::text AS "lastReviewedOn", task_status AS "taskStatus", ${acquisitionColumns}`;
 
@@ -47,6 +48,7 @@ async function entryReferences(
   tripId: string,
   familyId: string,
   input: ChecklistEntryPatch,
+  shared = false,
 ) {
   if (input.categoryId) {
     const category = await db.query(
@@ -63,9 +65,13 @@ async function entryReferences(
   }
   if (input.responsibleMemberId) {
     const responsible = await db.query(
-      `SELECT fm.member_id FROM family_members fm JOIN trip_members tm ON tm.trip_id = fm.trip_id AND tm.member_id = fm.member_id
+      shared
+        ? `SELECT member_id FROM trip_members WHERE trip_id = $1 AND member_id = $2 FOR SHARE`
+        : `SELECT fm.member_id FROM family_members fm JOIN trip_members tm ON tm.trip_id = fm.trip_id AND tm.member_id = fm.member_id
     WHERE fm.trip_id = $1 AND fm.family_id = $2 AND fm.member_id = $3 FOR SHARE OF fm, tm`,
-      [tripId, familyId, input.responsibleMemberId],
+      shared
+        ? [tripId, input.responsibleMemberId]
+        : [tripId, familyId, input.responsibleMemberId],
     );
     if (!responsible.rowCount)
       throw new HttpError(
@@ -73,6 +79,22 @@ async function entryReferences(
         "invalid_checklist",
         "Choose a responsible member with family access.",
         { responsibleMemberId: "Choose a member with current family access." },
+      );
+  }
+  if (input.beneficiaries?.kind === "families") {
+    const families = await db.query(
+      "SELECT id FROM families WHERE trip_id = $1 AND id = ANY($2::uuid[])",
+      [tripId, input.beneficiaries.familyIds],
+    );
+    if (!shared || families.rowCount !== input.beneficiaries.familyIds.length)
+      throw new HttpError(
+        422,
+        "invalid_checklist",
+        "Choose families in this trip for an explicitly shared item.",
+        {
+          beneficiaries:
+            "Share the item first and choose families in this trip.",
+        },
       );
   }
   if (input.beneficiaries?.kind === "travelers") {
@@ -516,9 +538,15 @@ export function patchChecklistEntry(
   familyId: string,
   entryId: string,
   input: ChecklistEntryPatch,
+  shared = false,
 ) {
   return transaction(async (db) => {
-    await lockChecklist(db, memberId, tripId, familyId);
+    if (shared)
+      await lockSharedContent(db, memberId, tripId, familyId, {
+        kind: "entry",
+        id: entryId,
+      });
+    else await lockChecklist(db, memberId, tripId, familyId);
     const current = await entry(db, familyId, entryId);
     const { id, familyId: ignoredFamily, acquisition, ...fields } = current;
     const { requestId, reason, ...changedFields } = input;
@@ -566,7 +594,17 @@ export function patchChecklistEntry(
           leg: parsed.data.leg,
         });
       }
-      await entryReferences(db, tripId, familyId, changedFields);
+      const visibility = await db.query(
+        "SELECT audience FROM checklist_entries WHERE id = $1",
+        [entryId],
+      );
+      await entryReferences(
+        db,
+        tripId,
+        familyId,
+        changedFields,
+        visibility.rows[0].audience === "trip",
+      );
       const keys = (
         Object.keys(changedFields) as (keyof typeof entryFields)[]
       ).filter(
@@ -606,7 +644,9 @@ export function patchChecklistEntry(
         apply,
       );
     else await apply();
-    return { entry: await entry(db, familyId, entryId) };
+    return shared
+      ? { saved: true as const }
+      : { entry: await entry(db, familyId, entryId) };
   });
 }
 
@@ -616,9 +656,15 @@ export function mutateAcquisition(
   familyId: string,
   entryId: string,
   input: AcquisitionInput,
+  shared = false,
 ) {
   return transaction(async (db) => {
-    await lockChecklist(db, memberId, tripId, familyId);
+    if (shared)
+      await lockSharedContent(db, memberId, tripId, familyId, {
+        kind: "entry",
+        id: entryId,
+      });
+    else await lockChecklist(db, memberId, tripId, familyId);
     const current = await entry(db, familyId, entryId);
     await createOnce(
       db,
@@ -659,6 +705,8 @@ export function mutateAcquisition(
       },
     );
     // Retry acknowledges the command but always returns current accepted fields.
-    return { entry: await entry(db, familyId, entryId) };
+    return shared
+      ? { saved: true as const }
+      : { entry: await entry(db, familyId, entryId) };
   });
 }

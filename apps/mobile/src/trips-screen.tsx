@@ -33,6 +33,7 @@ import { ChecklistDestination, ChecklistScreen } from "./checklist-screen";
 import { BagsDestination, PackingScreen } from "./packing-screen";
 import { RemindersScreen } from "./reminders-screen";
 import { onTripCacheRevoked } from "./trip-cache";
+import { SharedScreen } from "./sharing-screen";
 import { SummaryScreen } from "./summary-screen";
 
 type Route =
@@ -43,6 +44,7 @@ type Route =
   | { screen: "trip"; tripId: string; destination: Destination }
   | { screen: "new-family"; tripId: string }
   | { screen: "itinerary"; tripId: string }
+  | { screen: "shared"; tripId: string }
   | { screen: "reminders"; tripId: string }
   | { screen: "summary"; tripId: string }
   | { screen: "checklist"; tripId: string; familyId: string }
@@ -153,6 +155,14 @@ export function TripsScreen({
               })
             : openTrip(route.tripId)
         }
+      />
+    );
+  if (route.screen === "shared")
+    return (
+      <SharedScreen
+        key={route.tripId}
+        tripId={route.tripId}
+        onBack={() => openTrip(route.tripId)}
       />
     );
   if (route.screen === "summary")
@@ -283,6 +293,7 @@ export function TripsScreen({
       onItinerary={() =>
         setRoute({ screen: "itinerary", tripId: route.tripId })
       }
+      onShared={() => setRoute({ screen: "shared", tripId: route.tripId })}
       onReminders={() =>
         setRoute({ screen: "reminders", tripId: route.tripId })
       }
@@ -468,6 +479,7 @@ function TripHome({
   onAccess,
   onItinerary,
   onReminders,
+  onShared,
   onSummary,
   onChecklist,
   onBags,
@@ -483,6 +495,7 @@ function TripHome({
   onAccess: () => void;
   onItinerary: () => void;
   onReminders: () => void;
+  onShared: () => void;
   onSummary: () => void;
   onChecklist: (familyId: string) => void;
   onBags: (familyId: string) => void;
@@ -586,12 +599,22 @@ function TripHome({
               </Notice>
             </>
           ) : destination === "Checklist" ? (
-            <ChecklistDestination
-              families={detail.families}
-              onOpen={onChecklist}
-            />
+            <>
+              <Action title="Shared with trip" secondary onPress={onShared} />
+              <ChecklistDestination
+                families={detail.families}
+                onOpen={onChecklist}
+              />
+            </>
           ) : destination === "Bags" ? (
-            <BagsDestination families={detail.families} onOpen={onBags} />
+            <>
+              <Action
+                title="Shared bags with trip"
+                secondary
+                onPress={onShared}
+              />
+              <BagsDestination families={detail.families} onOpen={onBags} />
+            </>
           ) : (
             <Section title={placeholders[destination][0]}>
               <Copy>{placeholders[destination][1]}</Copy>

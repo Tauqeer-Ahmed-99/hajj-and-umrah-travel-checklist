@@ -1,0 +1,17 @@
+appId: in.nmtsolutions.travel
+---
+# Prepared, not executed. Start at Checklist destination as another-family viewer
+# without the owning-family grant. Publish the seeded item/bag with the first flow.
+- tapOn: "Shared with trip"
+- extendedWaitUntil:
+    visible: "Read-only trip access"
+    timeout: 30000
+- assertVisible: "${MAESTRO_SHARED_ITEM}"
+- assertNotVisible: "Edit shared ${MAESTRO_SHARED_ITEM}"
+- assertNotVisible: "Visibility for ${MAESTRO_SHARED_ITEM}"
+- tapOn: "Shared bags"
+- assertVisible: "${MAESTRO_SHARED_BAG}"
+- assertNotVisible: "Edit shared ${MAESTRO_SHARED_BAG}"
+- assertNotVisible: "Visibility for ${MAESTRO_SHARED_BAG}"
+- tapOn: "Shared activity"
+- assertVisible: "Only activity with currently permitted locations appears.*"

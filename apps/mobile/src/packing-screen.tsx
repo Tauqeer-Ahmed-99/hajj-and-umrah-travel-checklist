@@ -26,6 +26,7 @@ import {
   PackingUndoForm,
 } from "./packing-forms";
 import { locationLabel, travelerName } from "./packing-ui";
+import { VisibilityForm } from "./sharing-forms";
 
 export function BagsDestination({
   families,
@@ -58,6 +59,7 @@ export function BagsDestination({
   );
 }
 type Editor =
+  | { mode: "visibility"; bag: Bag }
   | { mode: "bag"; initial: Bag | null }
   | { mode: "status"; bag: Bag }
   | { mode: "move"; item: PackingItem }
@@ -133,6 +135,7 @@ export function PackingScreen({
   const [data, setData] = useState<{
     packing: Packing;
     travelers: Traveler[];
+    canShare: boolean;
   } | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [view, setView] = useState<"bags" | "items" | "departure" | "history">(
@@ -144,11 +147,16 @@ export function PackingScreen({
   const load = useCallback(async () => {
     setData(null);
     const result = await api.run(async (token, signal) => {
-      const [packing, roster] = await Promise.all([
+      const [packing, roster, trip] = await Promise.all([
         packingApi.read({ tripId, familyId }, token, signal),
         tripApi.travelers(tripId, familyId, token, signal),
+        tripApi.read(tripId, token, signal),
       ]);
-      return { packing, travelers: roster.travelers };
+      return {
+        packing,
+        travelers: roster.travelers,
+        canShare: !!trip.families.find((f) => f.id === familyId)?.canCoordinate,
+      };
     });
     if (result) setData(result);
   }, [api.run, tripId, familyId]);
@@ -187,6 +195,13 @@ export function PackingScreen({
         setEditor(null);
       },
     };
+    if (editor.mode === "visibility")
+      return (
+        <VisibilityForm
+          {...props}
+          target={{ kind: "bag", id: editor.bag.id, title: editor.bag.name }}
+        />
+      );
     if (editor.mode === "bag")
       return <BagForm {...props} initial={editor.initial} />;
     if (editor.mode === "status")
@@ -296,6 +311,13 @@ export function PackingScreen({
                             {item.title}: {a.quantity} {item.unit}
                           </Copy>
                         )),
+                    )}
+                    {data.canShare && (
+                      <Action
+                        title={`Visibility for ${bag.name}`}
+                        secondary
+                        onPress={() => open({ mode: "visibility", bag })}
+                      />
                     )}
                     {packing.canEdit && (
                       <>

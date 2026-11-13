@@ -6,6 +6,7 @@ export * from "./guides";
 export * from "./checklist";
 export * from "./summaries";
 export * from "./packing";
+export * from "./sharing";
 
 export const profileInput = z.strictObject({
   firstName: z

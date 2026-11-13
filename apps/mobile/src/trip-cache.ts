@@ -5,6 +5,7 @@ import {
   travelersResponse,
   checklistResponse,
   packingResponse,
+  sharedContentResponse,
 } from "@nmt/contracts";
 import { TripError } from "./request-error";
 import {
@@ -21,6 +22,8 @@ function snapshotSchema(path: string) {
   if (new RegExp(`^/api/trips/${id}$`).test(path)) return tripResponse;
   if (new RegExp(`^/api/trips/${id}/itinerary$`).test(path))
     return itineraryResponse;
+  if (new RegExp(`^/api/trips/${id}/shared$`).test(path))
+    return sharedContentResponse;
   if (new RegExp(`^/api/trips/${id}/families/${id}/travelers$`).test(path))
     return travelersResponse;
   if (new RegExp(`^/api/trips/${id}/families/${id}/checklist$`).test(path))

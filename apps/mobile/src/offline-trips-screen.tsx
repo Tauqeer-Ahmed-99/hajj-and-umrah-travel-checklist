@@ -6,6 +6,7 @@ import {
   checklistResponse,
   packingResponse,
   travelersResponse,
+  sharedContentResponse,
   tripPhaseLabels,
   checklistTaskLabels,
   bagStatusLabels,
@@ -24,7 +25,7 @@ import { subscribeTripCache, useTripConnection } from "./trip-cache-state";
 
 type Route = {
   tripId: string;
-  screen: "trip" | "itinerary" | "checklist" | "packing";
+  screen: "trip" | "itinerary" | "checklist" | "packing" | "shared";
   familyId?: string;
 };
 function Freshness({ record }: { record?: TripSnapshot }) {
@@ -107,6 +108,10 @@ export function OfflineTripsScreen({
   const packingRecord = records.find((r) => r.path === `${familyPath}/packing`);
   const packing = packingRecord
     ? packingResponse.parse(packingRecord.data)
+    : null;
+  const sharedRecord = records.find((r) => r.path === `${path}/shared`);
+  const shared = sharedRecord
+    ? sharedContentResponse.parse(sharedRecord.data)
     : null;
   const rosterRecord = records.find(
     (r) => r.path === `${familyPath}/travelers`,
@@ -191,6 +196,11 @@ export function OfflineTripsScreen({
                 title="Cached itinerary and contacts"
                 secondary
                 onPress={() => setRoute({ ...route, screen: "itinerary" })}
+              />
+              <Action
+                title="Cached shared items and bags"
+                secondary
+                onPress={() => setRoute({ ...route, screen: "shared" })}
               />
               {detail.families.map((family) => (
                 <ChecklistSection key={family.id} title={family.name}>
@@ -345,6 +355,84 @@ export function OfflineTripsScreen({
               {check.checked ? "Previously checked" : "Needs checking"}
               {check.checkedAt ? ` (${check.checkedAt})` : ""}
             </Copy>
+          ))}
+        </>
+      )}
+      {route?.screen === "shared" && (
+        <>
+          <Heading>Cached shared items and bags</Heading>
+          <Freshness record={sharedRecord} />
+          <Notice>
+            Only the trip-shared projection is shown. Private carrying
+            locations, carrier identities and bag identifying notes remain
+            hidden. Outbound locations are the last confirmed view.
+          </Notice>
+          {shared?.items.length === 0 && shared.bags.length === 0 && (
+            <Copy>No shared items or bags in this cached view.</Copy>
+          )}
+          {shared?.items.map(
+            ({ entry, packing: item, beneficiaryFamilies }) => (
+              <ChecklistSection key={entry.id} title={entry.title}>
+                <Copy>
+                  {entry.priority} · {entry.leg}
+                </Copy>
+                {!!beneficiaryFamilies.length && (
+                  <Copy>
+                    For:{" "}
+                    {beneficiaryFamilies
+                      .map((family) => family.name)
+                      .join(", ")}
+                  </Copy>
+                )}
+                {entry.beneficiaries.kind === "private" && (
+                  <Copy>{entry.beneficiaries.label}</Copy>
+                )}
+                {entry.kind === "task" ? (
+                  <Copy>{checklistTaskLabels[entry.taskStatus!]}</Copy>
+                ) : (
+                  <>
+                    <Copy>
+                      Required: {entry.requiredQuantity} {entry.unit}
+                    </Copy>
+                    <AcquisitionSummary entry={entry} />
+                  </>
+                )}
+                {!!entry.notes && <Copy>{entry.notes}</Copy>}
+                {item?.allocations.map((allocation, index) => (
+                  <Copy key={index}>
+                    {allocation.quantity} {entry.unit}:{" "}
+                    {allocation.location.kind === "private"
+                      ? allocation.location.label
+                      : (shared.bags.find(
+                          (bag) =>
+                            allocation.location.kind === "bag" &&
+                            bag.id === allocation.location.id,
+                        )?.name ?? "Shared bag")}
+                  </Copy>
+                ))}
+              </ChecklistSection>
+            ),
+          )}
+          {shared?.bags.map((bag) => (
+            <ChecklistSection key={bag.id} title={bag.name}>
+              <Copy>{bag.type}</Copy>
+              {!!bag.weightNote && <Copy>Weight note: {bag.weightNote}</Copy>}
+              {!!bag.allowanceNote && (
+                <Copy>Allowance note: {bag.allowanceNote}</Copy>
+              )}
+              {bag.legs.map((leg) => (
+                <Copy key={leg.leg}>
+                  {leg.leg}: {bagStatusLabels[leg.status]}
+                  {leg.needsReview ? " · review needed" : ""}
+                  {leg.confirmedAt
+                    ? ` · confirmed ${leg.confirmedAt}`
+                    : " · status not confirmed"}
+                </Copy>
+              ))}
+              <Copy muted>
+                Contents are listed once with each shared item above.
+              </Copy>
+            </ChecklistSection>
           ))}
         </>
       )}
