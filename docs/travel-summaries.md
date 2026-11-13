@@ -141,3 +141,34 @@ Implementation references: installed Next route-handler docs at
 [React Native accessibility](https://reactnative.dev/docs/accessibility),
 [itinerary](itinerary-and-phases.md), [checklists](checklists-and-tasks.md),
 [acquisition](acquisition.md), [scoped access](invitations-and-access.md).
+
+## Final combined results
+
+Runtime integration merged: `e61c344413982ed3c3fc55962cd89176282009c5`
+(outbound packing #8), into the implementation at merge `a5128fd`. The only merge
+conflict was the contracts export list; both packing and summaries exports were
+retained. Navigation retains packing alongside summaries and the earlier
+destinations. Latest integration `92478d79cfcd1150ebe361356dd883f38db54a02`
+adds only the intended Vercel account verification note in `docs/account-flow.md`;
+it introduces no runtime change requiring another full run.
+
+- Direct Node runner, `node --import tsx --test --test-concurrency=1
+tests/*.test.ts` from `apps/api`: **81 passed, 1 failed, 0 skipped**, normal
+  process exit in 351.8 seconds. All seven #18 scenarios passed with packing
+  migration 011 and the existing permissions/acquisition guards present.
+- The unchanged reminder scenario "important accepted assignments and trip
+  changes dispatch according to preferences without private payloads or retry
+  duplicates" failed at `apps/api/tests/reminders.test.ts:494`: the immediate
+  provider push-count assertion observed 1 rather than 2. Its focused rerun with
+  the direct Node runner and `--test-name-pattern='important accepted assignments'`
+  passed **1/1**. The implementation changes none of the notification dispatch,
+  event, reminder test or fixture files. Concurrent asynchronous dispatch timing
+  is a possible explanation, not a proven diagnosis. **A wholly green full-suite
+  run is not claimed.** Investigate the existing assertion/dispatch timing
+  separately if it recurs.
+- Workspace TypeScript, Next production API build, final Android JS bundling
+  (`--no-bytecode`, 1063 modules), changed-file Prettier and `git diff --check`
+  passed. The API build includes the summary route alongside all prior routes.
+- No dependency/lockfile, environment variable, migration or fixture changes
+  belong to #18. Device/hosted/native gaps described above remain open. No real
+  data was sent/exported, and no service, push, PR or publication was performed.

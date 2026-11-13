@@ -177,7 +177,9 @@ export function SummaryScreen({
       setPreview(result);
       if (openShare)
         setNotice(
-          "The selected contents changed. Review this updated preview, then tap Share this text again.",
+          result.text
+            ? "The selected contents changed. Review this updated preview, then tap Share this text again."
+            : "The selected contents are now empty. Go back and review your selection.",
         );
       working.current = false;
       return;
