@@ -413,7 +413,7 @@ test("ordered optional stops and Hajj milestones retain explicit local offsets a
   assert.equal(reopened.data.phase, "planning");
 });
 
-test("only organizers manually choose any of the seven phases; profiles, sessions and trip scope remain enforced", async () => {
+test("only organizers manually choose phases, reviewing arrival for Completed; profiles, sessions and trip scope remain enforced", async () => {
   const owner = await member("phase_owner");
   const viewer = await member("phase_viewer");
   const editor = await member("phase_editor");
@@ -446,12 +446,22 @@ test("only organizers manually choose any of the seven phases; profiles, session
     "completed",
     "planning",
   ]) {
-    const saved = await fixture.request(
-      endpoint,
-      owner.token,
-      { phase },
-      "PATCH",
-    );
+    const saved =
+      phase === "completed"
+        ? await fixture.request(
+            `${path}/completion`,
+            owner.token,
+            {
+              requestId: randomUUID(),
+              kind: "complete",
+              travelConfirmed: true,
+              reviewToken: (
+                await fixture.request(`${path}/completion/review`, owner.token)
+              ).data.reviewToken,
+            },
+            "POST",
+          )
+        : await fixture.request(endpoint, owner.token, { phase }, "PATCH");
     assert.equal(saved.status, 200, fixture.logs());
     assert.equal(saved.data.phase, phase);
     assert.equal(

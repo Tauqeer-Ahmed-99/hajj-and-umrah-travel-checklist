@@ -27,7 +27,7 @@ export const checklistViews = [
 export const tripNavigation = z.object({
   tripId: z.uuid(),
   destination: z.enum(destinations),
-  view: z.literal("overview-search").optional(),
+  view: z.enum(["overview-search", "completion"]).optional(),
   familyId: z.uuid().optional(),
   guideId: z.uuid().optional(),
   recordId: z.uuid().optional(),

@@ -11,6 +11,7 @@ import { requireTripAccess, resourceId } from "./permissions";
 import { createOnce, transaction } from "./trips";
 import { HttpError } from "./response";
 import { itineraryChanged } from "./notification-events";
+import { checkCompletionPhase } from "./completion";
 
 const referenceColumns = `accommodation_address AS "accommodationAddress", transport_reference AS "transportReference", meeting_point AS "meetingPoint", contacts`;
 const entryColumns = `id, trip_id AS "tripId", kind, title, starts_at AS "startsAt", ends_at AS "endsAt", ${referenceColumns}, notes`;
@@ -117,6 +118,8 @@ export function patchItinerary(
 ) {
   return transaction(async (db) => {
     await lockItinerary(db, memberId, tripId);
+    if (input.phase)
+      await checkCompletionPhase(db, memberId, tripId, input.phase);
     await db.query(
       "INSERT INTO trip_itineraries (trip_id) VALUES ($1) ON CONFLICT DO NOTHING",
       [tripId],

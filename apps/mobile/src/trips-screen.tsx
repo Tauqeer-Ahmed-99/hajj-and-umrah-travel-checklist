@@ -43,11 +43,14 @@ import { RemindersScreen } from "./reminders-screen";
 import { onTripCacheRevoked } from "./trip-cache";
 import { SharedScreen } from "./sharing-screen";
 import { SummaryScreen } from "./summary-screen";
+import { CompletionScreen, ArchivesScreen } from "./completion-screen";
 
 type Route =
   | { screen: "list" }
   | { screen: "new-trip" }
   | { screen: "invitations" }
+  | { screen: "archives" }
+  | { screen: "completion"; tripId: string }
   | { screen: "access"; tripId: string; familyId?: string }
   | {
       screen: "trip";
@@ -122,30 +125,32 @@ export function TripsScreen({
           setRoute(
             !saved
               ? { screen: "list" }
-              : saved.view === "overview-search"
-                ? {
-                    screen: "overview-search",
-                    tripId: saved.tripId,
-                    query: overviewQuery.parse(saved.overview ?? {}),
-                  }
-                : saved.familyId && saved.destination === "Checklist"
+              : saved.view === "completion"
+                ? { screen: "completion", tripId: saved.tripId }
+                : saved.view === "overview-search"
                   ? {
-                      screen: "checklist",
+                      screen: "overview-search",
                       tripId: saved.tripId,
-                      familyId: saved.familyId,
-                      recordId: saved.recordId,
-                      view: saved.checklistView,
+                      query: overviewQuery.parse(saved.overview ?? {}),
                     }
-                  : saved.familyId && saved.destination === "Bags"
+                  : saved.familyId && saved.destination === "Checklist"
                     ? {
-                        screen: "bags",
+                        screen: "checklist",
                         tripId: saved.tripId,
                         familyId: saved.familyId,
                         recordId: saved.recordId,
-                        leg: saved.leg,
-                        view: saved.packingView,
+                        view: saved.checklistView,
                       }
-                    : { screen: "trip", ...saved },
+                    : saved.familyId && saved.destination === "Bags"
+                      ? {
+                          screen: "bags",
+                          tripId: saved.tripId,
+                          familyId: saved.familyId,
+                          recordId: saved.recordId,
+                          leg: saved.leg,
+                          view: saved.packingView,
+                        }
+                      : { screen: "trip", ...saved },
           );
       })
       .catch(() => {
@@ -214,6 +219,14 @@ export function TripsScreen({
       overview: filters,
     });
   };
+  const openCompletion = (tripId: string) => {
+    setRoute({ screen: "completion", tripId });
+    remember({
+      tripId,
+      destination: "Overview",
+      view: "completion",
+    });
+  };
   useEffect(() => {
     const listener = BackHandler.addEventListener("hardwareBackPress", () => {
       if (route?.screen === "family") {
@@ -241,6 +254,31 @@ export function TripsScreen({
       <TripForm
         onCancel={() => setRoute({ screen: "list" })}
         onSaved={(tripId) => openTrip(tripId)}
+      />
+    );
+  if (route.screen === "archives")
+    return (
+      <ArchivesScreen
+        onBack={() => setRoute({ screen: "list" })}
+        onOpen={openCompletion}
+      />
+    );
+  if (route.screen === "completion")
+    return (
+      <CompletionScreen
+        tripId={route.tripId}
+        onBack={() => openTrip(route.tripId)}
+        onItinerary={() =>
+          setRoute({ screen: "itinerary", tripId: route.tripId })
+        }
+        onGuides={() => openTrip(route.tripId, "Guides")}
+        onChecklist={(familyId) =>
+          setRoute({ screen: "checklist", tripId: route.tripId, familyId })
+        }
+        onBags={(familyId) =>
+          setRoute({ screen: "bags", tripId: route.tripId, familyId })
+        }
+        onShared={() => setRoute({ screen: "shared", tripId: route.tripId })}
       />
     );
   if (route.screen === "invitations")
@@ -357,6 +395,7 @@ export function TripsScreen({
       <ItineraryScreen
         key={route.tripId}
         tripId={route.tripId}
+        onCompletion={() => openCompletion(route.tripId)}
         onBack={() => openTrip(route.tripId)}
       />
     );
@@ -444,6 +483,7 @@ export function TripsScreen({
   if (route.screen === "list")
     return (
       <TripList
+        onArchives={() => setRoute({ screen: "archives" })}
         onCached={onCached}
         onOffline={onOffline}
         preferenceError={preferenceError}
@@ -498,6 +538,7 @@ export function TripsScreen({
       }
       onSummary={() => setRoute({ screen: "summary", tripId: route.tripId })}
       onFind={(query) => openOverview(route.tripId, query)}
+      onCompletion={() => openCompletion(route.tripId)}
       onChecklist={(familyId) =>
         openFamily(route.tripId, familyId, "Checklist")
       }
@@ -593,6 +634,7 @@ function DestinationNav({
 }
 
 function TripList({
+  onArchives,
   onCached,
   onOpen,
   onCreate,
@@ -601,6 +643,7 @@ function TripList({
   onInvitations,
   onOffline,
 }: {
+  onArchives: () => void;
   onCached: () => void;
   onOpen: (id: string) => void;
   onCreate: () => void;
@@ -624,6 +667,7 @@ function TripList({
       <Action title="Open cached trips" secondary onPress={onCached} />
       <TripLink title="Account" onPress={onAccount} />
       <Heading>Your trips</Heading>
+      <Action title="Archived trips" secondary onPress={onArchives} />
       <Action title="Open saved guides" secondary onPress={onOffline} />
       <Action title="Your invitations" secondary onPress={onInvitations} />
       <Copy>Keep each journey and its families together.</Copy>
@@ -681,6 +725,7 @@ function TripHome({
   onReminders,
   onShared,
   onSummary,
+  onCompletion,
   onChecklist,
   onBags,
   onFind,
@@ -698,6 +743,7 @@ function TripHome({
   onReminders: () => void;
   onShared: () => void;
   onSummary: () => void;
+  onCompletion: () => void;
   onChecklist: (familyId: string) => void;
   onBags: (familyId: string) => void;
   onFind: (query: OverviewQuery) => void;
@@ -751,6 +797,7 @@ function TripHome({
           <Heading>{detail.trip.name}</Heading>
           <TripLink title="Trip members & invitations" onPress={onAccess} />
           <TripLink title="Share travel summary" onPress={onSummary} />
+          <TripLink title="Completion and archive" onPress={onCompletion} />
           <Copy muted>
             {detail.trip.kind === "hajj" ? "Hajj" : "Umrah"} ·{" "}
             {detail.trip.role === "organizer"
