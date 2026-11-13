@@ -25,6 +25,7 @@ const config: ExpoConfig = {
     "expo-dev-client",
     "expo-secure-store",
     ["@clerk/expo", { appleSignIn: false }],
+    "@clerk/expo-google-signin",
   ],
   runtimeVersion: { policy: "fingerprint" },
   updates: {
@@ -33,6 +34,11 @@ const config: ExpoConfig = {
     checkAutomatically: "ON_LOAD",
     fallbackToCacheTimeout: 0,
   },
-  extra: projectId ? { eas: { projectId } } : {},
+  extra: {
+    ...(projectId ? { eas: { projectId } } : {}),
+    // The Clerk hook runs in node_modules, where Expo does not inline env vars.
+    EXPO_PUBLIC_CLERK_GOOGLE_WEB_CLIENT_ID:
+      process.env.EXPO_PUBLIC_CLERK_GOOGLE_WEB_CLIENT_ID,
+  },
 };
 export default config;

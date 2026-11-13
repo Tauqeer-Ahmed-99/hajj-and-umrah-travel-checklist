@@ -41,7 +41,20 @@ export async function startFixture() {
     alg: "RS256",
   };
   const issuer = "https://nmt-fixture.clerk.accounts.dev";
-  const identities = new Map<string, { email: string; verified: boolean }>();
+  const identities = new Map<
+    string,
+    {
+      email: string;
+      verified: boolean;
+      strategy?: "google_one_tap" | "email_code";
+      profile?: { firstName?: string; lastName?: string; username?: string };
+      googleProfile?: {
+        firstName?: string;
+        lastName?: string;
+        verified: boolean;
+      };
+    }
+  >();
   const sessions = new Map<string, { userId: string; status: string }>();
   let providerUnavailable = false;
   const provider = createServer((req, res) => {
@@ -65,6 +78,33 @@ export async function startFixture() {
           object: "user",
           banned: false,
           locked: false,
+          first_name: user.profile?.firstName ?? null,
+          last_name: user.profile?.lastName ?? null,
+          username: user.profile?.username ?? null,
+          external_accounts: user.googleProfile
+            ? [
+                {
+                  id: `google_${id}`,
+                  object: "external_account",
+                  provider: "oauth_google",
+                  provider_user_id: `provider_${id}`,
+                  identification_id: `google_${id}`,
+                  approved_scopes: "openid email profile",
+                  email_address: user.email,
+                  first_name: user.googleProfile.firstName ?? "",
+                  last_name: user.googleProfile.lastName ?? "",
+                  username: null,
+                  phone_number: null,
+                  label: null,
+                  verification: {
+                    status: user.googleProfile.verified
+                      ? "verified"
+                      : "unverified",
+                    strategy: "google_one_tap",
+                  },
+                },
+              ]
+            : [],
           primary_email_address_id: `email_${id}`,
           email_addresses: [
             {
@@ -74,7 +114,7 @@ export async function startFixture() {
               linked_to: [],
               verification: {
                 status: user.verified ? "verified" : "unverified",
-                strategy: "email_code",
+                strategy: user.strategy ?? "email_code",
               },
             },
           ],
@@ -222,9 +262,22 @@ export async function startFixture() {
         issuer?: string;
         sessionId?: string;
         azp?: string;
+        strategy?: "google_one_tap" | "email_code";
+        profile?: { firstName?: string; lastName?: string; username?: string };
+        googleProfile?: {
+          firstName?: string;
+          lastName?: string;
+          verified: boolean;
+        };
       } = {},
     ) => {
-      identities.set(id, { email, verified: options.verified ?? true });
+      identities.set(id, {
+        email,
+        verified: options.verified ?? true,
+        strategy: options.strategy,
+        profile: options.profile,
+        googleProfile: options.googleProfile,
+      });
       const sessionId = options.sessionId ?? `sess_${id}`;
       sessions.set(sessionId, { userId: id, status: "active" });
       return new SignJWT({

@@ -1,0 +1,16 @@
+appId: in.nmtsolutions.travel
+---
+# Run after signing in by the SECOND method to an existing member.
+- extendedWaitUntil:
+    visible: "Profile saved"
+    timeout: 30000
+- assertNotVisible:
+    id: username-input
+- assertVisible: ${MAESTRO_EMAIL}
+- assertVisible: "@${MAESTRO_USERNAME}"
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: "Profile saved"
+    timeout: 30000
+- assertVisible: "@${MAESTRO_USERNAME}"

@@ -1,5 +1,10 @@
 # Account flow (#2)
 
+Native Google sign-in is now implemented by #3. See
+[Google setup and acceptance](google-sign-in.md) for its optional mobile
+configuration, additive `profileDefaults` response, verified-identity continuity
+checks, and the external/native acceptance that remains unverified.
+
 This slice implements email-code signup/sign-in, profile completion, saved profile
 retrieval, session restoration, logout, and device/light/dark appearance. It does
 not implement the rest of specification #1 or claim a production release.
