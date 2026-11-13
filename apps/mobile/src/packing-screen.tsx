@@ -145,7 +145,6 @@ export function PackingScreen({
   const [saved, setSaved] = useState(false);
   const scope = { tripId, familyId };
   const load = useCallback(async () => {
-    setData(null);
     const result = await api.run(async (token, signal) => {
       const [packing, roster, trip] = await Promise.all([
         packingApi.read({ tripId, familyId }, token, signal),
@@ -160,6 +159,9 @@ export function PackingScreen({
     });
     if (result) setData(result);
   }, [api.run, tripId, familyId]);
+  useEffect(() => {
+    if (api.error && [401, 403, 404].includes(api.error.status)) setData(null);
+  }, [api.error]);
   useEffect(() => {
     if (editor) return;
     void load();

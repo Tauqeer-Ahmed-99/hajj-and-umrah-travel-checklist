@@ -45,7 +45,6 @@ export function SharedScreen({
   const [query, setQuery] = useState("");
   const [saved, setSaved] = useState(false);
   const load = useCallback(async () => {
-    setData(null);
     const result = await api.run(async (token, signal) => {
       const [shared, trip, members] = await Promise.all([
         sharingApi.read(tripId, token, signal),
@@ -56,6 +55,9 @@ export function SharedScreen({
     });
     if (result) setData(result);
   }, [tripId, api.run]);
+  useEffect(() => {
+    if (api.error && [401, 403, 404].includes(api.error.status)) setData(null);
+  }, [api.error]);
   useEffect(() => {
     if (editor) return;
     void load();

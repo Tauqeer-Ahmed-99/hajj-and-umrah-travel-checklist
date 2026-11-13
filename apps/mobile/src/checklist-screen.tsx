@@ -167,7 +167,6 @@ export function ChecklistScreen({
   >("all");
   const scope = { tripId, familyId };
   const load = useCallback(async () => {
-    setData(null);
     const result = await api.run(async (token, signal) => {
       const [checklist, detail, roster, members, history, views] =
         await Promise.all([
@@ -192,6 +191,9 @@ export function ChecklistScreen({
     });
     if (result) setData(result);
   }, [api.run, tripId, familyId]);
+  useEffect(() => {
+    if (api.error && [401, 403, 404].includes(api.error.status)) setData(null);
+  }, [api.error]);
   useEffect(() => {
     if (editor && editor.mode !== "history") return;
     void load();

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useAuth } from "@clerk/expo";
 import {
   AppState,
   BackHandler,
@@ -13,6 +14,8 @@ import {
   type Traveler,
   type Trip,
   type TripDetail,
+  overviewQuery,
+  type OverviewQuery,
 } from "@nmt/contracts";
 import { Action, Copy, Heading, Loading, Notice, Screen } from "./ui";
 import { useTheme } from "./theme";
@@ -22,12 +25,15 @@ import {
   destinations,
   rememberTripNavigation,
   restoreTripNavigation,
+  clearTripNavigation,
+  type TripNavigation,
   type Destination,
 } from "./trip-navigation";
 import { FamilyForm, TravelerForm, TripForm } from "./trip-forms";
 import { InvitationInbox } from "./invitation-inbox";
 import { MembershipScreen } from "./membership-screen";
-import { ItineraryOverview, ItineraryScreen } from "./itinerary-screen";
+import { ItineraryScreen } from "./itinerary-screen";
+import { OverviewSummary, OverviewScreen } from "./overview-screen";
 import { GuidesScreen } from "./guides-screen";
 import { ChecklistDestination, ChecklistScreen } from "./checklist-screen";
 import { BagsDestination, PackingScreen } from "./packing-screen";
@@ -41,7 +47,13 @@ type Route =
   | { screen: "new-trip" }
   | { screen: "invitations" }
   | { screen: "access"; tripId: string; familyId?: string }
-  | { screen: "trip"; tripId: string; destination: Destination }
+  | {
+      screen: "trip";
+      tripId: string;
+      destination: Destination;
+      guideId?: string;
+    }
+  | { screen: "overview-search"; tripId: string; query: OverviewQuery }
   | { screen: "new-family"; tripId: string }
   | { screen: "itinerary"; tripId: string }
   | { screen: "shared"; tripId: string }
@@ -63,24 +75,52 @@ export function TripsScreen({
   onOffline: () => void;
   onCached: () => void;
 }) {
+  const { sessionId } = useAuth();
   const [route, setRoute] = useState<Route | null>(null);
   const [preferenceError, setPreferenceError] = useState("");
   useEffect(
     () =>
       onTripCacheRevoked(() => {
         setRoute({ screen: "list" });
+        void clearTripNavigation(profile.id, true).catch(() => {});
         setPreferenceError(
           "Trip access changed. Open a permitted trip again after refreshing.",
         );
       }),
-    [],
+    [profile.id],
   );
   useEffect(() => {
     let active = true;
-    restoreTripNavigation(profile.id)
+    if (!sessionId) {
+      setRoute({ screen: "list" });
+      return;
+    }
+    restoreTripNavigation(profile.id, sessionId)
       .then((saved) => {
         if (active)
-          setRoute(saved ? { screen: "trip", ...saved } : { screen: "list" });
+          setRoute(
+            !saved
+              ? { screen: "list" }
+              : saved.view === "overview-search"
+                ? {
+                    screen: "overview-search",
+                    tripId: saved.tripId,
+                    query: overviewQuery.parse(saved.overview ?? {}),
+                  }
+                : saved.familyId && saved.destination === "Checklist"
+                  ? {
+                      screen: "checklist",
+                      tripId: saved.tripId,
+                      familyId: saved.familyId,
+                    }
+                  : saved.familyId && saved.destination === "Bags"
+                    ? {
+                        screen: "bags",
+                        tripId: saved.tripId,
+                        familyId: saved.familyId,
+                      }
+                    : { screen: "trip", ...saved },
+          );
       })
       .catch(() => {
         if (active) {
@@ -93,15 +133,41 @@ export function TripsScreen({
     return () => {
       active = false;
     };
-  }, [profile.id]);
+  }, [profile.id, sessionId]);
+  const remember = (value: TripNavigation) => {
+    if (sessionId)
+      void rememberTripNavigation(profile.id, sessionId, value).catch(() =>
+        setPreferenceError(
+          "This view could not be remembered. Choose it again after restarting.",
+        ),
+      );
+  };
   const openTrip = (tripId: string, destination: Destination = "Overview") => {
     setRoute({ screen: "trip", tripId, destination });
     setPreferenceError("");
-    void rememberTripNavigation(profile.id, { tripId, destination }).catch(() =>
-      setPreferenceError(
-        "This view could not be remembered. Your trip is saved; choose it again after restarting.",
-      ),
-    );
+    remember({ tripId, destination });
+  };
+  const openFamily = (
+    tripId: string,
+    familyId: string,
+    destination: "Checklist" | "Bags",
+  ) => {
+    setRoute({
+      screen: destination === "Checklist" ? "checklist" : "bags",
+      tripId,
+      familyId,
+    });
+    remember({ tripId, destination, familyId });
+  };
+  const openOverview = (tripId: string, query: OverviewQuery) => {
+    setRoute({ screen: "overview-search", tripId, query });
+    const { q, ...filters } = query;
+    remember({
+      tripId,
+      destination: "Overview",
+      view: "overview-search",
+      overview: filters,
+    });
   };
   useEffect(() => {
     const listener = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -171,6 +237,39 @@ export function TripsScreen({
         key={route.tripId}
         tripId={route.tripId}
         onBack={() => openTrip(route.tripId)}
+      />
+    );
+  if (route.screen === "overview-search")
+    return (
+      <OverviewScreen
+        key={route.tripId}
+        tripId={route.tripId}
+        initial={route.query}
+        onRemember={(query) => {
+          const { q, ...filters } = query;
+          remember({
+            tripId: route.tripId,
+            destination: "Overview",
+            view: "overview-search",
+            overview: filters,
+          });
+        }}
+        onBack={() => openTrip(route.tripId)}
+        onOpen={(row) =>
+          row.access === "shared"
+            ? setRoute({ screen: "shared", tripId: route.tripId })
+            : openFamily(
+                route.tripId,
+                row.familyId,
+                ["bag", "check"].includes(row.kind) ? "Bags" : "Checklist",
+              )
+        }
+        footer={
+          <DestinationNav
+            selected="Overview"
+            onSelect={(destination) => openTrip(route.tripId, destination)}
+          />
+        }
       />
     );
   if (route.screen === "reminders")
@@ -263,6 +362,10 @@ export function TripsScreen({
       <GuidesScreen
         key={route.tripId}
         tripId={route.tripId}
+        initialId={route.guideId}
+        onRemember={(guideId) =>
+          remember({ tripId: route.tripId, destination: "Guides", guideId })
+        }
         onBack={() => openTrip(route.tripId)}
         onSwitch={() => setRoute({ screen: "list" })}
         onAccount={onAccount}
@@ -298,12 +401,11 @@ export function TripsScreen({
         setRoute({ screen: "reminders", tripId: route.tripId })
       }
       onSummary={() => setRoute({ screen: "summary", tripId: route.tripId })}
+      onFind={(query) => openOverview(route.tripId, query)}
       onChecklist={(familyId) =>
-        setRoute({ screen: "checklist", tripId: route.tripId, familyId })
+        openFamily(route.tripId, familyId, "Checklist")
       }
-      onBags={(familyId) =>
-        setRoute({ screen: "bags", tripId: route.tripId, familyId })
-      }
+      onBags={(familyId) => openFamily(route.tripId, familyId, "Bags")}
     />
   );
 }
@@ -414,10 +516,12 @@ function TripList({
   const api = useTripRequest();
   const [trips, setTrips] = useState<Trip[] | null>(null);
   const load = useCallback(async () => {
-    setTrips(null);
     const result = await api.run(tripApi.list);
     if (result) setTrips(result.trips);
   }, [api.run]);
+  useEffect(() => {
+    if (api.error && [401, 403, 404].includes(api.error.status)) setTrips(null);
+  }, [api.error]);
   useForegroundRefresh(load);
   return (
     <Screen>
@@ -483,6 +587,7 @@ function TripHome({
   onSummary,
   onChecklist,
   onBags,
+  onFind,
 }: {
   tripId: string;
   destination: Destination;
@@ -499,17 +604,21 @@ function TripHome({
   onSummary: () => void;
   onChecklist: (familyId: string) => void;
   onBags: (familyId: string) => void;
+  onFind: (query: OverviewQuery) => void;
 }) {
   const api = useTripRequest();
   const [detail, setDetail] = useState<TripDetail | null>(null);
   const load = useCallback(async () => {
-    setDetail(null);
     const result = await api.run((token, signal) =>
       tripApi.read(tripId, token, signal),
     );
     if (result) setDetail(result);
   }, [api.run, tripId]);
   useForegroundRefresh(load);
+  useEffect(() => {
+    if (api.error && [401, 403, 404].includes(api.error.status))
+      setDetail(null);
+  }, [api.error]);
   const placeholders = {
     Guides: [
       "Guides are not available yet",
@@ -556,7 +665,12 @@ function TripHome({
           </Copy>
           {destination === "Overview" ? (
             <>
-              <ItineraryOverview tripId={tripId} onOpen={onItinerary} />
+              <OverviewSummary tripId={tripId} onFind={onFind} />
+              <Action
+                title="Itinerary and travel details"
+                secondary
+                onPress={onItinerary}
+              />
               <Action
                 title="Reminders and notifications"
                 secondary

@@ -6,6 +6,7 @@ import {
   checklistResponse,
   packingResponse,
   sharedContentResponse,
+  overviewResponse,
 } from "@nmt/contracts";
 import { TripError } from "./request-error";
 import {
@@ -24,6 +25,8 @@ function snapshotSchema(path: string) {
     return itineraryResponse;
   if (new RegExp(`^/api/trips/${id}/shared$`).test(path))
     return sharedContentResponse;
+  if (new RegExp(`^/api/trips/${id}/overview(?:/return)?$`).test(path))
+    return overviewResponse;
   if (new RegExp(`^/api/trips/${id}/families/${id}/travelers$`).test(path))
     return travelersResponse;
   if (new RegExp(`^/api/trips/${id}/families/${id}/checklist$`).test(path))
@@ -132,7 +135,10 @@ export function listTripSnapshots(): TripSnapshot[] {
     if (
       revoked.some(
         (prefix) =>
-          file.name === `${prefix}.json` || file.name.startsWith(`${prefix}_`),
+          file.name === `${prefix}.json` ||
+          file.name.startsWith(`${prefix}_`) ||
+          (prefix.includes("_families_") &&
+            file.name.startsWith(`${prefix.split("_families_")[0]}_overview`)),
       )
     )
       continue;
@@ -185,6 +191,54 @@ function publish(
   // A failed cleanup remains hidden until a subsequent successful cleanup.
   if (new File(directory, "discard").exists) return;
   let lostSharedAccess = false;
+  let lostFamilyAccess = false;
+  let lostOverviewAccess = false;
+  if (/\/overview(?:\/return)?$/.test(path)) {
+    try {
+      const previous = overviewResponse.parse(
+        JSON.parse(new File(directory, name(path)).textSync()).data,
+      );
+      const next = overviewResponse.parse(record.data);
+      lostOverviewAccess = previous.records.some((row) => {
+        const replacement = next.records.find(
+          (n) => n.id === row.id && n.kind === row.kind,
+        );
+        return (
+          !replacement ||
+          (row.access === "family" && replacement.access !== "family") ||
+          (row.shared && !replacement.shared)
+        );
+      });
+    } catch {
+      /* No previous complete overview for this leg. */
+    }
+  }
+  if (new RegExp(`^/api/trips/${id}$`).test(path)) {
+    try {
+      const previous = tripResponse.parse(
+        JSON.parse(new File(directory, name(path)).textSync()).data,
+      );
+      const next = tripResponse.parse(record.data);
+      const removed = previous.families.filter(
+        (f) => !next.families.some((n) => n.id === f.id),
+      );
+      for (const family of removed) {
+        const scope = `${path}/families/${family.id}`.replaceAll("/", "_");
+        value.cache.blocked.add(scope);
+        new File(directory, `${scope}.revoked`).writeSync("revoked");
+        finishRevokedCleanup(directory);
+        value.cache.blocked.delete(scope);
+      }
+      lostFamilyAccess = removed.length > 0;
+    } catch {
+      if (value.cache.blocked.size) {
+        value.cache.owner.clearAccount();
+        throw new TripError(
+          "Private cache cleanup did not finish. Restore current access before opening private data.",
+        );
+      }
+    }
+  }
   if (path.endsWith("/shared")) {
     try {
       const previous = sharedContentResponse.parse(
@@ -203,11 +257,31 @@ function publish(
       /* No prior compatible shared snapshot. */
     }
   }
+  if (lostSharedAccess || lostOverviewAccess) {
+    // A full shared projection may revoke an item/bag without denying the trip.
+    // Persist a composite tombstone before deleting either leg's older overview.
+    const scope =
+      `${path.split("/").slice(0, 4).join("/")}/overview`.replaceAll("/", "_");
+    value.cache.blocked.add(scope);
+    try {
+      new File(directory, `${scope}.revoked`).writeSync("revoked");
+      finishRevokedCleanup(directory);
+      value.cache.blocked.delete(scope);
+    } catch {
+      value.cache.owner.clearAccount();
+      throw new TripError(
+        "Overview cleanup did not finish. Restore current access before opening private data.",
+      );
+    }
+  }
+  if (lostSharedAccess || lostFamilyAccess || lostOverviewAccess)
+    value.generation = ++value.cache.generation;
   const pending = new File(directory, `${name(path)}.pending`);
   pending.writeSync(JSON.stringify(record));
   current(value, signal);
   pending.moveSync(new File(directory, name(path)), { overwrite: true });
-  if (lostSharedAccess) for (const listener of revokedListeners) listener();
+  if (lostSharedAccess || lostFamilyAccess || lostOverviewAccess)
+    for (const listener of revokedListeners) listener();
   tripCacheChanged();
 }
 export function clearTripCache() {
@@ -289,6 +363,12 @@ function finishRevokedCleanup(directory: Directory) {
       /^_api_trips_([a-f0-9-]{36})_families_([a-f0-9-]{36})$/,
     );
     if (familyScope) {
+      for (const file of directory.list())
+        if (
+          file instanceof File &&
+          file.name.startsWith(`_api_trips_${familyScope[1]}_overview`)
+        )
+          file.delete();
       const detailFile = new File(
         directory,
         `_api_trips_${familyScope[1]}.json`,
@@ -402,7 +482,15 @@ export async function travelFetch(
     throw new TripError(
       "A newer refresh replaced this access check. Open the view again.",
     );
-  deny(value, path, response.status, method, denialCode);
+  // A filtered overview can deny a selected family/item while trip access stays
+  // valid. Only complete resource reads establish a cache-scope denial.
+  deny(
+    value,
+    path,
+    response.status,
+    method === "GET" && new URL(url).search ? "FILTERED_GET" : method,
+    denialCode,
+  );
   if (
     response.ok &&
     method === "GET" &&

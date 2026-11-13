@@ -95,7 +95,9 @@ function itemRecord(
         ? "Preparation outstanding"
         : "Physically available; check carrying locations";
     if (!inactive) {
-      row.locations = (packed?.allocations ?? []).flatMap((a) =>
+      row.locations = (packed?.allocations ?? []).flatMap<
+        OverviewRecord["locations"][number]
+      >((a) =>
         a.location.kind === "unpacked"
           ? []
           : a.location.kind === "private"
@@ -237,7 +239,10 @@ export function readOverview(
       if (row.kind !== "item") continue;
       row.needsReview = row.locations.some(
         (l) =>
-          l.kind === "bag" && records.get(l.id!)?.attention.includes("bags"),
+          l.kind === "private" ||
+          (l.kind === "bag" &&
+            (!records.has(l.id!) ||
+              records.get(l.id!)!.attention.includes("bags"))),
       );
       if (
         row.priority === "essential" &&
