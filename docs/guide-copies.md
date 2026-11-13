@@ -193,6 +193,14 @@ open pending that acceptance.
 
 Local validation against integration base `6bc5bc44a59adb2d23e689e0e2d1e560e840cd0f`:
 
+After implementation commit `fcfd684839ef99b3ce082c104075084b6e71f5d1`, merging
+the latest local `integration/spec-1-nmt-travel` returned **Already up to date**
+at that same integration tip; the ancestry check passed. There were no combined
+source/dependency changes requiring additional tests. Concurrent #8 packing and
+#16 reminders were not yet on integration at handback; their eventual integration
+still needs the normal combined checks. This branch only adds the Saved guides
+entry to shared trip navigation and preserves existing destinations/hooks.
+
 - `npm test`: 60/60 authenticated HTTP/PostgreSQL tests passed, with a normal
   process exit, no skipped tests and no forced-exit flag. The real migration
   runner applies existing migrations twice per disposable database; #14 adds none.
