@@ -148,29 +148,28 @@ enabled updates, its actual update URL, and the fingerprint runtime policy.
 This establishes the project configuration only: no EAS build, signing setup,
 OTA publication, or device update check has been performed.
 
-The same integration setup created Vercel project `nmt-solutions/nmt-travel-api`
-with Next.js root `apps/api`, Node 24, install command `cd ../.. && npm ci`, and
-build command `npm run build`. It also provisioned Neon Free resource
-`nmt-travel-db` in Singapore (`sin1`), with Neon authentication and realtime
-disabled. The actual PostgreSQL migration command succeeded against that database.
-Only the consumed `DATABASE_URL` is retained in the project's environment and the
-ignored local API configuration; unused provider-generated aliases were removed.
+The user corrected the Vercel account selection on November 14, 2026. Use
+`tauqeer-ahmed-99` and team `tauqeerahmed99s-projects`, confirmed through the
+existing signed-in browser session. Do not provision this app under `wafakhan`
+or `nmt-solutions`. The latter is a different Vercel account from the intended
+one, despite the similar organization names elsewhere in this project.
 
-An initial CLI deployment of integration commit `c082814` is Ready at
-[`nmt-travel-api.vercel.app`](https://nmt-travel-api.vercel.app). Vercel assigned
-this first deployment to its production target automatically. Unauthenticated
-requests to `/api/me` and `/api/trips` returned the expected `401 invalid_session`,
-including through the public alias. This verifies hosting and unauthenticated
-denial only: Clerk is not configured and no authenticated deployed journey has
-passed. Trip migrations 002-004 have also been applied to the actual Neon database.
+The initial Vercel project, hosting validation deployment, Neon database, and
+Neon Marketplace integration created under the mistaken account were removed.
+Before removal, a read-only check confirmed zero members, trips, and travelers.
+The local database credential and project link were also removed. No existing
+projects or domains belonging to that account were changed. Earlier hosting and
+migration checks are historical evidence only; their resources and URL are no
+longer a configured deployment for this app.
 
-Vercel's automatic GitHub connection failed because its signed-in account lacks
-write/admin access to this repository; the CLI deployment succeeded independently.
-Clerk provisioning is awaiting the account owner's required browser acceptance
-of its Vercel Marketplace terms. Clerk keys, production DNS/OAuth, a private R2
-bucket, and device verification remain unfinished. EAS preview signing setup is
-recorded in [google-sign-in.md](google-sign-in.md). No APK or OTA update has been
-published, and these resources do not establish the rest of specification #1.
+Recreate the Vercel/Neon/Clerk setup under the selected Tauqeer account. Browser
+sign-in is available, but the separate CLI device-authorization attempt could not
+complete because its Allow Access button remained disabled. Do not reuse the
+other account's CLI credentials or its Clerk Marketplace acceptance link.
+Production DNS/OAuth, a private R2 bucket, and device verification remain
+unfinished. EAS preview signing setup is recorded in
+[google-sign-in.md](google-sign-in.md). No APK or OTA update has been published,
+and these resources do not establish the rest of specification #1.
 
 1. Create/configure Neon PostgreSQL and run the migration against the chosen
    database. Verify recovery/backup settings separately; local persistence tests
