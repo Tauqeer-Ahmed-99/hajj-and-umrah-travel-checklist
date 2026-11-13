@@ -1,0 +1,58 @@
+appId: in.nmtsolutions.travel
+---
+# Start as the intended recipient on Your trips. Both approvals must be present.
+- assertVisible: "Your trips"
+- tapOn: "Your invitations"
+- extendedWaitUntil:
+    visible: "Your invitations"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Invitation code"
+- tapOn: "Invitation code"
+- inputText: "${MAESTRO_INVITATION_CODE}"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Preview invitation code"
+- tapOn: "Preview invitation code"
+- extendedWaitUntil:
+    visible: "Review invitation"
+    timeout: 30000
+- assertVisible: "Trip: ${MAESTRO_INVITATION_TRIP}"
+- scrollUntilVisible:
+    element: "Family: ${MAESTRO_INVITATION_FAMILY}"
+- assertVisible: "Family: ${MAESTRO_INVITATION_FAMILY}"
+- scrollUntilVisible:
+    element: "Trip access: viewer"
+    direction: UP
+- assertVisible: "Trip access: viewer"
+- scrollUntilVisible:
+    element: "Family access: viewer"
+- assertVisible: "Family access: viewer"
+- scrollUntilVisible:
+    element: "Accept invitation"
+- tapOn: "Accept invitation"
+- extendedWaitUntil:
+    visible: "${MAESTRO_INVITATION_TRIP}"
+    timeout: 30000
+- assertVisible: "Umrah · Read-only trip access"
+- scrollUntilVisible:
+    element: "Open ${MAESTRO_INVITATION_FAMILY}"
+- tapOn: "Open ${MAESTRO_INVITATION_FAMILY}"
+- extendedWaitUntil:
+    visible: "Family members & access"
+    timeout: 30000
+- assertNotVisible: "Add traveler"
+- tapOn: "Family members & access"
+- extendedWaitUntil:
+    visible: "Family access"
+    timeout: 30000
+- assertNotVisible: "Invite member"
+- assertNotVisible: "Save member access"
+- back
+- back
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: "${MAESTRO_INVITATION_TRIP}"
+    timeout: 30000
+- assertVisible: "Umrah · Read-only trip access"

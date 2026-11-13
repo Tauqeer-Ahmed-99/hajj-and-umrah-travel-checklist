@@ -1,0 +1,38 @@
+appId: in.nmtsolutions.travel
+---
+# Start as the organizer/coordinator, on an existing trip's Overview.
+# Use a fresh recipient with an existing username and no membership in this trip.
+- assertVisible: "${MAESTRO_INVITATION_TRIP}"
+- tapOn: "Trip members & invitations"
+- extendedWaitUntil:
+    visible: "Members"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Invite member"
+- tapOn: "Invite member"
+- tapOn: "Recipient username"
+- inputText: "${MAESTRO_INVITEE_USERNAME}"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Trip access: Viewer · read only"
+- tapOn: "Trip access: Viewer · read only"
+- scrollUntilVisible:
+    element: "Family access: ${MAESTRO_INVITATION_FAMILY}"
+- tapOn: "Family access: ${MAESTRO_INVITATION_FAMILY}"
+- scrollUntilVisible:
+    element: "Create invitation"
+- tapOn: "Create invitation"
+- extendedWaitUntil:
+    visible: "Invitation saved"
+    timeout: 30000
+- assertVisible: "Trip access: viewer"
+- scrollUntilVisible:
+    element: "Family access: viewer"
+- assertVisible: "Family access: viewer"
+- scrollUntilVisible:
+    element: "Organizer approval: Approved"
+- assertVisible: "Organizer approval: Approved"
+- scrollUntilVisible:
+    element: "Coordinator approval: Approved"
+- assertVisible: "Coordinator approval: Approved"
+# Copy the displayed code for the two account-specific flows. Nothing is sent.

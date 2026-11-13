@@ -1,5 +1,6 @@
 import { z } from "zod";
 export * from "./trips";
+export * from "./invitations";
 
 export const profileInput = z.strictObject({
   firstName: z
