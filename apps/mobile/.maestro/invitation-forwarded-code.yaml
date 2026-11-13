@@ -1,0 +1,21 @@
+appId: in.nmtsolutions.travel
+---
+# Start as an unrelated account on Your trips, with the creator's copied code.
+- assertVisible: "Your trips"
+- tapOn: "Your invitations"
+- extendedWaitUntil:
+    visible: "Have an invitation code?"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Invitation code"
+- tapOn: "Invitation code"
+- inputText: "${MAESTRO_INVITATION_CODE}"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Preview invitation code"
+- tapOn: "Preview invitation code"
+- extendedWaitUntil:
+    visible: "This invitation is not available to you."
+    timeout: 30000
+- assertNotVisible: "${MAESTRO_INVITATION_TRIP}"
+- assertNotVisible: "Accept invitation"

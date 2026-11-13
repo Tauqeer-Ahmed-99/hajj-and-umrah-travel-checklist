@@ -1,0 +1,21 @@
+appId: in.nmtsolutions.travel
+---
+# Start as the organizer on the admitted recipient's trip Overview.
+- assertVisible: "${MAESTRO_INVITATION_TRIP}"
+- tapOn: "Trip members & invitations"
+- extendedWaitUntil:
+    visible: "Members"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Remove @${MAESTRO_INVITEE_USERNAME}"
+- tapOn: "Remove @${MAESTRO_INVITEE_USERNAME}"
+- assertVisible: "Remove trip access?"
+- tapOn: "Remove access"
+- extendedWaitUntil:
+    visible: "Access saved."
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Members"
+    direction: UP
+- assertNotVisible: "Remove @${MAESTRO_INVITEE_USERNAME}"
+# Reopen the recipient account and verify the trip is unavailable after refresh.

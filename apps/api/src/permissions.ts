@@ -11,6 +11,10 @@ export const tripColumns = `t.id, t.name, t.kind, t.start_date::text AS "startDa
 // Every protected trip operation resolves a completed application member from
 // verified Clerk identity. Client-supplied member IDs never establish authority.
 export async function requireMember(request: Request): Promise<string> {
+  return (await requireMemberIdentity(request)).id;
+}
+
+export async function requireMemberIdentity(request: Request) {
   const identity = await identify(request);
   const result = await database().query<{ id: string }>(
     "SELECT id FROM members WHERE clerk_user_id = $1",
@@ -22,7 +26,7 @@ export async function requireMember(request: Request): Promise<string> {
       "profile_incomplete",
       "Complete your profile before opening a trip.",
     );
-  return result.rows[0].id;
+  return { id: result.rows[0].id, email: identity.email.trim().toLowerCase() };
 }
 
 export function resourceId(value: string): string {

@@ -25,11 +25,15 @@ import {
   type Destination,
 } from "./trip-navigation";
 import { FamilyForm, TravelerForm, TripForm } from "./trip-forms";
+import { InvitationInbox } from "./invitation-inbox";
+import { MembershipScreen } from "./membership-screen";
 import { ItineraryOverview, ItineraryScreen } from "./itinerary-screen";
 
 type Route =
   | { screen: "list" }
   | { screen: "new-trip" }
+  | { screen: "invitations" }
+  | { screen: "access"; tripId: string; familyId?: string }
   | { screen: "trip"; tripId: string; destination: Destination }
   | { screen: "new-family"; tripId: string }
   | { screen: "itinerary"; tripId: string }
@@ -101,6 +105,31 @@ export function TripsScreen({
         onSaved={(tripId) => openTrip(tripId)}
       />
     );
+  if (route.screen === "invitations")
+    return (
+      <InvitationInbox
+        onBack={() => setRoute({ screen: "list" })}
+        onOpenTrip={openTrip}
+      />
+    );
+  if (route.screen === "access")
+    return (
+      <MembershipScreen
+        key={`${route.tripId}:${route.familyId ?? "trip"}`}
+        tripId={route.tripId}
+        familyId={route.familyId}
+        profile={profile}
+        onBack={() =>
+          route.familyId
+            ? setRoute({
+                screen: "family",
+                tripId: route.tripId,
+                familyId: route.familyId,
+              })
+            : openTrip(route.tripId)
+        }
+      />
+    );
   if (route.screen === "itinerary")
     return (
       <ItineraryScreen
@@ -137,6 +166,13 @@ export function TripsScreen({
         onBack={() => openTrip(route.tripId)}
         onAdd={() => setRoute({ ...route, screen: "new-traveler" })}
         onAccount={onAccount}
+        onAccess={() =>
+          setRoute({
+            screen: "access",
+            tripId: route.tripId,
+            familyId: route.familyId,
+          })
+        }
       />
     );
   if (route.screen === "list")
@@ -146,6 +182,7 @@ export function TripsScreen({
         onOpen={openTrip}
         onCreate={() => setRoute({ screen: "new-trip" })}
         onAccount={onAccount}
+        onInvitations={() => setRoute({ screen: "invitations" })}
       />
     );
   return (
@@ -163,6 +200,7 @@ export function TripsScreen({
         setRoute({ screen: "new-family", tripId: route.tripId })
       }
       onAccount={onAccount}
+      onAccess={() => setRoute({ screen: "access", tripId: route.tripId })}
       onItinerary={() =>
         setRoute({ screen: "itinerary", tripId: route.tripId })
       }
@@ -261,11 +299,13 @@ function TripList({
   onCreate,
   onAccount,
   preferenceError,
+  onInvitations,
 }: {
   onOpen: (id: string) => void;
   onCreate: () => void;
   onAccount: () => void;
   preferenceError: string;
+  onInvitations: () => void;
 }) {
   const api = useTripRequest();
   const [trips, setTrips] = useState<Trip[] | null>(null);
@@ -279,6 +319,7 @@ function TripList({
     <Screen>
       <TripLink title="Account" onPress={onAccount} />
       <Heading>Your trips</Heading>
+      <Action title="Your invitations" secondary onPress={onInvitations} />
       <Copy>Keep each journey and its families together.</Copy>
       {preferenceError && <Notice error>{preferenceError}</Notice>}
       {!trips && !api.error && <Loading message="Loading your trips…" />}
@@ -329,6 +370,7 @@ function TripHome({
   onAddFamily,
   onAccount,
   preferenceError,
+  onAccess,
   onItinerary,
 }: {
   tripId: string;
@@ -339,6 +381,7 @@ function TripHome({
   onAddFamily: () => void;
   onAccount: () => void;
   preferenceError: string;
+  onAccess: () => void;
   onItinerary: () => void;
 }) {
   const api = useTripRequest();
@@ -393,6 +436,7 @@ function TripHome({
       {detail && (
         <>
           <Heading>{detail.trip.name}</Heading>
+          <TripLink title="Trip members & invitations" onPress={onAccess} />
           <Copy muted>
             {detail.trip.kind === "hajj" ? "Hajj" : "Umrah"} ·{" "}
             {detail.trip.role === "organizer"
@@ -462,12 +506,14 @@ function FamilyRoster({
   onBack,
   onAdd,
   onAccount,
+  onAccess,
 }: {
   tripId: string;
   familyId: string;
   onBack: () => void;
   onAdd: () => void;
   onAccount: () => void;
+  onAccess: () => void;
 }) {
   const api = useTripRequest();
   const [family, setFamily] = useState<Family | null>(null);
@@ -514,6 +560,11 @@ function FamilyRoster({
       {travelers && (
         <>
           <Heading>{family?.name ?? "Family roster"}</Heading>
+          <Action
+            title="Family members & access"
+            secondary
+            onPress={onAccess}
+          />
           <Copy>
             Travelers are people on this journey. Adding a traveler does not
             create an account or grant trip access.
