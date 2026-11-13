@@ -1,0 +1,11 @@
+appId: in.nmtsolutions.travel
+---
+# Prepared, unrun. Start while reading a trip-shared fixture attachment as another
+# family. Revoke its audience or this account's membership from the owner device.
+- assertVisible: "Temporary view.*Not saved offline"
+- extendedWaitUntil:
+    visible: "Travel attachments"
+    timeout: 60000
+- assertNotVisible: "Open ${FILES_PDF_NAME}"
+- assertNotVisible: "PDF ready.*"
+# Repeat family-grant loss for a private photo, including during a paused GET.

@@ -12,6 +12,7 @@ import { useTheme } from "./theme";
 import { useTripRequest } from "./use-trip-request";
 import { itineraryApi } from "./itinerary-api";
 import { tripApi } from "./trip-api";
+import { TravelFilesScreen } from "./travel-files-screen";
 import {
   EntryActionForm,
   EntryForm,
@@ -113,6 +114,7 @@ export function ItineraryOverview({
 }
 
 type Editor =
+  | { mode: "files"; entryId?: string }
   | { mode: "phase" }
   | { mode: "references" }
   | {
@@ -172,6 +174,14 @@ export function ItineraryScreen({
     setEditor(null);
   };
   if (data && editor) {
+    if (editor.mode === "files")
+      return (
+        <TravelFilesScreen
+          tripId={tripId}
+          target={{ kind: "attachment", entryId: editor.entryId }}
+          onBack={onCancel}
+        />
+      );
     const props = { tripId, onSaved, onCancel };
     if (editor.mode === "phase")
       return (
@@ -229,6 +239,11 @@ export function ItineraryScreen({
             )}
           </Section>
           <Section title="Trip travel references">
+            <Action
+              title="Files for trip travel details"
+              secondary
+              onPress={() => setEditor({ mode: "files" })}
+            />
             <References value={data.itinerary} />
             {!data.itinerary.accommodationAddress &&
               !data.itinerary.transportReference &&
@@ -265,6 +280,11 @@ export function ItineraryScreen({
               <Copy muted>End</Copy>
               <Time value={entry.endsAt} />
               <References value={entry} />
+              <Action
+                title={`Files for ${entry.title}`}
+                secondary
+                onPress={() => setEditor({ mode: "files", entryId: entry.id })}
+              />
               {!!entry.notes && <Copy>{entry.notes}</Copy>}
               {entry.kind === "hajj_milestone" && (
                 <Notice>
