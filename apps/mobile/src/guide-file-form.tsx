@@ -241,6 +241,7 @@ export function GuideFileForm({
           </Copy>
           <Field
             label="Guide title"
+            testID="guide-file-title"
             value={title}
             onChangeText={setTitle}
             editable={!locked}
@@ -248,6 +249,7 @@ export function GuideFileForm({
           />
           <Field
             label="Category"
+            testID="guide-file-category"
             value={category}
             onChangeText={setCategory}
             editable={!locked}

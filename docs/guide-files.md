@@ -149,6 +149,15 @@ installed Android preview after signing into a currently permitted account. It
 requires actual renderer callbacks for both formats, keeps in-app Close visible,
 checks the temporary/not-offline label and exercises image zoom and Back.
 
+`apps/mobile/.maestro/guide-files-upload.yaml` additionally covers creation,
+the real system picker, direct upload/finalization and the renderer callback.
+Stage a harmless file in Android DocumentsUI's Recent list; runner-only
+`GUIDE_FAMILY`, `GUIDE_FILE_TITLE`, `GUIDE_PICKER_NAME` and `GUIDE_EXPECT_READY`
+select the family, unique title, accessible picker row and expected PDF/image
+renderer status. Repeat for the four supported types. Cloud/device providers
+whose picker layout differs need manual selection and the checks below. Neither
+prepared flow has been run; their parameters are not application configuration.
+
 The full physical-device check must also:
 
 1. Upload PDF/JPEG/PNG/WebP through real local/cloud document providers, including
@@ -186,7 +195,34 @@ transactions; every behavior assertion uses HTTP/file responses, never direct
 SQL. Red/green slices observed missing upload/authorization endpoints before
 their implementations.
 
-Final check results and native build outcome are recorded below after verification.
+Local verification after merging integration tip `9180975` (including #6):
+
+- All 53 authenticated HTTP/PostgreSQL tests passed using the normal Node test
+  runner with `--import tsx`, without forced exit or skipped tests. The earlier
+  `tsx --test` wrapper stalled after the merged Checklist assertions and process
+  cleanup; the npm test command now uses the successful direct Node invocation.
+  Before merging, the original npm invocation passed all 46 tests.
+- Workspace TypeScript checks, Next production API build without service
+  credentials, repository Prettier and `git diff --check` passed.
+- Expo Android prebuild, SDK dependency compatibility, Expo Doctor **20/20**,
+  and Android JavaScript export (`--no-bytecode`) passed. Doctor's first schema
+  check hit a transient Expo API TLS error; its retry passed all checks.
+- Local x86_64 development-client `:app:assembleDebug` passed, compiling the new
+  PDF, blob-util, document-picker and file-system native modules. The initial
+  invocation exhausted Gradle's 512 MB Metaspace. The successful local invocation
+  used the existing Windows CMake workaround with two workers and more memory:
+
+  ```powershell
+  .\gradlew.bat :app:assembleDebug --no-daemon --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=1536m' '-PreactNativeArchitectures=x86_64' '-Pkotlin.incremental=false' '-Pkotlin.compiler.execution.strategy=in-process' --init-script ../scripts/windows-cmake.gradle
+  ```
+
+  This is local build configuration, not a new app/deployment variable. The merged
+  Android manifest excludes the three blocked shared-storage/download permissions.
+  The APK is an uninstalled debug development client requiring Metro and actual
+  service configuration, not a signed physical-device preview or release. The
+  JS-only export does not establish Hermes bytecode compilation. No device is
+  attached (`adb devices` is empty) and Maestro is unavailable.
+
 No live service/device acceptance has run: correct Tauqeer Vercel CLI access,
 Clerk/Neon/private R2 setup, migration 010 on Neon, deployed multi-account file
 operations, signed physical-device preview, in-app rendering/no-download flows,
