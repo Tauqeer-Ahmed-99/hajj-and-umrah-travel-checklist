@@ -51,6 +51,29 @@ const dueAt = {
   timeZone: "Asia/Riyadh",
 };
 
+async function notificationsSettled(token: string) {
+  // Manual dispatch does not join a job already claimed by Next's after callback.
+  // Wait through the public status API before asserting exact provider effects.
+  const deadline = Date.now() + 6000;
+  while (true) {
+    const status = await fixture.request("/api/notifications", token);
+    assert.equal(status.status, 200, fixture.logs());
+    const deliveries: { kind: string; state: string }[] =
+      status.data.deliveries;
+    if (
+      !deliveries.some((delivery) =>
+        ["pending", "sending"].includes(delivery.state),
+      )
+    )
+      return;
+    assert.ok(
+      Date.now() < deadline,
+      `Notification work did not settle: ${JSON.stringify(deliveries)}`,
+    );
+    await new Promise((done) => setTimeout(done, 25));
+  }
+}
+
 test("owned reminders retain explicit zones and categories through restart; creation retries do not duplicate records", async () => {
   const owner = await member("reminder_owner");
   const journey = await trip(owner);
@@ -458,6 +481,7 @@ test("important accepted assignments and trip changes dispatch according to pref
   );
   assert.equal(created.status, 201, fixture.logs());
   await fixture.request(`${checklist}/entries`, owner.token, input, "POST");
+  let releaseAfterInvocation: (() => void) | undefined;
   const drain = async () => {
     const result = await fixture.request(
       "/api/notifications/dispatch",
@@ -466,6 +490,11 @@ test("important accepted assignments and trip changes dispatch according to pref
       "POST",
     );
     assert.equal(result.status, 200, fixture.logs());
+    if (releaseAfterInvocation) {
+      setImmediate(releaseAfterInvocation);
+      releaseAfterInvocation = undefined;
+    }
+    await notificationsSettled(target.token);
   };
   await drain();
   assert.equal(fixture.pushes.length, 1);
@@ -484,14 +513,38 @@ test("important accepted assignments and trip changes dispatch according to pref
   );
   await drain();
   assert.equal(fixture.pushes.length, 1);
-  await fixture.request(
+  const heldPush = fixture.holdNextPush();
+  const changed = await fixture.request(
     `${journey.path}/itinerary`,
     owner.token,
     { meetingPoint: "SECRET hotel lobby" },
     "PATCH",
   );
-  await drain();
-  assert.equal(fixture.pushes.length, 2);
+  assert.equal(changed.status, 200, fixture.logs());
+  try {
+    await Promise.race([
+      heldPush.received,
+      new Promise<never>((_, reject) => {
+        setTimeout(
+          () => reject(new Error("Expected automatic provider push")),
+          5000,
+        ).unref();
+      }),
+    ]);
+    const inFlight = await fixture.request("/api/notifications", target.token);
+    assert.equal(inFlight.status, 200, fixture.logs());
+    assert.ok(
+      inFlight.data.deliveries.some(
+        (delivery: { kind: string; state: string }) =>
+          delivery.kind === "tripChanges" && delivery.state === "sending",
+      ),
+    );
+    releaseAfterInvocation = heldPush.release;
+    await drain();
+    assert.equal(fixture.pushes.length, 2);
+  } finally {
+    heldPush.release();
+  }
   assert.ok(!JSON.stringify(fixture.pushes).includes("SECRET"));
   await fixture.request(
     "/api/notifications",
@@ -516,7 +569,10 @@ test("important accepted assignments and trip changes dispatch according to pref
       category: "expected_delivery",
       title: "Private delivery",
       ownerMemberId: target.id,
-      dueAt: { dateTime: "2026-11-01T09:00:00+03:00", timeZone: "Asia/Riyadh" },
+      dueAt: {
+        dateTime: "2026-11-01T09:00:00+03:00",
+        timeZone: "Asia/Riyadh",
+      },
     },
     "POST",
   );
@@ -610,6 +666,7 @@ test("acknowledged native schedules suppress fallback pushes and registrations c
       ).status,
       200,
     );
+  await notificationsSettled(owner.token);
   assert.equal(fixture.pushes.length, count);
   assert.ok(
     (
@@ -808,6 +865,7 @@ test("an owned delivery reminder can reference another responsible member's item
     {},
     "POST",
   );
+  await notificationsSettled(owner.token);
   assert.equal(
     fixture.pushes.length,
     before + 1,
@@ -836,6 +894,7 @@ test("an owned delivery reminder can reference another responsible member's item
     {},
     "POST",
   );
+  await notificationsSettled(target.token);
   assert.equal(
     fixture.pushes.length,
     before + 2,
