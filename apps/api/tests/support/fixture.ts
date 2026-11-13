@@ -69,6 +69,8 @@ export async function startFixture(
   let providerUnavailable = false;
   const pushes: unknown[] = [];
   let pushOutcome: "ok" | "unknown" | "unregistered" = "ok";
+  let nextPush: { received: () => void; resume: Promise<void> } | undefined;
+  let releasePush: (() => void) | undefined;
   const provider = createServer(async (req, res) => {
     const path = new URL(req.url ?? "/", "http://localhost").pathname;
     output += `\nProvider: ${path}\n`;
@@ -76,6 +78,12 @@ export async function startFixture(
     if (path === "/push/send") {
       let body = "";
       for await (const chunk of req) body += chunk;
+      const held = nextPush;
+      nextPush = undefined;
+      if (held) {
+        held.received();
+        await held.resume;
+      }
       pushes.push(JSON.parse(body));
       if (pushOutcome === "unknown") {
         req.socket.destroy();
@@ -259,6 +267,7 @@ export async function startFixture(
     throw new Error(`Next.js failed to start: ${output}`);
   }
   async function cleanup() {
+    releasePush?.();
     await stopApi();
     await new Promise<void>((done) => provider.close(() => done()));
     await postgres.stop();
@@ -296,6 +305,26 @@ export async function startFixture(
     close: cleanup,
     logs: () => output,
     pushes,
+    // Pin a request at the external provider boundary without replacing dispatch.
+    holdNextPush: () => {
+      if (releasePush) throw new Error("A provider push is already held");
+      let received!: () => void;
+      let resume!: () => void;
+      const arrived = new Promise<void>((done) => {
+        received = done;
+      });
+      const proceed = new Promise<void>((done) => {
+        resume = done;
+      });
+      const release = () => {
+        if (releasePush !== release) return;
+        releasePush = undefined;
+        resume();
+      };
+      releasePush = release;
+      nextPush = { received, resume: proceed };
+      return { received: arrived, release };
+    },
     pushOutcome: (value: typeof pushOutcome) => {
       pushOutcome = value;
     },

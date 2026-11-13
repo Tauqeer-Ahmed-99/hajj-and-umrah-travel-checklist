@@ -114,6 +114,10 @@ the daily server fallback can be late by a day or more. This is deliberately
 compatible with Hobby's daily, hour-window cron rather than assuming a paid plan
 or minute-level server scheduling. A bounded backlog drains on later accepted
 events/daily runs; this is a family-travel workload, not a throughput guarantee.
+An invocation's `processed` response does not join jobs already claimed by another
+dispatcher. Those jobs can still appear as `sending` in the member's notification
+status until their provider attempt finishes; the response does not confirm
+delivery.
 
 Events and per-device jobs have unique database keys. Dispatch rechecks current
 preferences, trip/family/item permissions, reference state, assigned recipient,
@@ -185,6 +189,19 @@ prebuild, JavaScript export and Gradle manifest processing passed. The combined
 manifest preserves the blocked file-storage/download permissions while including
 notification permission, boot recovery and Expo/FCM services. Final production
 build, workspace TypeScript, formatting and whitespace checks also passed.
+
+During summaries integration, a full run exposed an immediate provider count of
+one instead of two. A controlled external provider gate reproduced the failure:
+the manual dispatcher returned while the post-response dispatcher already owned
+the trip-change job. Public notification status remained `sending`; release
+completed it as `provider_accepted` exactly once. This was a test synchronization
+error, not evidence of a lost product event in the reproduced scenario. The HTTP
+test now pins this overlap and waits for public `pending`/`sending` states to settle
+before its unchanged exact count and payload checks. The wait is bounded; failures
+and unknown outcomes are still asserted, and no send is retried. Production
+asynchronous dispatch remains unchanged. See [combined evidence](travel-summaries.md#final-combined-results)
+for the observed red/green command and integration results. This local boundary
+check does not establish native delivery or remove the operational gaps below.
 
 Prepared physical journeys (not executed passes):
 
