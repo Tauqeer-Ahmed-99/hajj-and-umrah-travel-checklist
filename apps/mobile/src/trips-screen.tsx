@@ -63,10 +63,16 @@ export function TripsScreen({
 }) {
   const [route, setRoute] = useState<Route | null>(null);
   const [preferenceError, setPreferenceError] = useState("");
-  useEffect(() => onTripCacheRevoked(() => {
-    setRoute({ screen: "list" });
-    setPreferenceError("Trip access changed. Open a permitted trip again after refreshing.");
-  }), []);
+  useEffect(
+    () =>
+      onTripCacheRevoked(() => {
+        setRoute({ screen: "list" });
+        setPreferenceError(
+          "Trip access changed. Open a permitted trip again after refreshing.",
+        );
+      }),
+    [],
+  );
   useEffect(() => {
     let active = true;
     restoreTripNavigation(profile.id)
