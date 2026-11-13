@@ -30,6 +30,7 @@ export type FormProps = {
   scope: ChecklistScope;
   onSaved: () => void;
   onCancel: () => void;
+  subject?: string;
 };
 type Validator<T> = {
   safeParse: (value: unknown) =>
@@ -45,6 +46,7 @@ export function useSave<T>(
   props: FormProps,
 ) {
   const api = useTripRequest();
+  const subject = props.subject ?? "checklist";
   const [pending, setPending] = useState<T | null>(null);
   const [validation, setValidation] = useState<Record<string, string>>({});
   // Keep uncertainty latched during an explicit retry, including while its error is reset.
@@ -78,14 +80,14 @@ export function useSave<T>(
   const cancel = () => {
     if (api.busy) return;
     Alert.alert(
-      uncertain ? "Check the saved checklist?" : "Leave this form?",
+      uncertain ? `Check the saved ${subject}?` : "Leave this form?",
       uncertain
         ? "This change may already be saved. Refresh before starting another change. Nothing is queued."
         : "Unsaved details will be cleared.",
       [
         { text: "Keep editing", style: "cancel" },
         {
-          text: uncertain ? "Check saved checklist" : "Leave form",
+          text: uncertain ? `Check saved ${subject}` : "Leave form",
           onPress: props.onCancel,
         },
       ],
@@ -100,6 +102,7 @@ export function useSave<T>(
   }, [api.busy, uncertain, props.onCancel]);
   return {
     ...api,
+    subject,
     fields: { ...api.error?.fields, ...validation },
     uncertain,
     locked: api.busy || uncertain,
@@ -124,7 +127,7 @@ export function SaveActions({
       {save.uncertain && !save.busy && (
         <Notice>
           We could not confirm the change. Retry the same details, or check the
-          saved checklist.
+          saved {save.subject}.
         </Notice>
       )}
       <Action
@@ -135,7 +138,7 @@ export function SaveActions({
         onPress={onSave}
       />
       <Action
-        title={save.uncertain ? "Check saved checklist" : "Cancel"}
+        title={save.uncertain ? `Check saved ${save.subject}` : "Cancel"}
         secondary
         disabled={save.busy}
         onPress={save.cancel}

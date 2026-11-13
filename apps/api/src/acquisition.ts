@@ -90,8 +90,8 @@ export type QuantityPatch = Partial<
 
 // All item mutations (including the older checklist endpoints) meet here under
 // the owning family lock, with the same transaction and permission locks.
-// #8 must extend this boundary with actual allocation checks before reducing
-// availability/requirements or removing an entry. There are no bags yet.
+// Checklist callers also run preservePacking against real outbound allocations
+// before accepting availability/requirement changes or removing an entry.
 export function validateAcquisition(
   current: ChecklistEntry,
   patch: QuantityPatch,

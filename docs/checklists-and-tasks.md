@@ -5,6 +5,11 @@ is now implemented by [#7](acquisition.md), which extends item responses and gua
 legacy item requirement PATCH and removal with quantities, reasons and retry IDs.
 Tasks still have no acquisition ledger or packing behavior.
 
+[#8](packing.md) adds independent outbound bag/traveler allocations and extends
+all item mutation paths with allocation guards. The original #6 description
+below records that slice's scope; use the linked acquisition/packing contracts
+for current quantities and carrying-location behavior.
+
 Family-private checklist categories and entries persist in PostgreSQL. A category
 can contain supply requirements and non-packing tasks. This slice records required
 quantities only: it records no purchase, physical availability, bag allocation,
