@@ -321,23 +321,34 @@ function publish(
     }
   }
   if (/\/shared\?leg=(outbound|return)$/.test(path)) {
-    try {
-      const previous = sharedContentResponse.parse(
-        JSON.parse(new File(directory, name(path)).textSync()).data,
-      );
-      const next = sharedContentResponse.parse(record.data);
-      removedShared = {
-        items: previous.items
-          .filter(
-            (item) => !next.items.some((n) => n.entry.id === item.entry.id),
-          )
-          .map((item) => item.entry.id),
-        bags: previous.bags
-          .filter((bag) => !next.bags.some((n) => n.id === bag.id))
-          .map((bag) => bag.id),
-      };
-    } catch {
-      /* No prior compatible shared snapshot. */
+    const next = sharedContentResponse.parse(record.data);
+    // Both complete shared responses carry canonical items/bags; only packing
+    // and activity vary by leg. Include an older opposite-leg-only cache too.
+    for (const leg of ["outbound", "return"]) {
+      try {
+        const previous = sharedContentResponse.parse(
+          JSON.parse(
+            new File(
+              directory,
+              name(path.replace(/leg=(outbound|return)$/, `leg=${leg}`)),
+            ).textSync(),
+          ).data,
+        );
+        removedShared.items.push(
+          ...previous.items
+            .filter(
+              (item) => !next.items.some((n) => n.entry.id === item.entry.id),
+            )
+            .map((item) => item.entry.id),
+        );
+        removedShared.bags.push(
+          ...previous.bags
+            .filter((bag) => !next.bags.some((n) => n.id === bag.id))
+            .map((bag) => bag.id),
+        );
+      } catch {
+        /* No prior compatible snapshot for this leg. */
+      }
     }
   }
   lostSharedAccess =

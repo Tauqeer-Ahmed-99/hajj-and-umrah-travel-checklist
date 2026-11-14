@@ -148,6 +148,14 @@ export function GuideForm({
   const [familyId, setFamilyId] = useState(
     initial?.familyId ?? families[0]?.id ?? "",
   );
+  useEffect(() => {
+    if (
+      !initial &&
+      familyId &&
+      !families.some((family) => family.id === familyId)
+    )
+      onCancel();
+  }, [initial, familyId, families, onCancel]);
   const [kind, setKind] = useState<Guide["kind"]>(initial?.kind ?? "text");
   const [title, setTitle] = useState(initial?.title ?? "");
   const [category, setCategory] = useState(initial?.category ?? "");

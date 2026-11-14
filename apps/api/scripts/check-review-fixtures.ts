@@ -357,6 +357,141 @@ if (command === "seed" || command === "resume") {
         accepted: true,
       }),
     );
+  } else if (
+    command === "change-recovery-guide" ||
+    command === "change-recovery-travel"
+  ) {
+    const kind =
+      command === "change-recovery-guide" ? "guides" : "travel-files";
+    const events = (await readFile(resolve(directory, "network.jsonl"), "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    const accepted = events.findLast(
+      (event) =>
+        event.decision === "lost-accepted-finalize" &&
+        event.path.includes(`/${kind}/`),
+    );
+    assert.ok(accepted?.path.startsWith(e.refs.b));
+    assert.equal(accepted.version, kind === "guides" ? 2 : 1);
+    const path = accepted.path.split("/uploads/")[0];
+    e.refs[kind === "guides" ? "greenGuide" : "greenTravel"] = path;
+    if (kind === "guides") {
+      const current = await request(native, path);
+      assert.equal(current.guide.title, "Recovery green");
+      await request(native, path, "PATCH", {
+        requestId: randomUUID(),
+        title: "Recovery green current",
+        audience: "trip",
+      });
+    } else
+      await request(native, `${path}/visibility`, "POST", {
+        requestId: randomUUID(),
+        audience: "trip",
+      });
+    await record();
+    console.log(
+      JSON.stringify({
+        currentMetadataAdvanced: kind,
+        acceptedFile: accepted.file,
+        acceptedVersion: accepted.version,
+      }),
+    );
+  } else if (
+    command === "verify-recovery-guide" ||
+    command === "verify-recovery-travel"
+  ) {
+    const guide = command === "verify-recovery-guide";
+    const path = e.refs[guide ? "greenGuide" : "greenTravel"];
+    const result = await request(
+      native,
+      guide ? path : `${e.refs.b}/travel-files`,
+    );
+    const value = guide
+      ? result.guide
+      : result.records.find(
+          (record: any) => record.id === path.split("/").at(-1),
+        );
+    assert.equal(value.version, guide ? 3 : 2);
+    assert.equal(value.audience, "trip");
+    if (guide) {
+      assert.equal(value.title, "Recovery green current");
+      const history = await request(native, `${path}/history`);
+      assert.equal(
+        history.versions.filter((version: any) =>
+          version.changedFields.includes("file"),
+        ).length,
+        1,
+      );
+      assert.equal(
+        new Set(
+          history.versions
+            .filter((version: any) => version.guide.file)
+            .map((version: any) => version.guide.file.id),
+        ).size,
+        1,
+      );
+    }
+    const uploads = await request(native, `${path}/uploads`);
+    assert.equal(uploads.uploads.length, 0);
+    console.log(
+      JSON.stringify({
+        confirmed: command,
+        version: value.version,
+        file: value.file.id,
+        audience: value.audience,
+        pending: 0,
+      }),
+    );
+  } else if (command === "verify-revoked-guide") {
+    await request(native, e.refs.a);
+    await request(native, e.refs.guide, "GET", undefined, 404);
+    await request(
+      native,
+      `${e.refs.guide}/copy-access`,
+      "POST",
+      { version: 4 },
+      404,
+    );
+    console.log(
+      "PASS: trip membership retained; current guide and exact shared historical version denied",
+    );
+  } else if (command === "grant-guide-family") {
+    const offered = await request(
+      owner,
+      `${e.refs.a}/invitations`,
+      "POST",
+      {
+        recipient: { kind: "username", value: native.username },
+        tripRole: "organizer",
+        familyId: e.refs.otherFamily.split("/").at(-1),
+        familyRole: "editor",
+      },
+      201,
+    );
+    await request(
+      native,
+      `/api/invitations/${offered.invitation.id}/accept`,
+      "POST",
+      {},
+    );
+  } else if (command === "revoke-guide-family") {
+    await request(
+      owner,
+      `${e.refs.otherFamily}/members/${native.member}`,
+      "DELETE",
+    );
+    await request(native, e.refs.guide);
+    await request(
+      native,
+      `${e.refs.guide}/copy-access`,
+      "POST",
+      { version: 2 },
+      404,
+    );
+    console.log(
+      "PASS: current shared guide still permitted; exact private historical version denied",
+    );
   } else if (command === "cleanup") {
     for (const id of e.trips) {
       const t = await request(native, `/api/trips/${id}`);

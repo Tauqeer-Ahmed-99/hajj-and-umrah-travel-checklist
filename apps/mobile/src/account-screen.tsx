@@ -190,16 +190,24 @@ export function AccountScreen() {
           if (origin)
             await refreshTripCache(origin, getToken, controller.signal);
           // Metadata checks only. No object downloads, exports or save retries.
-          void refreshSavedGuideAccess(copies, token, controller.signal).catch(
-            () => {
+          const copyToken = await getToken();
+          if (
+            copyToken &&
+            current === generation.current &&
+            !controller.signal.aborted
+          )
+            void refreshSavedGuideAccess(
+              copies,
+              copyToken,
+              controller.signal,
+            ).catch(() => {
               if (copies.controller.signal.aborted) {
                 setCleanupBlocked(true);
                 setError(
                   "Private copy cleanup failed. Retry cleanup before opening private data.",
                 );
               }
-            },
-          );
+            });
           if (current === generation.current && !controller.signal.aborted)
             acceptedTravelChange();
         } else {

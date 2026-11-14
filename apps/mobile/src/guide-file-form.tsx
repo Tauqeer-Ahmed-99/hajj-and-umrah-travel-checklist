@@ -39,6 +39,14 @@ export function GuideFileForm({
     finish: guideFileApi.finish.bind(null, tripId),
   };
   const [familyId, setFamilyId] = useState(families[0]?.id ?? "");
+  useEffect(() => {
+    if (
+      !initial &&
+      familyId &&
+      !families.some((family) => family.id === familyId)
+    )
+      onCancel();
+  }, [initial, familyId, families, onCancel]);
   const [title, setTitle] = useState(""),
     [category, setCategory] = useState("");
   const [description, setDescription] = useState(""),

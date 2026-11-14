@@ -10,6 +10,7 @@ import { Action, Copy, Field, Heading, Loading, Notice, Screen } from "./ui";
 import { guideApi } from "./guide-api";
 import { tripApi } from "./trip-api";
 import { useTripRequest } from "./use-trip-request";
+import { onTripCacheRevoked } from "./trip-cache";
 import { GuideChangeForm, GuideForm } from "./guide-forms";
 import { GuideFileForm } from "./guide-file-form";
 import { GuideFileViewer } from "./guide-file-viewer";
@@ -71,6 +72,29 @@ export function GuidesScreen({
       onRemember?.(route.mode === "read" ? route.id : undefined);
   }, [route, onRemember]);
   const [saved, setSaved] = useState(false);
+  useEffect(
+    () =>
+      onTripCacheRevoked((removal) => {
+        if (removal.tripId !== tripId || removal.scope !== "family") return;
+        setRoute((current) => {
+          if (
+            "guide" in current &&
+            current.guide.familyId === removal.familyId &&
+            (current.guide.audience === "family" || current.mode === "audience")
+          )
+            return { mode: "list" };
+          if (current.mode === "new" || current.mode === "new-file")
+            return {
+              ...current,
+              families: current.families.filter(
+                (family) => family.id !== removal.familyId,
+              ),
+            };
+          return current;
+        });
+      }),
+    [tripId],
+  );
   const form = [
     "new",
     "edit",
@@ -404,6 +428,20 @@ function GuideReader({
       setPendingUploads(result.pending);
     }
   }, [api.run, tripId, id, copies]);
+  useEffect(
+    () =>
+      onTripCacheRevoked((removal) => {
+        if (
+          removal.tripId !== tripId ||
+          removal.scope !== "family" ||
+          guide?.familyId !== removal.familyId
+        )
+          return;
+        if (guide.audience === "family") setGuide(null);
+        void load();
+      }),
+    [tripId, guide?.familyId, guide?.audience, load],
+  );
   useRefresh(load);
   useEffect(() => {
     if (api.error && [401, 403, 404].includes(api.error.status)) setGuide(null);
