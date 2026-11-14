@@ -12,6 +12,18 @@ const command = process.argv[2];
 const directory = resolve(".local/review-native");
 await mkdir(directory, { recursive: true });
 const inventoryPath = resolve(directory, "inventory.json");
+if (command === "seed") {
+  const previous = await readFile(inventoryPath, "utf8")
+    .then((value) => JSON.parse(value))
+    .catch((error) => {
+      if (error.code === "ENOENT") return null;
+      throw error;
+    });
+  assert.ok(
+    !previous || previous.cleaned,
+    "Clean the inventoried fixture before starting another seed.",
+  );
+}
 type Person = { id: string; session: string; member: string; username: string };
 type Inventory = {
   marker: string;
@@ -269,7 +281,7 @@ if (command === "seed" || command === "resume") {
         await fetch(auth.url, {
           method: "PUT",
           headers: auth.headers,
-          body: bytes,
+          body: new Uint8Array(bytes),
         })
       ).ok,
     );
@@ -325,6 +337,15 @@ if (command === "seed" || command === "resume") {
       "Disposable B other record",
     );
     await record();
+  } else if (command === "prepare-final-cache") {
+    e.refs.privateRetained = await entry(
+      native,
+      e.refs.af,
+      "Retained private A task",
+    );
+    await visibility(owner, e.refs.shared, "trip");
+    await visibility(owner, e.refs.bag, "trip");
+    await record();
   } else if (command === "verify-draft") {
     const checklist = await request(native, `${e.refs.bf}/checklist`);
     assert.equal(
@@ -339,10 +360,12 @@ if (command === "seed" || command === "resume") {
       .trim()
       .split("\n")
       .map((line) => JSON.parse(line));
-    const authorized = events.findLast(
-      (event) =>
-        event.path?.includes("/guides/") && event.path.endsWith("/authorize"),
-    );
+    const authorized = events
+      .reverse()
+      .find(
+        (event) =>
+          event.path?.includes("/guides/") && event.path.endsWith("/authorize"),
+      );
     assert.ok(authorized?.path.startsWith(e.refs.b));
     e.refs.redGuide = authorized.path.split("/uploads/")[0];
     const current = await request(native, e.refs.redGuide);
@@ -367,11 +390,13 @@ if (command === "seed" || command === "resume") {
       .trim()
       .split("\n")
       .map((line) => JSON.parse(line));
-    const accepted = events.findLast(
-      (event) =>
-        event.decision === "lost-accepted-finalize" &&
-        event.path.includes(`/${kind}/`),
-    );
+    const accepted = events
+      .reverse()
+      .find(
+        (event) =>
+          event.decision === "lost-accepted-finalize" &&
+          event.path.includes(`/${kind}/`),
+      );
     assert.ok(accepted?.path.startsWith(e.refs.b));
     assert.equal(accepted.version, kind === "guides" ? 2 : 1);
     const path = accepted.path.split("/uploads/")[0];
