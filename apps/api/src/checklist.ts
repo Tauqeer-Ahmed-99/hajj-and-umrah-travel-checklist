@@ -1,4 +1,6 @@
-import type { PoolClient } from "pg";
+import { and, eq, sql } from "drizzle-orm";
+import { checklistEntries } from "./schema";
+import type { DatabaseTransaction } from "./database";
 import {
   checklistEntryInput,
   checklistStarters,
@@ -18,6 +20,7 @@ import {
   invalidAcquisition,
   moveQuantities,
   validateAcquisition,
+  type QuantityPatch,
 } from "./acquisition";
 import { randomUUID } from "node:crypto";
 import { requireFamilyAccess, resourceId } from "./permissions";
@@ -33,27 +36,26 @@ export const entryColumns = `id, family_id AS "familyId", category_id AS "catego
   priority, due_date::text AS "dueDate", notes, leg, source, last_reviewed_on::text AS "lastReviewedOn", task_status AS "taskStatus", ${acquisitionColumns}`;
 
 export async function lockChecklist(
-  db: PoolClient,
+  db: DatabaseTransaction,
   memberId: string,
   tripId: string,
   familyId: string,
 ) {
   await requireFamilyAccess(db, memberId, tripId, familyId, "edit");
-  await db.query("SELECT id FROM families WHERE id = $1 FOR UPDATE", [
-    familyId,
-  ]);
+  await db.execute(
+    sql`SELECT id FROM families WHERE id = ${sql.param(familyId)} FOR UPDATE`,
+  );
 }
 async function entryReferences(
-  db: PoolClient,
+  db: DatabaseTransaction,
   tripId: string,
   familyId: string,
   input: ChecklistEntryPatch,
   shared = false,
 ) {
   if (input.categoryId) {
-    const category = await db.query(
-      "SELECT id FROM checklist_categories WHERE id = $1 AND family_id = $2 AND removed_at IS NULL",
-      [input.categoryId, familyId],
+    const category = await db.execute(
+      sql`SELECT id FROM checklist_categories WHERE id = ${sql.param(input.categoryId)} AND family_id = ${sql.param(familyId)} AND removed_at IS NULL`,
     );
     if (!category.rowCount)
       throw new HttpError(
@@ -64,14 +66,11 @@ async function entryReferences(
       );
   }
   if (input.responsibleMemberId) {
-    const responsible = await db.query(
+    const responsible = await db.execute(
       shared
-        ? `SELECT member_id FROM trip_members WHERE trip_id = $1 AND member_id = $2 FOR SHARE`
-        : `SELECT fm.member_id FROM family_members fm JOIN trip_members tm ON tm.trip_id = fm.trip_id AND tm.member_id = fm.member_id
-    WHERE fm.trip_id = $1 AND fm.family_id = $2 AND fm.member_id = $3 FOR SHARE OF fm, tm`,
-      shared
-        ? [tripId, input.responsibleMemberId]
-        : [tripId, familyId, input.responsibleMemberId],
+        ? sql`SELECT member_id FROM trip_members WHERE trip_id = ${sql.param(tripId)} AND member_id = ${sql.param(input.responsibleMemberId)} FOR SHARE`
+        : sql`SELECT fm.member_id FROM family_members fm JOIN trip_members tm ON tm.trip_id = fm.trip_id AND tm.member_id = fm.member_id
+    WHERE fm.trip_id = ${sql.param(tripId)} AND fm.family_id = ${sql.param(familyId)} AND fm.member_id = ${sql.param(input.responsibleMemberId)} FOR SHARE OF fm, tm`,
     );
     if (!responsible.rowCount)
       throw new HttpError(
@@ -82,9 +81,8 @@ async function entryReferences(
       );
   }
   if (input.beneficiaries?.kind === "families") {
-    const families = await db.query(
-      "SELECT id FROM families WHERE trip_id = $1 AND id = ANY($2::uuid[])",
-      [tripId, input.beneficiaries.familyIds],
+    const families = await db.execute(
+      sql`SELECT id FROM families WHERE trip_id = ${sql.param(tripId)} AND id = ANY(${sql.param(input.beneficiaries.familyIds)}::uuid[])`,
     );
     if (!shared || families.rowCount !== input.beneficiaries.familyIds.length)
       throw new HttpError(
@@ -98,9 +96,8 @@ async function entryReferences(
       );
   }
   if (input.beneficiaries?.kind === "travelers") {
-    const travelers = await db.query(
-      "SELECT id FROM travelers WHERE trip_id = $1 AND family_id = $2 AND id = ANY($3::uuid[])",
-      [tripId, familyId, input.beneficiaries.travelerIds],
+    const travelers = await db.execute(
+      sql`SELECT id FROM travelers WHERE trip_id = ${sql.param(tripId)} AND family_id = ${sql.param(familyId)} AND id = ANY(${sql.param(input.beneficiaries.travelerIds)}::uuid[])`,
     );
     if (travelers.rowCount !== input.beneficiaries.travelerIds.length)
       throw new HttpError(
@@ -112,7 +109,7 @@ async function entryReferences(
   }
 }
 async function history(
-  db: PoolClient,
+  db: DatabaseTransaction,
   memberId: string,
   familyId: string,
   entityType: "category" | "entry",
@@ -135,11 +132,10 @@ async function history(
       ]),
   );
   if (!Object.keys(changes).length) return;
-  const recorded = await db.query<{ id: string }>(
-    `INSERT INTO checklist_history (family_id, entity_type, entity_id, action, actor, changes)
-    SELECT $1,$2,$3,$4,jsonb_build_object('id', id, 'firstName', first_name, 'lastName', last_name, 'username', username),$6::jsonb FROM members WHERE id = $5 RETURNING id`,
-    [familyId, entityType, entityId, action, memberId, JSON.stringify(changes)],
-  );
+  const recorded = await db.execute<{
+    id: string;
+  }>(sql`INSERT INTO checklist_history (family_id, entity_type, entity_id, action, actor, changes)
+    SELECT ${sql.param(familyId)},${sql.param(entityType)},${sql.param(entityId)},${sql.param(action)},jsonb_build_object('id', id, 'firstName', first_name, 'lastName', last_name, 'username', username),${sql.param(JSON.stringify(changes))}::jsonb FROM members WHERE id = ${sql.param(memberId)} RETURNING id`);
   if (entityType === "entry" && recorded.rows[0])
     await assignmentChanged(
       db,
@@ -150,11 +146,14 @@ async function history(
       changes,
     );
 }
-async function entry(db: PoolClient, familyId: string, entryId: string) {
+async function entry(
+  db: DatabaseTransaction,
+  familyId: string,
+  entryId: string,
+) {
   resourceId(entryId);
-  const result = await db.query<ChecklistEntry>(
-    `SELECT ${entryColumns} FROM checklist_entries WHERE id = $1 AND family_id = $2 AND removed_at IS NULL`,
-    [entryId, familyId],
+  const result = await db.execute<ChecklistEntry>(
+    sql`SELECT ${sql.raw(entryColumns)} FROM checklist_entries WHERE id = ${sql.param(entryId)} AND family_id = ${sql.param(familyId)} AND removed_at IS NULL`,
   );
   if (!result.rows[0])
     throw new HttpError(
@@ -182,9 +181,8 @@ export function readChecklistHistory(
 ) {
   return transaction(async (db) => {
     await requireFamilyAccess(db, memberId, tripId, familyId);
-    const result = await db.query<ChecklistHistory[number]>(
-      `SELECT id, entity_type AS "entityType", entity_id AS "entityId", action, actor, at, changes FROM checklist_history WHERE family_id = $1 ORDER BY sequence DESC LIMIT 200`,
-      [familyId],
+    const result = await db.execute<ChecklistHistory[number]>(
+      sql`SELECT id, entity_type AS "entityType", entity_id AS "entityId", action, actor, to_char(at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS at, changes FROM checklist_history WHERE family_id = ${sql.param(familyId)} ORDER BY sequence DESC LIMIT 200`,
     );
     return { history: result.rows };
   });
@@ -196,13 +194,11 @@ export function readChecklist(
 ) {
   return transaction(async (db) => {
     const family = await requireFamilyAccess(db, memberId, tripId, familyId);
-    const categories = await db.query<ChecklistCategory>(
-      `SELECT ${categoryColumns} FROM checklist_categories WHERE family_id = $1 AND removed_at IS NULL ORDER BY created_at, id`,
-      [familyId],
+    const categories = await db.execute<ChecklistCategory>(
+      sql`SELECT ${sql.raw(categoryColumns)} FROM checklist_categories WHERE family_id = ${sql.param(familyId)} AND removed_at IS NULL ORDER BY created_at, id`,
     );
-    const entries = await db.query<ChecklistEntry>(
-      `SELECT ${entryColumns} FROM checklist_entries WHERE family_id = $1 AND removed_at IS NULL ORDER BY created_at, id`,
-      [familyId],
+    const entries = await db.execute<ChecklistEntry>(
+      sql`SELECT ${sql.raw(entryColumns)} FROM checklist_entries WHERE family_id = ${sql.param(familyId)} AND removed_at IS NULL ORDER BY created_at, id`,
     );
     return {
       categories: categories.rows,
@@ -255,18 +251,16 @@ export function createChecklistCategory(
       `checklist-category:${tripId}:${familyId}`,
       input,
       async (id) => {
-        await db.query(
-          "INSERT INTO checklist_categories (id, family_id, name) VALUES ($1,$2,$3)",
-          [id, familyId, input.name],
+        await db.execute(
+          sql`INSERT INTO checklist_categories (id, family_id, name) VALUES (${sql.param(id)},${sql.param(familyId)},${sql.param(input.name)})`,
         );
         await history(db, memberId, familyId, "category", id, "created", {
           name: input.name,
         });
       },
     );
-    const result = await db.query<ChecklistCategory>(
-      `SELECT ${categoryColumns} FROM checklist_categories WHERE id = $1 AND family_id = $2 AND removed_at IS NULL`,
-      [id, familyId],
+    const result = await db.execute<ChecklistCategory>(
+      sql`SELECT ${sql.raw(categoryColumns)} FROM checklist_categories WHERE id = ${sql.param(id)} AND family_id = ${sql.param(familyId)} AND removed_at IS NULL`,
     );
     if (!result.rows[0])
       throw new HttpError(
@@ -295,9 +289,8 @@ export function createChecklistEntry(
         await insertEntry(db, memberId, familyId, id, input);
       },
     );
-    const result = await db.query<ChecklistEntry>(
-      `SELECT ${entryColumns} FROM checklist_entries WHERE id = $1 AND family_id = $2 AND removed_at IS NULL`,
-      [id, familyId],
+    const result = await db.execute<ChecklistEntry>(
+      sql`SELECT ${sql.raw(entryColumns)} FROM checklist_entries WHERE id = ${sql.param(id)} AND family_id = ${sql.param(familyId)} AND removed_at IS NULL`,
     );
     if (!result.rows[0])
       throw new HttpError(
@@ -309,34 +302,14 @@ export function createChecklistEntry(
   });
 }
 async function insertEntry(
-  db: PoolClient,
+  db: DatabaseTransaction,
   memberId: string,
   familyId: string,
   id: string,
   input: ChecklistEntryInput,
 ) {
-  await db.query(
-    `INSERT INTO checklist_entries (id, family_id, category_id, kind, title, required_quantity, unit, beneficiaries, responsible_member_id, priority, due_date, notes, leg, source, last_reviewed_on, task_status)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
-    [
-      id,
-      familyId,
-      input.categoryId,
-      input.kind,
-      input.title,
-      input.requiredQuantity,
-      input.unit,
-      JSON.stringify(input.beneficiaries),
-      input.responsibleMemberId,
-      input.priority,
-      input.dueDate,
-      input.notes,
-      input.leg,
-      input.source,
-      input.lastReviewedOn,
-      input.taskStatus,
-    ],
-  );
+  await db.execute(sql`INSERT INTO checklist_entries (id, family_id, category_id, kind, title, required_quantity, unit, beneficiaries, responsible_member_id, priority, due_date, notes, leg, source, last_reviewed_on, task_status)
+    VALUES (${sql.param(id)},${sql.param(familyId)},${sql.param(input.categoryId)},${sql.param(input.kind)},${sql.param(input.title)},${sql.param(input.requiredQuantity)},${sql.param(input.unit)},${sql.param(JSON.stringify(input.beneficiaries))},${sql.param(input.responsibleMemberId)},${sql.param(input.priority)},${sql.param(input.dueDate)},${sql.param(input.notes)},${sql.param(input.leg)},${sql.param(input.source)},${sql.param(input.lastReviewedOn)},${sql.param(input.taskStatus)})`);
   await history(db, memberId, familyId, "entry", id, "created", input);
 }
 export function patchChecklistCategory(
@@ -349,9 +322,8 @@ export function patchChecklistCategory(
   return transaction(async (db) => {
     await lockChecklist(db, memberId, tripId, familyId);
     resourceId(categoryId);
-    const current = await db.query<ChecklistCategory>(
-      `SELECT ${categoryColumns} FROM checklist_categories WHERE id = $1 AND family_id = $2 AND removed_at IS NULL`,
-      [categoryId, familyId],
+    const current = await db.execute<ChecklistCategory>(
+      sql`SELECT ${sql.raw(categoryColumns)} FROM checklist_categories WHERE id = ${sql.param(categoryId)} AND family_id = ${sql.param(familyId)} AND removed_at IS NULL`,
     );
     if (!current.rows[0])
       throw new HttpError(
@@ -359,9 +331,8 @@ export function patchChecklistCategory(
         "not_found",
         "This category is not available to you.",
       );
-    await db.query(
-      "UPDATE checklist_categories SET name = $3 WHERE id = $1 AND family_id = $2",
-      [categoryId, familyId, input.name],
+    await db.execute(
+      sql`UPDATE checklist_categories SET name = ${sql.param(input.name)} WHERE id = ${sql.param(categoryId)} AND family_id = ${sql.param(familyId)}`,
     );
     await history(
       db,
@@ -388,9 +359,8 @@ export function removeChecklistRecord(
     await lockChecklist(db, memberId, tripId, familyId);
     resourceId(id);
     if (kind === "category") {
-      const children = await db.query(
-        "SELECT 1 FROM checklist_entries WHERE category_id = $1 AND family_id = $2 AND removed_at IS NULL",
-        [id, familyId],
+      const children = await db.execute(
+        sql`SELECT 1 FROM checklist_entries WHERE category_id = ${sql.param(id)} AND family_id = ${sql.param(familyId)} AND removed_at IS NULL`,
       );
       if (children.rowCount)
         throw new HttpError(
@@ -403,9 +373,8 @@ export function removeChecklistRecord(
       kind === "category" ? "checklist_categories" : "checklist_entries";
     let current: ChecklistEntry | undefined;
     if (kind === "entry") {
-      const record = await db.query<ChecklistEntry>(
-        `SELECT ${entryColumns} FROM checklist_entries WHERE id = $1 AND family_id = $2 AND removed_at IS NULL`,
-        [id, familyId],
+      const record = await db.execute<ChecklistEntry>(
+        sql`SELECT ${sql.raw(entryColumns)} FROM checklist_entries WHERE id = ${sql.param(id)} AND family_id = ${sql.param(familyId)} AND removed_at IS NULL`,
       );
       current = record.rows[0];
       if (
@@ -420,9 +389,8 @@ export function removeChecklistRecord(
     const remove = async () => {
       if (current)
         await preservePacking(db, familyId, current, { removed: true });
-      const result = await db.query(
-        `UPDATE ${table} SET removed_at = clock_timestamp() WHERE id = $1 AND family_id = $2 AND removed_at IS NULL RETURNING id`,
-        [id, familyId],
+      const result = await db.execute(
+        sql`UPDATE ${sql.raw(table)} SET removed_at = clock_timestamp() WHERE id = ${sql.param(id)} AND family_id = ${sql.param(familyId)} AND removed_at IS NULL RETURNING id`,
       );
       if (result.rowCount)
         await history(
@@ -472,9 +440,8 @@ export function copyChecklistStarter(
             entryId = randomUUID();
           categoryIds.push(categoryId);
           entryIds.push(entryId);
-          await db.query(
-            "INSERT INTO checklist_categories (id, family_id, name) VALUES ($1,$2,$3)",
-            [categoryId, familyId, prompt.category],
+          await db.execute(
+            sql`INSERT INTO checklist_categories (id, family_id, name) VALUES (${sql.param(categoryId)},${sql.param(familyId)},${sql.param(prompt.category)})`,
           );
           await history(
             db,
@@ -504,34 +471,18 @@ export function copyChecklistStarter(
             }),
           );
         }
-        await db.query(
-          "INSERT INTO checklist_copies (id, family_id, category_ids, entry_ids) VALUES ($1,$2,$3,$4)",
-          [id, familyId, categoryIds, entryIds],
+        await db.execute(
+          sql`INSERT INTO checklist_copies (id, family_id, category_ids, entry_ids) VALUES (${sql.param(id)},${sql.param(familyId)},${sql.param(categoryIds)},${sql.param(entryIds)})`,
         );
       },
     );
-    const result = await db.query(
-      `SELECT id AS "copyId", category_ids AS "categoryIds", entry_ids AS "entryIds" FROM checklist_copies WHERE id = $1 AND family_id = $2`,
-      [copyId, familyId],
+    const result = await db.execute(
+      sql`SELECT id AS "copyId", category_ids AS "categoryIds", entry_ids AS "entryIds" FROM checklist_copies WHERE id = ${sql.param(copyId)} AND family_id = ${sql.param(familyId)}`,
     );
     return result.rows[0];
   });
 }
-const entryFields = {
-  categoryId: "category_id",
-  title: "title",
-  requiredQuantity: "required_quantity",
-  unit: "unit",
-  beneficiaries: "beneficiaries",
-  responsibleMemberId: "responsible_member_id",
-  priority: "priority",
-  dueDate: "due_date",
-  notes: "notes",
-  leg: "leg",
-  source: "source",
-  lastReviewedOn: "last_reviewed_on",
-  taskStatus: "task_status",
-} as const;
+
 export function patchChecklistEntry(
   memberId: string,
   tripId: string,
@@ -594,9 +545,8 @@ export function patchChecklistEntry(
           leg: parsed.data.leg,
         });
       }
-      const visibility = await db.query(
-        "SELECT audience FROM checklist_entries WHERE id = $1",
-        [entryId],
+      const visibility = await db.execute(
+        sql`SELECT audience FROM checklist_entries WHERE id = ${sql.param(entryId)}`,
       );
       await entryReferences(
         db,
@@ -606,24 +556,27 @@ export function patchChecklistEntry(
         visibility.rows[0].audience === "trip",
       );
       const keys = (
-        Object.keys(changedFields) as (keyof typeof entryFields)[]
+        Object.keys(changedFields) as (keyof typeof changedFields)[]
       ).filter(
         (key) =>
           JSON.stringify(changedFields[key]) !== JSON.stringify(current[key]),
       );
       if (!keys.length) return;
-      await db.query(
-        `UPDATE checklist_entries SET ${keys.map((key, i) => `${entryFields[key]} = $${i + 3}`).join(", ")} WHERE id = $1 AND family_id = $2`,
-        [
-          entryId,
-          familyId,
-          ...keys.map((key) =>
-            key === "beneficiaries"
-              ? JSON.stringify(changedFields[key])
-              : changedFields[key],
+      await db
+        .update(checklistEntries)
+        .set({
+          ...changedFields,
+          requiredQuantity:
+            changedFields.requiredQuantity === null
+              ? null
+              : changedFields.requiredQuantity?.toString(),
+        })
+        .where(
+          and(
+            eq(checklistEntries.id, entryId),
+            eq(checklistEntries.familyId, familyId),
           ),
-        ],
-      );
+        );
       await history(
         db,
         memberId,
@@ -672,7 +625,7 @@ export function mutateAcquisition(
       `acquisition:${tripId}:${familyId}:${entryId}`,
       input,
       async () => {
-        const changes =
+        const changes: QuantityPatch =
           input.kind === "move" ? moveQuantities(current, input) : input.fields;
         validateAcquisition(current, changes, input, input.kind === "correct");
         await preservePacking(db, familyId, current, changes);
@@ -684,10 +637,24 @@ export function mutateAcquisition(
           Object.keys(changes) as (keyof typeof acquisitionFields)[]
         ).filter((key) => changes[key] !== previous[key]);
         if (!keys.length) return;
-        await db.query(
-          `UPDATE checklist_entries SET ${keys.map((key, i) => `${acquisitionFields[key]} = $${i + 3}`).join(", ")} WHERE id = $1 AND family_id = $2`,
-          [entryId, familyId, ...keys.map((key) => changes[key])],
-        );
+        await db
+          .update(checklistEntries)
+          .set({
+            ordered: changes.ordered?.toString(),
+            delivered: changes.delivered?.toString(),
+            bought: changes.bought?.toString(),
+            received: changes.received?.toString(),
+            alreadyAvailable: changes.alreadyAvailable?.toString(),
+            requiredQuantity: changes.requiredQuantity?.toString(),
+            expectedDeliveryDate: changes.expectedDeliveryDate,
+            notNeededReason: changes.notNeededReason,
+          })
+          .where(
+            and(
+              eq(checklistEntries.id, entryId),
+              eq(checklistEntries.familyId, familyId),
+            ),
+          );
         await history(
           db,
           memberId,

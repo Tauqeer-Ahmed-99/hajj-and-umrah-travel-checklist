@@ -1,4 +1,5 @@
-import type { PoolClient } from "pg";
+import { sql } from "drizzle-orm";
+import type { DatabaseTransaction } from "./database";
 import type {
   ChecklistEntry,
   SharedContent,
@@ -19,16 +20,15 @@ import type { PackingEvent } from "@nmt/contracts";
 import { recordPacking } from "./packing-events";
 
 export async function sharedState(
-  db: PoolClient,
+  db: DatabaseTransaction,
   memberId: string,
   tripId: string,
   leg: "outbound" | "return" = "outbound",
   activityEntryId?: string,
 ): Promise<SharedContent> {
   await requireTripAccess(db, memberId, tripId);
-  const families = await db.query<{ id: string }>(
-    "SELECT id FROM families WHERE trip_id = $1 ORDER BY id FOR SHARE",
-    [tripId],
+  const families = await db.execute<{ id: string }>(
+    sql`SELECT id FROM families WHERE trip_id = ${sql.param(tripId)} ORDER BY id FOR SHARE`,
   );
   const items: SharedContent["items"] = [];
   const bags: SharedContent["bags"] = [];
@@ -40,13 +40,11 @@ export async function sharedState(
       tripId,
       family.id,
     );
-    const entries = await db.query<ChecklistEntry>(
-      `SELECT ${entryColumns} FROM checklist_entries WHERE family_id = $1 AND audience = 'trip' AND removed_at IS NULL ORDER BY created_at,id`,
-      [family.id],
+    const entries = await db.execute<ChecklistEntry>(
+      sql`SELECT ${sql.raw(entryColumns)} FROM checklist_entries WHERE family_id = ${sql.param(family.id)} AND audience = 'trip' AND removed_at IS NULL ORDER BY created_at,id`,
     );
-    const familyBags = await db.query<Bag>(
-      `SELECT ${bagColumns} FROM bags b WHERE b.family_id = $1 AND b.audience = 'trip' AND b.removed_at IS NULL ORDER BY b.created_at,b.id`,
-      [family.id],
+    const familyBags = await db.execute<Bag>(
+      sql`SELECT ${sql.raw(bagColumns)} FROM bags b WHERE b.family_id = ${sql.param(family.id)} AND b.audience = 'trip' AND b.removed_at IS NULL ORDER BY b.created_at,b.id`,
     );
     for (const value of familyBags.rows) {
       const { carrierTravelerId, identifyingNote, ...safeBag } = value;
@@ -57,17 +55,15 @@ export async function sharedState(
       });
     }
     const visibleBags = new Set(familyBags.rows.map((b) => b.id));
-    const publicSince = await db.query<{ id: string; shared_at: Date }>(
-      `SELECT id, shared_at FROM checklist_entries WHERE family_id = $1 AND audience = 'trip' AND removed_at IS NULL UNION ALL SELECT id,shared_at FROM bags WHERE family_id = $1 AND audience = 'trip' AND removed_at IS NULL`,
-      [family.id],
+    const publicSince = await db.execute<{ id: string; shared_at: string }>(
+      sql`SELECT id, shared_at FROM checklist_entries WHERE family_id = ${sql.param(family.id)} AND audience = 'trip' AND removed_at IS NULL UNION ALL SELECT id,shared_at FROM bags WHERE family_id = ${sql.param(family.id)} AND audience = 'trip' AND removed_at IS NULL`,
     );
     const since = new Map(
-      publicSince.rows.map((r) => [r.id, r.shared_at.getTime()]),
+      publicSince.rows.map((r) => [r.id, new Date(r.shared_at).getTime()]),
     );
     const visibleEntries = new Set(entries.rows.map((e) => e.id));
-    const events = await db.query<PackingEvent>(
-      `SELECT id,leg,entry_id AS "entryId",bag_ids AS "bagIds",action,at,actor,changes,false AS "canUndo" FROM packing_history WHERE family_id = $1 AND leg = $2 AND ($3::uuid IS NULL OR entry_id = $3) ORDER BY sequence DESC LIMIT 200`,
-      [family.id, leg, activityEntryId ?? null],
+    const events = await db.execute<PackingEvent>(
+      sql`SELECT id,leg,entry_id AS "entryId",bag_ids AS "bagIds",action,to_char(at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS at,actor,changes,false AS "canUndo" FROM packing_history WHERE family_id = ${sql.param(family.id)} AND leg = ${sql.param(leg)} AND (${sql.param(activityEntryId ?? null)}::uuid IS NULL OR entry_id = ${sql.param(activityEntryId ?? null)}) ORDER BY sequence DESC LIMIT 200`,
     );
     for (const event of events.rows) {
       const permittedAt = (id: string) =>
@@ -112,9 +108,8 @@ export async function sharedState(
         continue;
       history.push({ ...event, changes: {}, canUndo: false });
     }
-    const edits = await db.query<PackingEvent>(
-      `SELECT h.id, CASE WHEN e.leg = 'return' THEN 'return' ELSE 'outbound' END AS leg, e.id AS "entryId", ARRAY[]::uuid[] AS "bagIds", 'entry_' || h.action AS action,h.at,h.actor,'{}'::jsonb AS changes,false AS "canUndo" FROM checklist_history h JOIN checklist_entries e ON e.id = h.entity_id WHERE h.family_id = $1 AND h.entity_type = 'entry' AND e.audience = 'trip' AND e.removed_at IS NULL AND h.at >= e.shared_at AND ($2::uuid IS NULL OR e.id = $2) ORDER BY h.sequence DESC LIMIT 200`,
-      [family.id, activityEntryId ?? null],
+    const edits = await db.execute<PackingEvent>(
+      sql`SELECT h.id, CASE WHEN e.leg = 'return' THEN 'return' ELSE 'outbound' END AS leg, e.id AS "entryId", ARRAY[]::uuid[] AS "bagIds", 'entry_' || h.action AS action,to_char(h.at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS at,h.actor,'{}'::jsonb AS changes,false AS "canUndo" FROM checklist_history h JOIN checklist_entries e ON e.id = h.entity_id WHERE h.family_id = ${sql.param(family.id)} AND h.entity_type = 'entry' AND e.audience = 'trip' AND e.removed_at IS NULL AND h.at >= e.shared_at AND (${sql.param(activityEntryId ?? null)}::uuid IS NULL OR e.id = ${sql.param(activityEntryId ?? null)}) ORDER BY h.sequence DESC LIMIT 200`,
     );
     history.push(...edits.rows);
     const packed = await packingItems(db, family.id, leg);
@@ -124,9 +119,8 @@ export async function sharedState(
       const beneficiaryFamilies =
         value.beneficiaries.kind === "families"
           ? (
-              await db.query<{ id: string; name: string }>(
-                "SELECT id,name FROM families WHERE trip_id = $1 AND id = ANY($2::uuid[]) ORDER BY name,id",
-                [tripId, value.beneficiaries.familyIds],
+              await db.execute<{ id: string; name: string }>(
+                sql`SELECT id,name FROM families WHERE trip_id = ${sql.param(tripId)} AND id = ANY(${sql.param(value.beneficiaries.familyIds)}::uuid[]) ORDER BY name,id`,
               )
             ).rows
           : [];
@@ -180,14 +174,13 @@ export function setVisibility(
 ) {
   return transaction(async (db) => {
     await requireFamilyAccess(db, memberId, tripId, familyId, "coordinate");
-    await db.query("SELECT id FROM families WHERE id = $1 FOR UPDATE", [
-      familyId,
-    ]);
+    await db.execute(
+      sql`SELECT id FROM families WHERE id = ${sql.param(familyId)} FOR UPDATE`,
+    );
     resourceId(target.id);
     const table = target.kind === "entry" ? "checklist_entries" : "bags";
-    const record = await db.query(
-      `SELECT audience FROM ${table} WHERE family_id = $1 AND id = $2 AND removed_at IS NULL`,
-      [familyId, target.id],
+    const record = await db.execute(
+      sql`SELECT audience FROM ${sql.raw(table)} WHERE family_id = ${sql.param(familyId)} AND id = ${sql.param(target.id)} AND removed_at IS NULL`,
     );
     if (!record.rowCount)
       throw new HttpError(
@@ -203,9 +196,8 @@ export function setVisibility(
       async () => {
         if (record.rows[0].audience === input.audience) return;
         if (target.kind === "bag" && input.audience === "trip") {
-          const privateContents = await db.query(
-            `SELECT 1 FROM packing_allocations a JOIN checklist_entries e ON e.id = a.entry_id WHERE a.bag_id = $1 AND e.audience <> 'trip'`,
-            [target.id],
+          const privateContents = await db.execute(
+            sql`SELECT 1 FROM packing_allocations a JOIN checklist_entries e ON e.id = a.entry_id WHERE a.bag_id = ${sql.param(target.id)} AND e.audience <> 'trip'`,
           );
           if (privateContents.rowCount)
             throw new HttpError(
@@ -215,9 +207,8 @@ export function setVisibility(
             );
         }
         if (target.kind === "entry" && input.audience === "family") {
-          const sharedLocations = await db.query(
-            `SELECT 1 FROM packing_allocations a JOIN bags b ON b.id = a.bag_id WHERE a.entry_id = $1 AND b.audience = 'trip'`,
-            [target.id],
+          const sharedLocations = await db.execute(
+            sql`SELECT 1 FROM packing_allocations a JOIN bags b ON b.id = a.bag_id WHERE a.entry_id = ${sql.param(target.id)} AND b.audience = 'trip'`,
           );
           if (sharedLocations.rowCount)
             throw new HttpError(
@@ -226,9 +217,8 @@ export function setVisibility(
               "Move or remove this item from shared bags before making it family-private.",
             );
         }
-        await db.query(
-          `UPDATE ${table} SET audience = $3, shared_at = CASE WHEN $3 = 'trip' THEN clock_timestamp() ELSE NULL END WHERE family_id = $1 AND id = $2 AND audience <> $3`,
-          [familyId, target.id, input.audience],
+        await db.execute(
+          sql`UPDATE ${sql.raw(table)} SET audience = ${sql.param(input.audience)}, shared_at = CASE WHEN ${sql.param(input.audience)} = 'trip' THEN clock_timestamp() ELSE NULL END WHERE family_id = ${sql.param(familyId)} AND id = ${sql.param(target.id)} AND audience <> ${sql.param(input.audience)}`,
         );
         await recordPacking(
           db,
@@ -245,9 +235,9 @@ export function setVisibility(
     return {
       saved: true,
       audience: (
-        await db.query(`SELECT audience FROM ${table} WHERE id = $1`, [
-          target.id,
-        ])
+        await db.execute(
+          sql`SELECT audience FROM ${sql.raw(table)} WHERE id = ${sql.param(target.id)}`,
+        )
       ).rows[0].audience,
     };
   });

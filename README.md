@@ -8,7 +8,7 @@ Planned application domain: `travel.nmtsolutions.in`. Android application ID: `i
 
 The first implemented slice is public email-code signup, required member profile
 completion, session restoration, and logout. It uses Expo Android, a Next.js API,
-PostgreSQL, and Clerk. This is an account-flow foundation, not the full launch app.
+PostgreSQL through Drizzle ORM, and Clerk. This is an account-flow foundation, not the full launch app.
 
 Use Node 22.13 or newer and npm workspaces:
 
@@ -22,6 +22,19 @@ npm run build:api
 `npm test` starts disposable real PostgreSQL and a real Next.js HTTP server. It does
 not require production credentials, Docker, or an existing database. Only Clerk's
 external HTTP boundary is controlled by the integration fixture.
+
+The API's lazy Drizzle client is in `apps/api/src/database.ts`; its typed table
+definitions are in `apps/api/src/schema.ts`. Routine writes use Drizzle's query
+builder, and complex permission/quantity projections use parameterized `sql`
+queries within Drizzle transactions. PostgreSQL remains the source of exact
+quantity arithmetic and locking.
+
+Existing databases keep their data and `schema_migrations` history. Continue
+applying the versioned SQL files with `npm run db:migrate -w @nmt/api`, using
+the API's existing `DATABASE_URL` in `apps/api/.env.local`. Update the SQL migration
+and Drizzle schema together when changing tables. Do not replace an existing
+database with generated schema or apply migrations during application builds.
+The test fixture migrates a fresh PostgreSQL database twice before HTTP checks.
 
 For service configuration, migrations, Android development/preview builds, the
 native signup check, known local build limits, and primary documentation, see

@@ -7,6 +7,8 @@ import { resolve } from "node:path";
 import EmbeddedPostgres from "embedded-postgres";
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { Pool } from "pg";
+import { drizzle } from "drizzle-orm/node-postgres";
+import * as schema from "../../src/schema";
 import { migrate } from "../../scripts/migrations";
 
 export async function freePort() {
@@ -318,8 +320,9 @@ export async function startFixture(
     await postgres.createDatabase("nmt_test");
     const pool = new Pool({ connectionString: databaseUrl });
     try {
-      await migrate(pool);
-      await migrate(pool);
+      const db = drizzle({ client: pool, schema });
+      await migrate(db);
+      await migrate(db);
     } finally {
       await pool.end();
     }

@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   checklistTaskLabels,
   type ChecklistEntry,
@@ -8,7 +9,7 @@ import {
 } from "@nmt/contracts";
 import { requireFamilyAccess, requireTripAccess } from "./permissions";
 import { transaction } from "./trips";
-import type { PoolClient } from "pg";
+import type { DatabaseTransaction } from "./database";
 import { HttpError } from "./response";
 import { acquisitionColumns } from "./acquisition";
 
@@ -29,7 +30,7 @@ const unavailable = () =>
 // An absent family grant can authorize only explicitly shared checklist rows.
 // Keep the summary's fixed field allowlist; never obtain a private packing snapshot.
 async function familyReadAccess(
-  db: PoolClient,
+  db: DatabaseTransaction,
   memberId: string,
   tripId: string,
   familyId: string,
@@ -44,27 +45,26 @@ async function familyReadAccess(
 export function readSummaryChoices(memberId: string, tripId: string) {
   return transaction(async (db) => {
     await requireTripAccess(db, memberId, tripId);
-    const entries = await db.query<SummaryChoices["itineraryEntries"][number]>(
-      "SELECT id, title FROM itinerary_entries WHERE trip_id = $1 ORDER BY position, id",
-      [tripId],
+    const entries = await db.execute<
+      SummaryChoices["itineraryEntries"][number]
+    >(
+      sql`SELECT id, title FROM itinerary_entries WHERE trip_id = ${sql.param(tripId)} ORDER BY position, id`,
     );
-    const candidates = await db.query<{ id: string }>(
-      `SELECT f.id FROM families f WHERE f.trip_id = $1
-      AND (EXISTS (SELECT 1 FROM family_members fm WHERE fm.family_id = f.id AND fm.member_id = $2)
-        OR EXISTS (SELECT 1 FROM checklist_entries e WHERE e.family_id = f.id AND e.audience = 'trip' AND e.removed_at IS NULL)) ORDER BY f.id`,
-      [tripId, memberId],
-    );
+    const candidates = await db.execute<{
+      id: string;
+    }>(sql`SELECT f.id FROM families f WHERE f.trip_id = ${sql.param(tripId)}
+      AND (EXISTS (SELECT 1 FROM family_members fm WHERE fm.family_id = f.id AND fm.member_id = ${sql.param(memberId)})
+        OR EXISTS (SELECT 1 FROM checklist_entries e WHERE e.family_id = f.id AND e.audience = 'trip' AND e.removed_at IS NULL)) ORDER BY f.id`);
     const families: SummaryChoices["families"] = [];
     for (const candidate of candidates.rows) {
       const family = await familyReadAccess(db, memberId, tripId, candidate.id);
-      await db.query("SELECT id FROM families WHERE id = $1 FOR SHARE", [
-        candidate.id,
-      ]);
-      const records = await db.query<
+      await db.execute(
+        sql`SELECT id FROM families WHERE id = ${sql.param(candidate.id)} FOR SHARE`,
+      );
+      const records = await db.execute<
         SummaryChoices["families"][number]["entries"][number]
       >(
-        "SELECT id, title, kind FROM checklist_entries WHERE family_id = $1 AND removed_at IS NULL AND ($2::boolean OR audience = 'trip') ORDER BY created_at, id",
-        [candidate.id, !!family],
+        sql`SELECT id, title, kind FROM checklist_entries WHERE family_id = ${sql.param(candidate.id)} AND removed_at IS NULL AND (${sql.param(!!family)}::boolean OR audience = 'trip') ORDER BY created_at, id`,
       );
       if (family || records.rowCount)
         families.push({
@@ -109,13 +109,14 @@ export function previewSummary(
 ) {
   return transaction(async (db) => {
     await requireTripAccess(db, memberId, tripId);
-    await db.query("SELECT id FROM trips WHERE id = $1 FOR SHARE", [tripId]);
+    await db.execute(
+      sql`SELECT id FROM trips WHERE id = ${sql.param(tripId)} FOR SHARE`,
+    );
     const trip = await requireTripAccess(db, memberId, tripId);
     const sections: string[] = [];
     if (input.tripDetails) {
-      const result = await db.query<TravelReferences>(
-        `SELECT ${references} FROM trip_itineraries WHERE trip_id = $1`,
-        [tripId],
+      const result = await db.execute<TravelReferences>(
+        sql`SELECT ${sql.raw(references)} FROM trip_itineraries WHERE trip_id = ${sql.param(tripId)}`,
       );
       const lines = input.travelFields.includes("dates")
         ? [`Departure: ${trip.startDate}`, `Return: ${trip.endDate}`]
@@ -126,9 +127,8 @@ export function previewSummary(
       if (lines.length)
         sections.push(["Trip travel details", ...lines].join("\n"));
     }
-    const entries = await db.query<ItineraryEntry>(
-      `SELECT id, title, starts_at AS "startsAt", ends_at AS "endsAt", ${references} FROM itinerary_entries WHERE trip_id = $1 AND id = ANY($2::uuid[]) ORDER BY position, id`,
-      [tripId, input.itineraryEntryIds],
+    const entries = await db.execute<ItineraryEntry>(
+      sql`SELECT id, title, starts_at AS "startsAt", ends_at AS "endsAt", ${sql.raw(references)} FROM itinerary_entries WHERE trip_id = ${sql.param(tripId)} AND id = ANY(${sql.param(input.itineraryEntryIds)}::uuid[]) ORDER BY position, id`,
     );
     if (entries.rows.length !== input.itineraryEntryIds.length)
       throw unavailable();
@@ -158,9 +158,8 @@ export function previewSummary(
         tripId,
         chosen.familyId,
       );
-      const scope = await db.query(
-        "SELECT id FROM families WHERE id = $1 AND trip_id = $2 FOR SHARE",
-        [chosen.familyId, tripId],
+      const scope = await db.execute(
+        sql`SELECT id FROM families WHERE id = ${sql.param(chosen.familyId)} AND trip_id = ${sql.param(tripId)} FOR SHARE`,
       );
       if (!scope.rowCount) throw unavailable();
       type SummaryEntry = Pick<
@@ -175,9 +174,8 @@ export function previewSummary(
         | "taskStatus"
         | "acquisition"
       >;
-      const result = await db.query<SummaryEntry>(
-        `SELECT id, kind, title, required_quantity::float8 AS "requiredQuantity", unit, leg, priority, task_status AS "taskStatus", ${acquisitionColumns} FROM checklist_entries WHERE family_id = $1 AND id = ANY($2::uuid[]) AND removed_at IS NULL AND ($3::boolean OR audience = 'trip') ORDER BY created_at, id`,
-        [chosen.familyId, chosen.entryIds, !!family],
+      const result = await db.execute<SummaryEntry>(
+        sql`SELECT id, kind, title, required_quantity::float8 AS "requiredQuantity", unit, leg, priority, task_status AS "taskStatus", ${sql.raw(acquisitionColumns)} FROM checklist_entries WHERE family_id = ${sql.param(chosen.familyId)} AND id = ANY(${sql.param(chosen.entryIds)}::uuid[]) AND removed_at IS NULL AND (${sql.param(!!family)}::boolean OR audience = 'trip') ORDER BY created_at, id`,
       );
       if (result.rows.length !== chosen.entryIds.length) throw unavailable();
       const lines = [`Checklist: ${family?.name ?? "Shared with trip"}`];

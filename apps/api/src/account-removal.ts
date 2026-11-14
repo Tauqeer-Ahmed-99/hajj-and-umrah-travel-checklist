@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import type { AccountRemoval } from "@nmt/contracts";
 import { database } from "./database";
 import { clerkClient, identify, verifySession } from "./identity";
@@ -8,9 +9,8 @@ import { HttpError } from "./response";
 
 async function removalState(clerkUserId: string): Promise<AccountRemoval> {
   const row = (
-    await database().query(
-      `SELECT r.state, r.request_id AS "requestId" FROM account_removals r JOIN members m ON m.id=r.member_id WHERE m.clerk_user_id=$1`,
-      [clerkUserId],
+    await database().execute<AccountRemoval>(
+      sql`SELECT r.state, r.request_id AS "requestId" FROM account_removals r JOIN members m ON m.id=r.member_id WHERE m.clerk_user_id=${sql.param(clerkUserId)}`,
     )
   ).rows[0];
   return row ?? { state: "active", requestId: null };
@@ -31,11 +31,9 @@ async function receiptOwner(request: Request) {
       "This removal receipt is not available.",
     );
   const owner = (
-    await database().query(
-      `SELECT m.clerk_user_id AS "clerkUserId" FROM account_removals r
-    JOIN members m ON m.id=r.member_id WHERE r.request_id=$1 AND m.removal_started_at IS NOT NULL`,
-      [receipt],
-    )
+    await database()
+      .execute(sql`SELECT m.clerk_user_id AS "clerkUserId" FROM account_removals r
+    JOIN members m ON m.id=r.member_id WHERE r.request_id=${sql.param(receipt)} AND m.removal_started_at IS NOT NULL`)
   ).rows[0];
   if (!owner)
     throw new HttpError(
@@ -76,9 +74,8 @@ export async function removeAccount(
   await transaction(async (db) => {
     await lockAccountAccess(db);
     const member = (
-      await db.query(
-        "SELECT id FROM members WHERE clerk_user_id=$1 FOR UPDATE",
-        [verified.clerkUserId],
+      await db.execute<{ id: string }>(
+        sql`SELECT id FROM members WHERE clerk_user_id=${sql.param(verified.clerkUserId)} FOR UPDATE`,
       )
     ).rows[0];
     if (!member)
@@ -88,9 +85,8 @@ export async function removeAccount(
         "Complete a profile before removing this account.",
       );
     const previous = (
-      await db.query(
-        "SELECT request_id FROM account_removals WHERE member_id=$1",
-        [member.id],
+      await db.execute(
+        sql`SELECT request_id FROM account_removals WHERE member_id=${sql.param(member.id)}`,
       )
     ).rows[0];
     if (previous) {
@@ -110,44 +106,35 @@ export async function removeAccount(
       );
     // Dispatch locks a device before checking membership. Use that same order
     // before removing membership, so an in-flight push finishes or is suppressed.
-    await db.query(
-      "SELECT id FROM notification_devices WHERE member_id=$1 ORDER BY id FOR UPDATE",
-      [member.id],
+    await db.execute(
+      sql`SELECT id FROM notification_devices WHERE member_id=${sql.param(member.id)} ORDER BY id FOR UPDATE`,
     );
-    const trips = await db.query<{ trip_id: string }>(
-      "SELECT trip_id FROM trip_members WHERE member_id=$1 ORDER BY trip_id",
-      [member.id],
+    const trips = await db.execute<{ trip_id: string }>(
+      sql`SELECT trip_id FROM trip_members WHERE member_id=${sql.param(member.id)} ORDER BY trip_id`,
     );
     // Reuse every last-organizer/effective-coordinator check, approval reset and
     // removal tombstone. All trips succeed or the entire application step rolls back.
     for (const trip of trips.rows)
       await updateTripMember(db, member.id, trip.trip_id, member.id);
-    await db.query(
-      `UPDATE invitations SET revoked_at=COALESCE(revoked_at,clock_timestamp())
-      WHERE consumed_at IS NULL AND (recipient_member_id=$1 OR recipient_email=$2 OR created_by=$1)`,
-      [member.id, email],
+    await db.execute(sql`UPDATE invitations SET revoked_at=COALESCE(revoked_at,clock_timestamp())
+      WHERE consumed_at IS NULL AND (recipient_member_id=${sql.param(member.id)} OR recipient_email=${sql.param(email)} OR created_by=${sql.param(member.id)})`);
+    await db.execute(
+      sql`DELETE FROM notification_devices WHERE member_id=${sql.param(member.id)}`,
     );
-    await db.query("DELETE FROM notification_devices WHERE member_id=$1", [
-      member.id,
-    ]);
-    await db.query("DELETE FROM notification_preferences WHERE member_id=$1", [
-      member.id,
-    ]);
-    await db.query("DELETE FROM notification_events WHERE recipient_id=$1", [
-      member.id,
-    ]);
+    await db.execute(
+      sql`DELETE FROM notification_preferences WHERE member_id=${sql.param(member.id)}`,
+    );
+    await db.execute(
+      sql`DELETE FROM notification_events WHERE recipient_id=${sql.param(member.id)}`,
+    );
     // Other members' reminders and shared records survive. Personal reminders do not.
-    await db.query("DELETE FROM reminders WHERE owner_member_id=$1", [
-      member.id,
-    ]);
-    await db.query(
-      `UPDATE members SET removal_started_at=clock_timestamp(), first_name='Former', last_name='member',
-      username='removed_' || left(replace(gen_random_uuid()::text,'-',''),22), updated_at=clock_timestamp() WHERE id=$1`,
-      [member.id],
+    await db.execute(
+      sql`DELETE FROM reminders WHERE owner_member_id=${sql.param(member.id)}`,
     );
-    await db.query(
-      "INSERT INTO account_removals(member_id,request_id) VALUES($1,$2)",
-      [member.id, input.requestId],
+    await db.execute(sql`UPDATE members SET removal_started_at=clock_timestamp(), first_name='Former', last_name='member',
+      username='removed_' || left(replace(gen_random_uuid()::text,'-',''),22), updated_at=clock_timestamp() WHERE id=${sql.param(member.id)}`);
+    await db.execute(
+      sql`INSERT INTO account_removals(member_id,request_id) VALUES(${sql.param(member.id)},${sql.param(input.requestId)})`,
     );
   });
   return finishProviderRemoval(verified.clerkUserId);
@@ -160,11 +147,13 @@ async function finishProviderRemoval(
   // retries share one durable record; a 404 confirms an already absent user.
   return transaction(async (db) => {
     const row = (
-      await db.query(
-        `SELECT r.*, m.clerk_user_id FROM account_removals r JOIN members m ON m.id=r.member_id
-      WHERE m.clerk_user_id=$1 FOR UPDATE OF r`,
-        [clerkUserId],
-      )
+      await db.execute<{
+        member_id: string;
+        request_id: string;
+        state: AccountRemoval["state"];
+        clerk_user_id: string;
+      }>(sql`SELECT r.*, m.clerk_user_id FROM account_removals r JOIN members m ON m.id=r.member_id
+      WHERE m.clerk_user_id=${sql.param(clerkUserId)} FOR UPDATE OF r`)
     ).rows[0];
     if (row.state === "completed")
       return { state: "completed", requestId: row.request_id };
@@ -192,9 +181,8 @@ async function finishProviderRemoval(
     } finally {
       clearTimeout(timeout);
     }
-    await db.query(
-      "UPDATE account_removals SET state='completed', completed_at=clock_timestamp() WHERE member_id=$1",
-      [row.member_id],
+    await db.execute(
+      sql`UPDATE account_removals SET state='completed', completed_at=clock_timestamp() WHERE member_id=${sql.param(row.member_id)}`,
     );
     return { state: "completed", requestId: row.request_id };
   });

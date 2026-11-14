@@ -1,4 +1,5 @@
-import type { PoolClient } from "pg";
+import { sql } from "drizzle-orm";
+import type { DatabaseTransaction } from "./database";
 import {
   returnDispositionKinds,
   type ReturnItem,
@@ -18,8 +19,8 @@ const source = `CASE WHEN r.origin = 'destination' THEN
 const columns = `r.entry_id AS "entryId", e.title,e.unit,r.origin,
  r.proposed_quantity::float8 AS "proposedQuantity", (${source})::float8 AS "sourceQuantity",
  r.required_quantity::float8 AS "requiredQuantity",r.possession_quantity::float8 AS "possessionQuantity",
- (r.reviewed_at IS NOT NULL) AS reviewed,r.reviewed_at AS "reviewedAt",r.reviewed_by AS "reviewedBy",
- r.possession_confirmed_at AS "possessionConfirmedAt",r.possession_confirmed_by AS "possessionConfirmedBy",
+ (r.reviewed_at IS NOT NULL) AS reviewed,to_char(r.reviewed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "reviewedAt",r.reviewed_by AS "reviewedBy",
+ to_char(r.possession_confirmed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "possessionConfirmedAt",r.possession_confirmed_by AS "possessionConfirmedBy",
  jsonb_build_object('quantity',r.consumed,'explanation',r.consumed_reason) AS consumed,
  jsonb_build_object('quantity',r.gifted,'explanation',r.gifted_reason) AS gifted,
  jsonb_build_object('quantity',r.left_quantity,'explanation',r.left_reason) AS left,
@@ -33,21 +34,18 @@ const columns = `r.entry_id AS "entryId", e.title,e.unit,r.origin,
    AND a.leg = CASE WHEN EXISTS(SELECT 1 FROM packing_items n WHERE n.entry_id=r.entry_id AND n.leg='return')
      THEN 'return' ELSE 'outbound' END),'[]') AS "lastConfirmedLocations"`;
 export async function returnItems(
-  db: PoolClient,
+  db: DatabaseTransaction,
   familyId: string,
 ): Promise<ReturnItem[]> {
   // This projection is family-private. Sharing an item never authorizes its old locations.
   return (
-    await db.query<ReturnItem>(
-      `SELECT ${columns} FROM return_items r
-    JOIN checklist_entries e ON e.id=r.entry_id WHERE r.family_id=$1
-    ORDER BY CASE WHEN e.priority='essential' THEN 0 ELSE 1 END,e.created_at,e.id`,
-      [familyId],
-    )
+    await db.execute<ReturnItem>(sql`SELECT ${sql.raw(columns)} FROM return_items r
+    JOIN checklist_entries e ON e.id=r.entry_id WHERE r.family_id=${sql.param(familyId)}
+    ORDER BY CASE WHEN e.priority='essential' THEN 0 ELSE 1 END,e.created_at,e.id`)
   ).rows;
 }
 async function state(
-  db: PoolClient,
+  db: DatabaseTransaction,
   familyId: string,
   canEdit: boolean,
 ): Promise<ReturnPreparation> {
@@ -56,9 +54,8 @@ async function state(
     canEdit,
     items: await returnItems(db, familyId),
     checkout: (
-      await db.query<ReturnPreparation["checkout"][number]>(
-        `SELECT id,label,checked,checked_at AS "checkedAt",checked_by AS "checkedBy" FROM return_checkout WHERE family_id=$1 ORDER BY area`,
-        [familyId],
+      await db.execute<ReturnPreparation["checkout"][number]>(
+        sql`SELECT id,label,checked,to_char(checked_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "checkedAt",checked_by AS "checkedBy" FROM return_checkout WHERE family_id=${sql.param(familyId)} ORDER BY area`,
       )
     ).rows,
   };
@@ -70,7 +67,9 @@ export function readReturnPreparation(
 ) {
   return transaction(async (db) => {
     const family = await requireFamilyAccess(db, memberId, tripId, familyId);
-    await db.query("SELECT id FROM families WHERE id=$1 FOR SHARE", [familyId]);
+    await db.execute(
+      sql`SELECT id FROM families WHERE id=${sql.param(familyId)} FOR SHARE`,
+    );
     return state(db, familyId, family.canEdit);
   });
 }
@@ -92,15 +91,14 @@ export function mutateReturnPreparation(
       input,
       async () => {
         if (input.kind === "propose") {
-          const added = await db.query<{ entryId: string }>(
-            `INSERT INTO return_items
+          const added = await db.execute<{
+            entryId: string;
+          }>(sql`INSERT INTO return_items
           (family_id,entry_id,origin,proposed_quantity,source_quantity,required_quantity)
           SELECT family_id,id,CASE WHEN leg='return' THEN 'destination' ELSE 'outbound' END,
           required_quantity,bought+received+already_available,required_quantity FROM checklist_entries
-          WHERE family_id=$1 AND kind='item' AND removed_at IS NULL AND not_needed_reason IS NULL
-          ON CONFLICT (entry_id) DO NOTHING RETURNING entry_id AS "entryId"`,
-            [familyId],
-          );
+          WHERE family_id=${sql.param(familyId)} AND kind='item' AND removed_at IS NULL AND not_needed_reason IS NULL
+          ON CONFLICT (entry_id) DO NOTHING RETURNING entry_id AS "entryId"`);
           for (const item of added.rows)
             await recordPacking(
               db,
@@ -112,17 +110,14 @@ export function mutateReturnPreparation(
               {},
               { leg: "return", entryId: item.entryId },
             );
-          await db.query(
-            `INSERT INTO bag_legs (family_id,bag_id,leg) SELECT family_id,id,'return' FROM bags
-          WHERE family_id=$1 AND removed_at IS NULL ON CONFLICT DO NOTHING`,
-            [familyId],
-          );
-          const checks = await db.query<{ id: string; label: string }>(
-            `INSERT INTO return_checkout (family_id,area,label) VALUES
-          ($1,'rooms','Check all rooms'),($1,'cupboards','Check cupboards'),($1,'safes','Empty safes'),
-          ($1,'charging_points','Check charging points') ON CONFLICT DO NOTHING RETURNING id,label`,
-            [familyId],
-          );
+          await db.execute(sql`INSERT INTO bag_legs (family_id,bag_id,leg) SELECT family_id,id,'return' FROM bags
+          WHERE family_id=${sql.param(familyId)} AND removed_at IS NULL ON CONFLICT DO NOTHING`);
+          const checks = await db.execute<{
+            id: string;
+            label: string;
+          }>(sql`INSERT INTO return_checkout (family_id,area,label) VALUES
+          (${sql.param(familyId)},'rooms','Check all rooms'),(${sql.param(familyId)},'cupboards','Check cupboards'),(${sql.param(familyId)},'safes','Empty safes'),
+          (${sql.param(familyId)},'charging_points','Check charging points') ON CONFLICT DO NOTHING RETURNING id,label`);
           for (const check of checks.rows)
             await recordPacking(
               db,
@@ -135,11 +130,10 @@ export function mutateReturnPreparation(
               { leg: "return" },
             );
         } else if (input.kind === "checkout") {
-          const found = await db.query<ReturnPreparation["checkout"][number]>(
-            `SELECT id,label,checked,checked_at AS "checkedAt",checked_by AS "checkedBy"
-          FROM return_checkout WHERE family_id=$1 AND id=$2`,
-            [familyId, input.checkId],
-          );
+          const found = await db.execute<
+            ReturnPreparation["checkout"][number]
+          >(sql`SELECT id,label,checked,to_char(checked_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "checkedAt",checked_by AS "checkedBy"
+          FROM return_checkout WHERE family_id=${sql.param(familyId)} AND id=${sql.param(input.checkId)}`);
           const current = found.rows[0];
           if (!current)
             throw new HttpError(
@@ -161,11 +155,8 @@ export function mutateReturnPreparation(
             );
           if (next.label === current.label && next.checked === current.checked)
             return;
-          await db.query(
-            `UPDATE return_checkout SET label=$2,checked=$3,checked_at=CASE WHEN $3 THEN clock_timestamp() ELSE NULL END,
-          checked_by=CASE WHEN $3 THEN $4::uuid ELSE NULL END WHERE id=$1`,
-            [input.checkId, next.label, next.checked, memberId],
-          );
+          await db.execute(sql`UPDATE return_checkout SET label=${sql.param(next.label)},checked=${sql.param(next.checked)},checked_at=CASE WHEN ${sql.param(next.checked)} THEN clock_timestamp() ELSE NULL END,
+          checked_by=CASE WHEN ${sql.param(next.checked)} THEN ${sql.param(memberId)}::uuid ELSE NULL END WHERE id=${sql.param(input.checkId)}`);
           await recordPacking(
             db,
             memberId,
@@ -187,9 +178,8 @@ export function mutateReturnPreparation(
               "Propose this item for return review first.",
             );
           const next = { ...current, ...input.fields };
-          const sourceEntry = await db.query(
-            "SELECT id FROM checklist_entries WHERE id=$1 AND family_id=$2 AND removed_at IS NULL",
-            [input.entryId, familyId],
+          const sourceEntry = await db.execute(
+            sql`SELECT id FROM checklist_entries WHERE id=${sql.param(input.entryId)} AND family_id=${sql.param(familyId)} AND removed_at IS NULL`,
           );
           if (
             !sourceEntry.rowCount &&
@@ -228,11 +218,10 @@ export function mutateReturnPreparation(
             conflict(
               "Possession and dispositions exceed the source quantity. Correct the counts together.",
             );
-          const allocated = await db.query<{ quantity: number }>(
-            `SELECT coalesce(sum(quantity),0)::float8 AS quantity FROM packing_allocations
-          WHERE family_id=$1 AND entry_id=$2 AND leg='return'`,
-            [familyId, input.entryId],
-          );
+          const allocated = await db.execute<{
+            quantity: number;
+          }>(sql`SELECT coalesce(sum(quantity),0)::float8 AS quantity FROM packing_allocations
+          WHERE family_id=${sql.param(familyId)} AND entry_id=${sql.param(input.entryId)} AND leg='return'`);
           if (
             milli(allocated.rows[0].quantity) >
             Math.min(
@@ -257,28 +246,24 @@ export function mutateReturnPreparation(
               updates[`${key}_reason`] = disposition.explanation;
             }
           }
-          const values = Object.values(updates);
           const physical = input.fields.possessionQuantity !== undefined;
-          await db.query(
-            `UPDATE return_items SET ${Object.keys(updates)
-              .map((key, i) => `${key}=$${i + 3}`)
-              .join(",")},
-          reviewed_at=CASE WHEN $${values.length + 3} THEN clock_timestamp() ELSE reviewed_at END,
-          reviewed_by=CASE WHEN $${values.length + 3} THEN $2::uuid ELSE reviewed_by END,
-          possession_confirmed_at=CASE WHEN $${values.length + 4} THEN clock_timestamp() ELSE possession_confirmed_at END,
-          possession_confirmed_by=CASE WHEN $${values.length + 4} THEN $2::uuid ELSE possession_confirmed_by END WHERE entry_id=$1`,
-            [
-              input.entryId,
-              memberId,
-              ...values,
-              !!input.reviewConfirmed,
-              physical,
-            ],
+          await db.execute(
+            sql`UPDATE return_items SET ${sql.join(
+              [
+                ...Object.entries(updates).map(
+                  ([key, value]) =>
+                    sql`${sql.identifier(key)}=${sql.param(value)}`,
+                ),
+                sql`reviewed_at=CASE WHEN ${!!input.reviewConfirmed} THEN clock_timestamp() ELSE reviewed_at END`,
+                sql`reviewed_by=CASE WHEN ${!!input.reviewConfirmed} THEN ${memberId}::uuid ELSE reviewed_by END`,
+                sql`possession_confirmed_at=CASE WHEN ${physical} THEN clock_timestamp() ELSE possession_confirmed_at END`,
+                sql`possession_confirmed_by=CASE WHEN ${physical} THEN ${memberId}::uuid ELSE possession_confirmed_by END`,
+              ],
+              sql`, `,
+            )} WHERE entry_id=${input.entryId}`,
           );
-          await db.query(
-            `UPDATE packing_items SET repacking_quantity=least(repacking_quantity,$2::numeric) WHERE entry_id=$1 AND leg='return'`,
-            [
-              input.entryId,
+          await db.execute(
+            sql`UPDATE packing_items SET repacking_quantity=least(repacking_quantity,${sql.param(
               Math.max(
                 0,
                 Math.min(
@@ -286,7 +271,7 @@ export function mutateReturnPreparation(
                   milli(next.possessionQuantity),
                 ) - milli(allocated.rows[0].quantity),
               ) / 1000,
-            ],
+            )}::numeric) WHERE entry_id=${sql.param(input.entryId)} AND leg='return'`,
           );
           await invalidateDepartureChecks(
             db,

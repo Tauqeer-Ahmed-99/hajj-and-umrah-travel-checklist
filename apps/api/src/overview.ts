@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   bagStatusLabels,
   checklistTaskLabels,
@@ -162,12 +163,13 @@ export function readOverview(
 ): Promise<Overview> {
   return transaction(async (db) => {
     const trip = await requireTripAccess(db, memberId, tripId);
-    await db.query("SELECT id FROM trips WHERE id = $1 FOR SHARE", [tripId]);
+    await db.execute(
+      sql`SELECT id FROM trips WHERE id = ${sql.param(tripId)} FOR SHARE`,
+    );
     // The central projection holds stable family locks and redacts private locations/history.
     const shared = await sharedState(db, memberId, tripId, query.leg);
-    const own = await db.query<{ id: string }>(
-      "SELECT family_id AS id FROM family_members WHERE trip_id = $1 AND member_id = $2 ORDER BY family_id",
-      [tripId, memberId],
+    const own = await db.execute<{ id: string }>(
+      sql`SELECT family_id AS id FROM family_members WHERE trip_id = ${sql.param(tripId)} AND member_id = ${sql.param(memberId)} ORDER BY family_id`,
     );
     if (query.familyId)
       await requireFamilyAccess(db, memberId, tripId, query.familyId);
@@ -181,25 +183,21 @@ export function readOverview(
         tripId,
         candidate.id,
       );
-      await db.query("SELECT id FROM families WHERE id=$1 FOR SHARE", [
-        family.id,
-      ]);
-      const entries = await db.query<ChecklistEntry>(
-        `SELECT ${entryColumns} FROM checklist_entries WHERE family_id = $1 AND removed_at IS NULL AND (leg IN ($2,'both') OR ($2 = 'return' AND kind='item' AND (not_needed_reason IS NULL OR EXISTS(SELECT 1 FROM return_items r WHERE r.entry_id=checklist_entries.id)))) ORDER BY created_at,id`,
-        [family.id, query.leg],
+      await db.execute(
+        sql`SELECT id FROM families WHERE id=${sql.param(family.id)} FOR SHARE`,
       );
-      const bags = await db.query<Bag>(
-        `SELECT ${bagColumns} FROM bags b WHERE b.family_id = $1 AND b.removed_at IS NULL ORDER BY b.created_at,b.id`,
-        [family.id],
+      const entries = await db.execute<ChecklistEntry>(
+        sql`SELECT ${sql.raw(entryColumns)} FROM checklist_entries WHERE family_id = ${sql.param(family.id)} AND removed_at IS NULL AND (leg IN (${sql.param(query.leg)},'both') OR (${sql.param(query.leg)} = 'return' AND kind='item' AND (not_needed_reason IS NULL OR EXISTS(SELECT 1 FROM return_items r WHERE r.entry_id=checklist_entries.id)))) ORDER BY created_at,id`,
       );
-      const travelers = await db.query<{ id: string; name: string }>(
-        "SELECT id, first_name || ' ' || last_name AS name FROM travelers WHERE family_id = $1",
-        [family.id],
+      const bags = await db.execute<Bag>(
+        sql`SELECT ${sql.raw(bagColumns)} FROM bags b WHERE b.family_id = ${sql.param(family.id)} AND b.removed_at IS NULL ORDER BY b.created_at,b.id`,
+      );
+      const travelers = await db.execute<{ id: string; name: string }>(
+        sql`SELECT id, first_name || ' ' || last_name AS name FROM travelers WHERE family_id = ${sql.param(family.id)}`,
       );
       const packed = await packingItems(db, family.id, query.leg);
-      const confirmations = await db.query<{ entryId: string; at: string }>(
-        `SELECT DISTINCT ON (entry_id) entry_id AS "entryId",at FROM packing_history WHERE family_id=$1 AND leg=$2 AND action IN ('packed','moved','undone') AND changes->'physicalConfirmed'->>'after'='true' ORDER BY entry_id,sequence DESC`,
-        [family.id, query.leg],
+      const confirmations = await db.execute<{ entryId: string; at: string }>(
+        sql`SELECT DISTINCT ON (entry_id) entry_id AS "entryId",to_char(at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS at FROM packing_history WHERE family_id=${sql.param(family.id)} AND leg=${sql.param(query.leg)} AND action IN ('packed','moved','undone') AND changes->'physicalConfirmed'->>'after'='true' ORDER BY entry_id,sequence DESC`,
       );
       const confirmedAt = new Map(
         confirmations.rows.map((r) => [r.entryId, r.at]),
@@ -252,9 +250,8 @@ export function readOverview(
         row.shared = sharedBagIds.has(row.id);
         records.set(row.id, row);
       }
-      const checks = await db.query<DepartureCheck>(
-        `SELECT ${checkColumns} FROM departure_checks WHERE family_id = $1 AND leg = $2 AND removed_at IS NULL ORDER BY created_at,id`,
-        [family.id, query.leg],
+      const checks = await db.execute<DepartureCheck>(
+        sql`SELECT ${sql.raw(checkColumns)} FROM departure_checks WHERE family_id = ${sql.param(family.id)} AND leg = ${sql.param(query.leg)} AND removed_at IS NULL ORDER BY created_at,id`,
       );
       for (const check of checks.rows) {
         const row = base(check.id, "check", family.id, family.name, query.leg);
@@ -267,14 +264,13 @@ export function readOverview(
         records.set(row.id, row);
       }
       if (query.leg === "return") {
-        const checkout = await db.query<{
+        const checkout = await db.execute<{
           id: string;
           label: string;
           checked: boolean;
           checkedAt: string | null;
         }>(
-          `SELECT id,label,checked,checked_at AS "checkedAt" FROM return_checkout WHERE family_id=$1 ORDER BY area`,
-          [family.id],
+          sql`SELECT id,label,checked,checked_at AS "checkedAt" FROM return_checkout WHERE family_id=${sql.param(family.id)} ORDER BY area`,
         );
         for (const check of checkout.rows) {
           const row = base(
@@ -375,9 +371,8 @@ export function readOverview(
           a.title.localeCompare(b.title) ||
           a.id.localeCompare(b.id),
       );
-    const itinerary = await db.query<{ phase: Overview["phase"] }>(
-      "SELECT phase FROM trip_itineraries WHERE trip_id = $1",
-      [tripId],
+    const itinerary = await db.execute<{ phase: Overview["phase"] }>(
+      sql`SELECT phase FROM trip_itineraries WHERE trip_id = ${sql.param(tripId)}`,
     );
     const phase = itinerary.rows[0]?.phase ?? "planning";
     const asOf = new Date().toISOString();
@@ -388,9 +383,8 @@ export function readOverview(
     ].includes(phase)
       ? trip.endDate
       : trip.startDate;
-    const travel = await db.query<Pick<ItineraryEntry, "title" | "startsAt">>(
-      `SELECT title, starts_at AS "startsAt" FROM itinerary_entries WHERE trip_id = $1 AND transport_reference <> '' AND starts_at IS NOT NULL ORDER BY (starts_at->>'dateTime')::timestamptz,id`,
-      [tripId],
+    const travel = await db.execute<Pick<ItineraryEntry, "title" | "startsAt">>(
+      sql`SELECT title, starts_at AS "startsAt" FROM itinerary_entries WHERE trip_id = ${sql.param(tripId)} AND transport_reference <> '' AND starts_at IS NOT NULL ORDER BY (starts_at->>'dateTime')::timestamptz,id`,
     );
     const nextTravel = travel.rows.find(
       (e) => e.startsAt && Date.parse(e.startsAt.dateTime) >= Date.parse(asOf),

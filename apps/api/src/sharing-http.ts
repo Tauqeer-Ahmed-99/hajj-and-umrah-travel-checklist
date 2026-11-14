@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import type { z } from "zod";
 import { requireMember, requireTripAccess, resourceId } from "./permissions";
 import { transaction } from "./trips";
@@ -49,9 +50,8 @@ export function sharedFamily(
     await requireTripAccess(db, member, tripId);
     resourceId(id);
     const table = kind === "entry" ? "checklist_entries" : "bags";
-    const result = await db.query<{ familyId: string }>(
-      `SELECT c.family_id AS "familyId" FROM ${table} c JOIN families f ON f.id = c.family_id WHERE f.trip_id = $1 AND c.id = $2 AND c.audience = 'trip' AND c.removed_at IS NULL`,
-      [tripId, id],
+    const result = await db.execute<{ familyId: string }>(
+      sql`SELECT c.family_id AS "familyId" FROM ${sql.raw(table)} c JOIN families f ON f.id = c.family_id WHERE f.trip_id = ${sql.param(tripId)} AND c.id = ${sql.param(id)} AND c.audience = 'trip' AND c.removed_at IS NULL`,
     );
     if (!result.rows[0])
       throw new HttpError(

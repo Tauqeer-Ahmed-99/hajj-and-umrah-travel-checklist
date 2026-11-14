@@ -1,3 +1,5 @@
+import { eq, sql } from "drizzle-orm";
+import { notificationPreferences } from "./schema";
 import type {
   NotificationDeviceInput,
   NotificationPreferences,
@@ -9,18 +11,19 @@ import {
   resourceId,
 } from "./permissions";
 import { HttpError } from "./response";
-import type { PoolClient } from "pg";
+import type { DatabaseTransaction } from "./database";
 import { lockAccountAccess, requireActiveMember } from "./account-access";
 
 export const preferenceColumns = `assignments, deadlines, trip_changes AS "tripChanges"`;
+export type NotificationScope = {
+  recipient_id: string;
+  trip_id: string;
+  family_id: string | null;
+  entry_id: string | null;
+};
 export async function permittedEvent(
-  db: PoolClient,
-  row: {
-    recipient_id: string;
-    trip_id: string;
-    family_id: string | null;
-    entry_id: string | null;
-  },
+  db: DatabaseTransaction,
+  row: NotificationScope,
 ) {
   await requireTripAccess(db, row.recipient_id, row.trip_id);
   let familyAccess = false;
@@ -43,11 +46,10 @@ export async function permittedEvent(
   // item, including its audience, stays locked through dispatch; an old event's
   // owning family is attribution, not an additional grant for trip-shared items.
   const entry = (
-    await db.query<{ audience: string }>(
-      `SELECT e.audience FROM checklist_entries e JOIN families f ON f.id = e.family_id
-       WHERE e.id = $1 AND e.family_id = $2 AND f.trip_id = $3 AND e.removed_at IS NULL FOR SHARE OF e`,
-      [row.entry_id, row.family_id, row.trip_id],
-    )
+    await db.execute<{
+      audience: string;
+    }>(sql`SELECT e.audience FROM checklist_entries e JOIN families f ON f.id = e.family_id
+       WHERE e.id = ${sql.param(row.entry_id)} AND e.family_id = ${sql.param(row.family_id)} AND f.trip_id = ${sql.param(row.trip_id)} AND e.removed_at IS NULL FOR SHARE OF e`)
   ).rows[0];
   if (!entry || (!familyAccess && entry.audience !== "trip"))
     throw new HttpError(
@@ -60,14 +62,14 @@ export function readNotifications(actor: string) {
   return transaction(async (db) => {
     await requireActiveMember(db, actor);
     const preferences = (
-      await db.query<NotificationPreferences>(
-        `SELECT ${preferenceColumns} FROM notification_preferences WHERE member_id = $1`,
-        [actor],
+      await db.execute<NotificationPreferences>(
+        sql`SELECT ${sql.raw(preferenceColumns)} FROM notification_preferences WHERE member_id = ${sql.param(actor)}`,
       )
     ).rows[0] ?? { assignments: false, deadlines: false, tripChanges: false };
-    const result = await db.query(
-      `SELECT e.*, d.state FROM notification_events e JOIN notification_deliveries d ON d.event_id = e.id WHERE e.recipient_id = $1 ORDER BY e.created_at DESC LIMIT 30`,
-      [actor],
+    const result = await db.execute<
+      NotificationScope & { kind: string; state: string }
+    >(
+      sql`SELECT e.*, d.state FROM notification_events e JOIN notification_deliveries d ON d.event_id = e.id WHERE e.recipient_id = ${sql.param(actor)} ORDER BY e.created_at DESC LIMIT 30`,
     );
     const deliveries: { kind: string; state: string }[] = [];
     for (const row of result.rows) {
@@ -88,22 +90,18 @@ export function patchNotifications(
 ) {
   return transaction(async (db) => {
     await requireActiveMember(db, actor);
-    await db.query(
-      "INSERT INTO notification_preferences (member_id) VALUES ($1) ON CONFLICT DO NOTHING",
-      [actor],
+    await db.execute(
+      sql`INSERT INTO notification_preferences (member_id) VALUES (${sql.param(actor)}) ON CONFLICT DO NOTHING`,
     );
-    const names = {
-      assignments: "assignments",
-      deadlines: "deadlines",
-      tripChanges: "trip_changes",
-    };
-    const keys = Object.keys(input) as (keyof NotificationPreferences)[];
-    const preferences = (
-      await db.query<NotificationPreferences>(
-        `UPDATE notification_preferences SET ${keys.map((key, i) => `${names[key]} = $${i + 2}`).join(", ")} WHERE member_id = $1 RETURNING ${preferenceColumns}`,
-        [actor, ...keys.map((key) => input[key])],
-      )
-    ).rows[0];
+    const [preferences] = await db
+      .update(notificationPreferences)
+      .set(input)
+      .where(eq(notificationPreferences.memberId, actor))
+      .returning({
+        assignments: notificationPreferences.assignments,
+        deadlines: notificationPreferences.deadlines,
+        tripChanges: notificationPreferences.tripChanges,
+      });
     return { preferences, deliveries: [] };
   });
 }
@@ -118,9 +116,8 @@ export function registerDevice(
       await requireTripAccess(db, identity.id, tripId);
     for (const schedule of input.localSchedules) {
       const row = (
-        await db.query(
-          "SELECT owner_member_id AS recipient_id, trip_id, family_id, entry_id FROM reminders WHERE id = $1 AND owner_member_id = $2",
-          [schedule.id, identity.id],
+        await db.execute<NotificationScope>(
+          sql`SELECT owner_member_id AS recipient_id, trip_id, family_id, entry_id FROM reminders WHERE id = ${sql.param(schedule.id)} AND owner_member_id = ${sql.param(identity.id)}`,
         )
       ).rows[0];
       if (!row)
@@ -133,10 +130,11 @@ export function registerDevice(
     }
     // A device/token can belong only to its current verified session. Old jobs
     // are removed rather than reassigned when accounts or sessions change.
-    await db.query("SELECT pg_advisory_xact_lock(hashtext($1))", [input.token]);
-    const old = await db.query(
-      "SELECT id, member_id, session_id, token FROM notification_devices WHERE id = $1 OR token = $2 FOR UPDATE",
-      [input.deviceId, input.token],
+    await db.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtext(${sql.param(input.token)}))`,
+    );
+    const old = await db.execute(
+      sql`SELECT id, member_id, session_id, token FROM notification_devices WHERE id = ${sql.param(input.deviceId)} OR token = ${sql.param(input.token)} FOR UPDATE`,
     );
     for (const device of old.rows) {
       if (
@@ -145,37 +143,23 @@ export function registerDevice(
         device.token !== input.token ||
         device.id !== input.deviceId
       )
-        await db.query("DELETE FROM notification_devices WHERE id = $1", [
-          device.id,
-        ]);
+        await db.execute(
+          sql`DELETE FROM notification_devices WHERE id = ${sql.param(device.id)}`,
+        );
     }
-    await db.query(
-      `INSERT INTO notification_devices (id, member_id, clerk_user_id, session_id, token, trip_ids) VALUES ($1,$2,$3,$4,$5,$6)
-      ON CONFLICT (id) DO UPDATE SET trip_ids = EXCLUDED.trip_ids, enabled = true`,
-      [
-        input.deviceId,
-        identity.id,
-        identity.clerkUserId,
-        identity.sessionId,
-        input.token,
-        input.tripIds,
-      ],
-    );
+    await db.execute(sql`INSERT INTO notification_devices (id, member_id, clerk_user_id, session_id, token, trip_ids) VALUES (${sql.param(input.deviceId)},${sql.param(identity.id)},${sql.param(identity.clerkUserId)},${sql.param(identity.sessionId)},${sql.param(input.token)},${sql.param(input.tripIds)})
+      ON CONFLICT (id) DO UPDATE SET trip_ids = EXCLUDED.trip_ids, enabled = true`);
     for (const schedule of input.localSchedules)
-      await db.query(
-        `INSERT INTO notification_local_schedules (device_id, reminder_id, version) VALUES ($1,$2,$3)
-      ON CONFLICT (device_id, reminder_id) DO UPDATE SET version = GREATEST(notification_local_schedules.version, EXCLUDED.version)`,
-        [input.deviceId, schedule.id, schedule.version],
-      );
+      await db.execute(sql`INSERT INTO notification_local_schedules (device_id, reminder_id, version) VALUES (${sql.param(input.deviceId)},${sql.param(schedule.id)},${sql.param(schedule.version)})
+      ON CONFLICT (device_id, reminder_id) DO UPDATE SET version = GREATEST(notification_local_schedules.version, EXCLUDED.version)`);
     return { saved: true };
   });
 }
 export function removeDevice(actor: string, id: string) {
   resourceId(id);
   return transaction(async (db) => {
-    await db.query(
-      "DELETE FROM notification_devices WHERE id = $1 AND member_id = $2",
-      [id, actor],
+    await db.execute(
+      sql`DELETE FROM notification_devices WHERE id = ${sql.param(id)} AND member_id = ${sql.param(actor)}`,
     );
     return { saved: true };
   });

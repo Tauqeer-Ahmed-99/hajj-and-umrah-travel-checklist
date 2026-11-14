@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import type {
   Family,
   FamilyInput,
@@ -7,9 +8,8 @@ import type {
   TripDetail,
   TripInput,
 } from "@nmt/contracts";
-import type { PoolClient } from "pg";
 import { randomUUID } from "node:crypto";
-import { database } from "./database";
+import { database, type DatabaseTransaction } from "./database";
 import {
   requireFamilyAccess,
   requireTripAccess,
@@ -20,24 +20,13 @@ import { HttpError } from "./response";
 import { lockAccountAccess, requireActiveMember } from "./account-access";
 
 export async function transaction<T>(
-  work: (db: PoolClient) => Promise<T>,
+  work: (db: DatabaseTransaction) => Promise<T>,
 ): Promise<T> {
-  const db = await database().connect();
-  try {
-    await db.query("BEGIN");
-    const result = await work(db);
-    await db.query("COMMIT");
-    return result;
-  } catch (error) {
-    await db.query("ROLLBACK");
-    throw error;
-  } finally {
-    db.release();
-  }
+  return database().transaction(work);
 }
 
 export async function createOnce(
-  db: PoolClient,
+  db: DatabaseTransaction,
   memberId: string,
   scope: string,
   input: { requestId?: string },
@@ -45,22 +34,19 @@ export async function createOnce(
 ): Promise<string> {
   const { requestId = randomUUID(), ...body } = input;
   const values = [memberId, requestId, scope, JSON.stringify(body)];
-  const inserted = await db.query<{ resource_id: string }>(
-    `
+  const inserted = await db.execute<{ resource_id: string }>(sql`
     INSERT INTO creation_requests (member_id, request_id, scope, input)
-    VALUES ($1, $2, $3, $4) ON CONFLICT (member_id, request_id) DO NOTHING RETURNING resource_id`,
-    values,
-  );
+    VALUES (${sql.param(values[0])}, ${sql.param(values[1])}, ${sql.param(values[2])}, ${sql.param(values[3])}) ON CONFLICT (member_id, request_id) DO NOTHING RETURNING resource_id`);
   if (inserted.rows[0]) {
     await create(inserted.rows[0].resource_id);
     return inserted.rows[0].resource_id;
   }
-  const existing = await db.query<{ resource_id: string; matches: boolean }>(
-    `
-    SELECT resource_id, (scope = $3 AND input = $4::jsonb) AS matches
-    FROM creation_requests WHERE member_id = $1 AND request_id = $2`,
-    values,
-  );
+  const existing = await db.execute<{
+    resource_id: string;
+    matches: boolean;
+  }>(sql`
+    SELECT resource_id, (scope = ${sql.param(values[2])} AND input = ${sql.param(values[3])}::jsonb) AS matches
+    FROM creation_requests WHERE member_id = ${sql.param(values[0])} AND request_id = ${sql.param(values[1])}`);
   if (!existing.rows[0]?.matches)
     throw new HttpError(
       409,
@@ -71,12 +57,9 @@ export async function createOnce(
 }
 
 export async function listTrips(memberId: string) {
-  const result = await database().query<Trip>(
-    `
-    SELECT ${tripColumns} FROM trips t JOIN trip_members tm ON tm.trip_id = t.id
-    WHERE tm.member_id = $1 ORDER BY t.created_at DESC, t.id`,
-    [memberId],
-  );
+  const result = await database().execute<Trip>(sql`
+    SELECT ${sql.raw(tripColumns)} FROM trips t JOIN trip_members tm ON tm.trip_id = t.id
+    WHERE tm.member_id = ${sql.param(memberId)} ORDER BY t.created_at DESC, t.id`);
   return { trips: result.rows };
 }
 
@@ -87,15 +70,12 @@ export async function readTrip(
 ): Promise<TripDetail> {
   const trip = await requireTripAccess(db, memberId, tripId);
   // Organizer authority never widens this family audience.
-  const families = await db.query<Family>(
-    `
+  const families = await db.execute<Family>(sql`
     SELECT f.id, f.trip_id AS "tripId", f.name, fm.role,
-      (fm.role <> 'viewer' AND $3 <> 'viewer') AS "canEdit",
-      (fm.role = 'coordinator' AND $3 <> 'viewer') AS "canCoordinate"
+      (fm.role <> 'viewer' AND ${sql.param(trip.role)} <> 'viewer') AS "canEdit",
+      (fm.role = 'coordinator' AND ${sql.param(trip.role)} <> 'viewer') AS "canCoordinate"
     FROM families f JOIN family_members fm ON fm.family_id = f.id
-    WHERE f.trip_id = $1 AND fm.member_id = $2 ORDER BY f.created_at, f.id`,
-    [tripId, memberId, trip.role],
-  );
+    WHERE f.trip_id = ${sql.param(tripId)} AND fm.member_id = ${sql.param(memberId)} ORDER BY f.created_at, f.id`);
   return { trip, families: families.rows };
 }
 
@@ -109,30 +89,17 @@ export async function createTrip(memberId: string, input: TripInput) {
       "trip",
       input,
       async (tripId) => {
-        await db.query(
-          `
+        await db.execute(sql`
       INSERT INTO trips (id, name, kind, start_date, end_date, destinations)
-      VALUES ($1, $2, $3, $4, $5, $6)`,
-          [
-            tripId,
-            input.name,
-            input.kind,
-            input.startDate,
-            input.endDate,
-            input.destinations,
-          ],
+      VALUES (${sql.param(tripId)}, ${sql.param(input.name)}, ${sql.param(input.kind)}, ${sql.param(input.startDate)}, ${sql.param(input.endDate)}, ${sql.param(input.destinations)})`);
+        await db.execute(
+          sql`INSERT INTO trip_members (trip_id, member_id, role) VALUES (${sql.param(tripId)}, ${sql.param(memberId)}, 'organizer')`,
         );
-        await db.query(
-          "INSERT INTO trip_members (trip_id, member_id, role) VALUES ($1, $2, 'organizer')",
-          [tripId, memberId],
+        const family = await db.execute<{ id: string }>(
+          sql`INSERT INTO families (trip_id, name) VALUES (${sql.param(tripId)}, ${sql.param(input.familyName)}) RETURNING id`,
         );
-        const family = await db.query<{ id: string }>(
-          "INSERT INTO families (trip_id, name) VALUES ($1, $2) RETURNING id",
-          [tripId, input.familyName],
-        );
-        await db.query(
-          "INSERT INTO family_members (trip_id, family_id, member_id, role) VALUES ($1, $2, $3, 'coordinator')",
-          [tripId, family.rows[0].id, memberId],
+        await db.execute(
+          sql`INSERT INTO family_members (trip_id, family_id, member_id, role) VALUES (${sql.param(tripId)}, ${sql.param(family.rows[0].id)}, ${sql.param(memberId)}, 'coordinator')`,
         );
       },
     );
@@ -154,13 +121,11 @@ export async function createFamily(
       `family:${tripId}`,
       input,
       async (familyId) => {
-        await db.query(
-          "INSERT INTO families (id, trip_id, name) VALUES ($1, $2, $3)",
-          [familyId, tripId, input.name],
+        await db.execute(
+          sql`INSERT INTO families (id, trip_id, name) VALUES (${sql.param(familyId)}, ${sql.param(tripId)}, ${sql.param(input.name)})`,
         );
-        await db.query(
-          "INSERT INTO family_members (trip_id, family_id, member_id, role) VALUES ($1, $2, $3, 'coordinator')",
-          [tripId, familyId, memberId],
+        await db.execute(
+          sql`INSERT INTO family_members (trip_id, family_id, member_id, role) VALUES (${sql.param(tripId)}, ${sql.param(familyId)}, ${sql.param(memberId)}, 'coordinator')`,
         );
       },
     );
@@ -179,9 +144,8 @@ export async function listTravelers(
 ) {
   return transaction(async (db) => {
     await requireFamilyAccess(db, memberId, tripId, familyId);
-    const result = await db.query<Traveler>(
-      `SELECT ${travelerColumns} FROM travelers WHERE trip_id = $1 AND family_id = $2 ORDER BY created_at, id`,
-      [tripId, familyId],
+    const result = await db.execute<Traveler>(
+      sql`SELECT ${sql.raw(travelerColumns)} FROM travelers WHERE trip_id = ${sql.param(tripId)} AND family_id = ${sql.param(familyId)} ORDER BY created_at, id`,
     );
     return { travelers: result.rows };
   });
@@ -201,15 +165,13 @@ export async function createTraveler(
       `traveler:${tripId}:${familyId}`,
       input,
       async (id) => {
-        await db.query(
-          `INSERT INTO travelers (id, trip_id, family_id, first_name, last_name) VALUES ($1, $2, $3, $4, $5)`,
-          [id, tripId, familyId, input.firstName, input.lastName],
+        await db.execute(
+          sql`INSERT INTO travelers (id, trip_id, family_id, first_name, last_name) VALUES (${sql.param(id)}, ${sql.param(tripId)}, ${sql.param(familyId)}, ${sql.param(input.firstName)}, ${sql.param(input.lastName)})`,
         );
       },
     );
-    const result = await db.query<Traveler>(
-      `SELECT ${travelerColumns} FROM travelers WHERE id = $1 AND trip_id = $2 AND family_id = $3`,
-      [travelerId, tripId, familyId],
+    const result = await db.execute<Traveler>(
+      sql`SELECT ${sql.raw(travelerColumns)} FROM travelers WHERE id = ${sql.param(travelerId)} AND trip_id = ${sql.param(tripId)} AND family_id = ${sql.param(familyId)}`,
     );
     return { traveler: result.rows[0] };
   });

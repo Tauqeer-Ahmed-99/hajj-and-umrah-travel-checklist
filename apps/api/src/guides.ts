@@ -1,4 +1,5 @@
-import type { PoolClient } from "pg";
+import { sql } from "drizzle-orm";
+import type { DatabaseTransaction } from "./database";
 import {
   guideContent,
   type Guide,
@@ -17,7 +18,7 @@ import { HttpError } from "./response";
 import { guideParse } from "./guide-http";
 
 const columns = `g.id, g.trip_id AS "tripId", g.family_id AS "familyId", g.audience, g.pinned, g.version, g.content,
- g.contributor, g.updated_by AS "updatedBy", g.created_at AS "createdAt", g.updated_at AS "updatedAt"`;
+ g.contributor, g.updated_by AS "updatedBy", to_char(g.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "createdAt", to_char(g.updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "updatedAt"`;
 type Row = Omit<
   GuideRecord,
   | "kind"
@@ -44,30 +45,29 @@ type Row = Omit<
     | "textDirection"
     | "file"
   >;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
 };
 function record({ content, createdAt, updatedAt, ...row }: Row): GuideRecord {
   return {
     ...row,
     ...content,
-    createdAt: createdAt.toISOString(),
-    updatedAt: updatedAt.toISOString(),
+    createdAt,
+    updatedAt,
   };
 }
 function unavailable(): never {
   throw new HttpError(404, "not_found", "This guide is not available to you.");
 }
-export async function actor(db: PoolClient, memberId: string) {
+export async function actor(db: DatabaseTransaction, memberId: string) {
   return (
-    await db.query(
-      `SELECT id, first_name AS "firstName", last_name AS "lastName", username FROM members WHERE id = $1`,
-      [memberId],
+    await db.execute(
+      sql`SELECT id, first_name AS "firstName", last_name AS "lastName", username FROM members WHERE id = ${sql.param(memberId)}`,
     )
   ).rows[0];
 }
 async function capabilities(
-  db: PoolClient,
+  db: DatabaseTransaction,
   memberId: string,
   value: GuideRecord,
 ): Promise<Guide> {
@@ -97,30 +97,28 @@ async function capabilities(
   };
 }
 export async function readGuideInTransaction(
-  db: PoolClient,
+  db: DatabaseTransaction,
   memberId: string,
   tripId: string,
   guideId: string,
-  lock = "SHARE",
+  lock: "SHARE" | "UPDATE" = "SHARE",
 ) {
   await requireTripAccess(db, memberId, tripId);
   resourceId(guideId);
-  const result = await db.query<Row>(
-    `SELECT ${columns} FROM guides g WHERE g.trip_id = $1 AND g.id = $2 FOR ${lock} OF g`,
-    [tripId, guideId],
+  const result = await db.execute<Row>(
+    sql`SELECT ${sql.raw(columns)} FROM guides g WHERE g.trip_id = ${sql.param(tripId)} AND g.id = ${sql.param(guideId)} FOR ${sql.raw(lock)} OF g`,
   );
   if (!result.rows[0]) unavailable();
   return capabilities(db, memberId, record(result.rows[0]));
 }
 export async function saveGuideVersion(
-  db: PoolClient,
+  db: DatabaseTransaction,
   guide: GuideRecord,
   changedFields: string[],
   id?: string,
 ) {
-  await db.query(
-    `INSERT INTO guide_versions (id, guide_id, version, snapshot, changed_fields) VALUES (COALESCE($1::uuid, gen_random_uuid()),$2,$3,$4,$5)`,
-    [id ?? null, guide.id, guide.version, JSON.stringify(guide), changedFields],
+  await db.execute(
+    sql`INSERT INTO guide_versions (id, guide_id, version, snapshot, changed_fields) VALUES (COALESCE(${sql.param(id ?? null)}::uuid, gen_random_uuid()),${sql.param(guide.id)},${sql.param(guide.version)},${sql.param(JSON.stringify(guide))},${sql.param(changedFields)})`,
   );
 }
 // Metadata only: revalidate both today's audience and the exact saved version.
@@ -134,9 +132,8 @@ export function guideCopyAccess(
   return transaction(async (db) => {
     const current = await readGuideInTransaction(db, memberId, tripId, guideId);
     const snapshot = (
-      await db.query<{ snapshot: GuideRecord }>(
-        "SELECT snapshot FROM guide_versions WHERE guide_id=$1 AND version=$2",
-        [guideId, version],
+      await db.execute<{ snapshot: GuideRecord }>(
+        sql`SELECT snapshot FROM guide_versions WHERE guide_id=${sql.param(guideId)} AND version=${sql.param(version)}`,
       )
     ).rows[0]?.snapshot;
     if (!snapshot) unavailable();
@@ -169,15 +166,8 @@ export function createGuide(
       async (id) => {
         const { requestId, familyId, ...content } = input;
         const contributor = await actor(db, memberId);
-        const saved = await db.query<Row>(
-          `INSERT INTO guides AS g (id, trip_id, family_id, content, contributor, updated_by) VALUES ($1,$2,$3,$4,$5,$5) RETURNING ${columns}`,
-          [
-            id,
-            tripId,
-            familyId,
-            JSON.stringify(content),
-            JSON.stringify(contributor),
-          ],
+        const saved = await db.execute<Row>(
+          sql`INSERT INTO guides AS g (id, trip_id, family_id, content, contributor, updated_by) VALUES (${sql.param(id)},${sql.param(tripId)},${sql.param(familyId)},${sql.param(JSON.stringify(content))},${sql.param(JSON.stringify(contributor))},${sql.param(JSON.stringify(contributor))}) RETURNING ${sql.raw(columns)}`,
         );
         await saveGuideVersion(db, record(saved.rows[0]), ["created"]);
       },
@@ -198,13 +188,11 @@ export function listGuides(
   return transaction(async (db) => {
     await requireTripAccess(db, memberId, tripId);
     // Retain actual grants until commit, including concurrent removal/downgrade.
-    await db.query(
-      `SELECT family_id FROM family_members WHERE trip_id = $1 AND member_id = $2 FOR SHARE`,
-      [tripId, memberId],
+    await db.execute(
+      sql`SELECT family_id FROM family_members WHERE trip_id = ${sql.param(tripId)} AND member_id = ${sql.param(memberId)} FOR SHARE`,
     );
-    const result = await db.query<Row>(
-      `SELECT ${columns} FROM guides g WHERE g.trip_id = $1 AND (g.audience = 'trip' OR EXISTS (SELECT 1 FROM family_members fm WHERE fm.trip_id = g.trip_id AND fm.family_id = g.family_id AND fm.member_id = $2)) ORDER BY g.pinned DESC, g.updated_at DESC, g.id`,
-      [tripId, memberId],
+    const result = await db.execute<Row>(
+      sql`SELECT ${sql.raw(columns)} FROM guides g WHERE g.trip_id = ${sql.param(tripId)} AND (g.audience = 'trip' OR EXISTS (SELECT 1 FROM family_members fm WHERE fm.trip_id = g.trip_id AND fm.family_id = g.family_id AND fm.member_id = ${sql.param(memberId)})) ORDER BY g.pinned DESC, g.updated_at DESC, g.id`,
     );
     // Search only accessible metadata. Substring matching treats % and _ literally.
     const matches = result.rows.map(record).filter((value) => {
@@ -241,9 +229,8 @@ export function guideHistory(
 ) {
   return transaction(async (db) => {
     const current = await readGuideInTransaction(db, memberId, tripId, guideId);
-    const result = await db.query(
-      `SELECT snapshot AS guide, changed_fields AS "changedFields" FROM guide_versions v WHERE guide_id = $1 AND (snapshot->>'audience' = 'trip' OR EXISTS (SELECT 1 FROM family_members fm WHERE fm.trip_id = $2 AND fm.family_id = $3 AND fm.member_id = $4)) ORDER BY version DESC`,
-      [guideId, tripId, current.familyId, memberId],
+    const result = await db.execute(
+      sql`SELECT snapshot AS guide, changed_fields AS "changedFields" FROM guide_versions v WHERE guide_id = ${sql.param(guideId)} AND (snapshot->>'audience' = 'trip' OR EXISTS (SELECT 1 FROM family_members fm WHERE fm.trip_id = ${sql.param(tripId)} AND fm.family_id = ${sql.param(current.familyId)} AND fm.member_id = ${sql.param(memberId)})) ORDER BY version DESC`,
     );
     return { versions: result.rows };
   });
@@ -313,16 +300,8 @@ export function patchGuide(
           ),
         );
         const updatedBy = await actor(db, memberId);
-        const saved = await db.query<Row>(
-          `UPDATE guides AS g SET content = $3, audience = $4, pinned = $5, version = version + 1, updated_by = $6, updated_at = clock_timestamp() WHERE g.trip_id = $1 AND g.id = $2 RETURNING ${columns}`,
-          [
-            tripId,
-            guideId,
-            JSON.stringify(content),
-            merged.audience,
-            merged.pinned,
-            JSON.stringify(updatedBy),
-          ],
+        const saved = await db.execute<Row>(
+          sql`UPDATE guides AS g SET content = ${sql.param(JSON.stringify(content))}, audience = ${sql.param(merged.audience)}, pinned = ${sql.param(merged.pinned)}, version = version + 1, updated_by = ${sql.param(JSON.stringify(updatedBy))}, updated_at = clock_timestamp() WHERE g.trip_id = ${sql.param(tripId)} AND g.id = ${sql.param(guideId)} RETURNING ${sql.raw(columns)}`,
         );
         await saveGuideVersion(
           db,

@@ -1,4 +1,5 @@
-import type { PoolClient } from "pg";
+import { sql } from "drizzle-orm";
+import type { DatabaseTransaction } from "./database";
 import { randomUUID } from "node:crypto";
 import { after } from "next/server";
 
@@ -13,7 +14,7 @@ export function dispatchAfterResponse() {
   });
 }
 export async function assignmentChanged(
-  db: PoolClient,
+  db: DatabaseTransaction,
   actor: string,
   familyId: string,
   entryId: string,
@@ -26,32 +27,25 @@ export async function assignmentChanged(
       ? "deadlines"
       : null;
   if (!kind) return;
-  await db.query(
-    `INSERT INTO notification_events (source_key, recipient_id, trip_id, family_id, entry_id, kind)
-    SELECT $1, e.responsible_member_id, f.trip_id, f.id, e.id, $5 FROM checklist_entries e JOIN families f ON f.id = e.family_id
+  await db.execute(sql`INSERT INTO notification_events (source_key, recipient_id, trip_id, family_id, entry_id, kind)
+    SELECT ${sql.param(sourceKey)}, e.responsible_member_id, f.trip_id, f.id, e.id, ${sql.param(kind)} FROM checklist_entries e JOIN families f ON f.id = e.family_id
     JOIN notification_preferences p ON p.member_id = e.responsible_member_id
-    WHERE e.id = $3 AND f.id = $2 AND e.responsible_member_id <> $4 AND e.removed_at IS NULL
-      AND CASE WHEN $5 = 'assignments' THEN p.assignments ELSE p.deadlines END
-    ON CONFLICT DO NOTHING`,
-    [sourceKey, familyId, entryId, actor, kind],
-  );
+    WHERE e.id = ${sql.param(entryId)} AND f.id = ${sql.param(familyId)} AND e.responsible_member_id <> ${sql.param(actor)} AND e.removed_at IS NULL
+      AND CASE WHEN ${sql.param(kind)} = 'assignments' THEN p.assignments ELSE p.deadlines END
+    ON CONFLICT DO NOTHING`);
   dispatchAfterResponse();
 }
 export async function itineraryChanged(
-  db: PoolClient,
+  db: DatabaseTransaction,
   actor: string,
   tripId: string,
 ) {
-  await db.query(
-    "UPDATE reminders SET needs_review = true, version = version + 1 WHERE trip_id = $1 AND NOT dismissed",
-    [tripId],
+  await db.execute(
+    sql`UPDATE reminders SET needs_review = true, version = version + 1 WHERE trip_id = ${sql.param(tripId)} AND NOT dismissed`,
   );
-  await db.query(
-    `INSERT INTO notification_events (source_key, recipient_id, trip_id, kind)
-    SELECT $1, tm.member_id, tm.trip_id, 'tripChanges' FROM trip_members tm
+  await db.execute(sql`INSERT INTO notification_events (source_key, recipient_id, trip_id, kind)
+    SELECT ${sql.param(randomUUID())}, tm.member_id, tm.trip_id, 'tripChanges' FROM trip_members tm
     JOIN notification_preferences p ON p.member_id = tm.member_id AND p.trip_changes
-    WHERE tm.trip_id = $2 AND tm.member_id <> $3`,
-    [randomUUID(), tripId, actor],
-  );
+    WHERE tm.trip_id = ${sql.param(tripId)} AND tm.member_id <> ${sql.param(actor)}`);
   dispatchAfterResponse();
 }

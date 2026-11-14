@@ -21,6 +21,7 @@
     "@clerk/backend": "3.28.0",
     "@clerk/shared": "^4.45.0",
     "@nmt/contracts": "*",
+    "drizzle-orm": "0.45.4",
     "file-type": "^22.3.0",
     "next": "16.4.6",
     "pdf-lib": "^1.17.1",

@@ -1,4 +1,5 @@
-import type { PoolClient } from "pg";
+import { sql } from "drizzle-orm";
+import type { DatabaseTransaction } from "./database";
 import type { Reminder, ReminderInput, ReminderPatch } from "@nmt/contracts";
 import {
   requireTripAccess,
@@ -10,7 +11,7 @@ import { HttpError } from "./response";
 
 const columns = `id, trip_id AS "tripId", owner_member_id AS "ownerMemberId", created_by AS "createdBy", category, title, due_at AS "dueAt", family_id AS "familyId", entry_id AS "entryId", dismissed, needs_review AS "needsReview", version`;
 async function references(
-  db: PoolClient,
+  db: DatabaseTransaction,
   actor: string,
   tripId: string,
   input: Pick<ReminderInput, "ownerMemberId" | "familyId" | "entryId">,
@@ -34,9 +35,8 @@ async function references(
   }
   if (input.entryId) {
     resourceId(input.entryId);
-    const entry = await db.query(
-      "SELECT id FROM checklist_entries WHERE id = $1 AND family_id = $2 AND removed_at IS NULL FOR SHARE",
-      [input.entryId, input.familyId],
+    const entry = await db.execute(
+      sql`SELECT id FROM checklist_entries WHERE id = ${sql.param(input.entryId)} AND family_id = ${sql.param(input.familyId)} AND removed_at IS NULL FOR SHARE`,
     );
     if (!entry.rowCount)
       throw new HttpError(
@@ -59,27 +59,15 @@ export function createReminder(
       `reminder:${tripId}`,
       input,
       async (id) => {
-        await db.query(
-          `INSERT INTO reminders (id, trip_id, owner_member_id, created_by, category, title, due_at, family_id, entry_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-          [
-            id,
-            tripId,
-            input.ownerMemberId,
-            actor,
-            input.category,
-            input.title,
-            JSON.stringify(input.dueAt),
-            input.familyId,
-            input.entryId,
-          ],
+        await db.execute(
+          sql`INSERT INTO reminders (id, trip_id, owner_member_id, created_by, category, title, due_at, family_id, entry_id) VALUES (${sql.param(id)},${sql.param(tripId)},${sql.param(input.ownerMemberId)},${sql.param(actor)},${sql.param(input.category)},${sql.param(input.title)},${sql.param(JSON.stringify(input.dueAt))},${sql.param(input.familyId)},${sql.param(input.entryId)})`,
         );
       },
     );
     return {
       reminder: (
-        await db.query<Reminder>(
-          `SELECT ${columns} FROM reminders WHERE id = $1`,
-          [id],
+        await db.execute<Reminder>(
+          sql`SELECT ${sql.raw(columns)} FROM reminders WHERE id = ${sql.param(id)}`,
         )
       ).rows[0],
     };
@@ -88,9 +76,8 @@ export function createReminder(
 export function readReminders(actor: string, tripId: string) {
   return transaction(async (db) => {
     await requireTripAccess(db, actor, tripId);
-    const result = await db.query<Reminder>(
-      `SELECT ${columns} FROM reminders WHERE trip_id = $1 AND (owner_member_id = $2 OR created_by = $2) ORDER BY created_at, id`,
-      [tripId, actor],
+    const result = await db.execute<Reminder>(
+      sql`SELECT ${sql.raw(columns)} FROM reminders WHERE trip_id = ${sql.param(tripId)} AND (owner_member_id = ${sql.param(actor)} OR created_by = ${sql.param(actor)}) ORDER BY created_at, id`,
     );
     const reminders: Reminder[] = [];
     for (const row of result.rows) {
@@ -115,9 +102,8 @@ export function patchReminder(
     await requireTripAccess(db, actor, tripId);
     resourceId(id);
     const current = (
-      await db.query<Reminder>(
-        `SELECT ${columns} FROM reminders WHERE id = $1 AND trip_id = $2 AND owner_member_id = $3 FOR UPDATE`,
-        [id, tripId, actor],
+      await db.execute<Reminder>(
+        sql`SELECT ${sql.raw(columns)} FROM reminders WHERE id = ${sql.param(id)} AND trip_id = ${sql.param(tripId)} AND owner_member_id = ${sql.param(actor)} FOR UPDATE`,
       )
     ).rows[0];
     if (!current)
@@ -149,15 +135,8 @@ export function patchReminder(
           JSON.stringify(current[key as keyof Reminder]),
       );
       if (changed)
-        await db.query(
-          `UPDATE reminders SET title = $2, due_at = $3, dismissed = $4, needs_review = $5, version = version + 1 WHERE id = $1`,
-          [
-            id,
-            next.title,
-            JSON.stringify(next.dueAt),
-            next.dismissed,
-            next.needsReview,
-          ],
+        await db.execute(
+          sql`UPDATE reminders SET title = ${sql.param(next.title)}, due_at = ${sql.param(JSON.stringify(next.dueAt))}, dismissed = ${sql.param(next.dismissed)}, needs_review = ${sql.param(next.needsReview)}, version = version + 1 WHERE id = ${sql.param(id)}`,
         );
     };
     if (input.requestId)
@@ -171,9 +150,8 @@ export function patchReminder(
     else await apply();
     return {
       reminder: (
-        await db.query<Reminder>(
-          `SELECT ${columns} FROM reminders WHERE id = $1`,
-          [id],
+        await db.execute<Reminder>(
+          sql`SELECT ${sql.raw(columns)} FROM reminders WHERE id = ${sql.param(id)}`,
         )
       ).rows[0],
     };

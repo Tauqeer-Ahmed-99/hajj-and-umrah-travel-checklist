@@ -1,11 +1,12 @@
-import type { PoolClient } from "pg";
+import { sql } from "drizzle-orm";
+import type { DatabaseExecutor } from "./database";
 import { trip as tripContract, type Family, type Trip } from "@nmt/contracts";
 import { database } from "./database";
 import { identify } from "./identity";
 import { HttpError } from "./response";
 import { removedAccount } from "./account-access";
 
-export type PermissionDatabase = Pick<PoolClient, "query">;
+export type PermissionDatabase = DatabaseExecutor;
 export const tripColumns = `t.id, t.name, t.kind, t.start_date::text AS "startDate",
   t.end_date::text AS "endDate", t.destinations, tm.role`;
 
@@ -17,12 +18,12 @@ export async function requireMember(request: Request): Promise<string> {
 
 export async function requireMemberIdentity(request: Request) {
   const identity = await identify(request);
-  const result = await database().query<{
+  const result = await database().execute<{
     id: string;
-    removal_started_at: Date | null;
-  }>("SELECT id, removal_started_at FROM members WHERE clerk_user_id = $1", [
-    identity.clerkUserId,
-  ]);
+    removal_started_at: string | null;
+  }>(
+    sql`SELECT id, removal_started_at FROM members WHERE clerk_user_id = ${sql.param(identity.clerkUserId)}`,
+  );
   if (result.rows[0]?.removal_started_at) throw removedAccount();
   if (!result.rows[0])
     throw new HttpError(
@@ -57,13 +58,10 @@ export async function requireTripAccess(
   capability: "read" | "edit" | "organize" = "read",
 ): Promise<Trip> {
   resourceId(tripId);
-  const result = await db.query<Trip>(
-    `
-    SELECT ${tripColumns} FROM trips t
+  const result = await db.execute<Trip>(sql`
+    SELECT ${sql.raw(tripColumns)} FROM trips t
     JOIN trip_members tm ON tm.trip_id = t.id
-    WHERE t.id = $1 AND tm.member_id = $2 FOR SHARE OF tm`,
-    [tripId, memberId],
-  );
+    WHERE t.id = ${sql.param(tripId)} AND tm.member_id = ${sql.param(memberId)} FOR SHARE OF tm`);
   const trip = result.rows[0];
   if (!trip)
     throw new HttpError(
@@ -92,15 +90,12 @@ export async function requireFamilyAccess(
 ): Promise<Family> {
   const trip = await requireTripAccess(db, memberId, tripId);
   resourceId(familyId);
-  const result = await db.query<Family>(
-    `
+  const result = await db.execute<Family>(sql`
     SELECT f.id, f.trip_id AS "tripId", f.name, fm.role,
-      (fm.role <> 'viewer' AND $4 <> 'viewer') AS "canEdit",
-      (fm.role = 'coordinator' AND $4 <> 'viewer') AS "canCoordinate"
+      (fm.role <> 'viewer' AND ${sql.param(trip.role)} <> 'viewer') AS "canEdit",
+      (fm.role = 'coordinator' AND ${sql.param(trip.role)} <> 'viewer') AS "canCoordinate"
     FROM families f JOIN family_members fm ON fm.family_id = f.id
-    WHERE f.trip_id = $1 AND f.id = $2 AND fm.member_id = $3 FOR SHARE OF fm`,
-    [tripId, familyId, memberId, trip.role],
-  );
+    WHERE f.trip_id = ${sql.param(tripId)} AND f.id = ${sql.param(familyId)} AND fm.member_id = ${sql.param(memberId)} FOR SHARE OF fm`);
   const family = result.rows[0];
   if (!family)
     throw new HttpError(

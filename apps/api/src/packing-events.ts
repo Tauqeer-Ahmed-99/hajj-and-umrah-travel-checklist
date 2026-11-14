@@ -1,8 +1,9 @@
-import type { PoolClient } from "pg";
+import { sql } from "drizzle-orm";
+import type { DatabaseTransaction } from "./database";
 import type { DepartureCheck, PackingMove } from "@nmt/contracts";
 
 export async function recordPacking(
-  db: PoolClient,
+  db: DatabaseTransaction,
   memberId: string,
   familyId: string,
   action: string,
@@ -30,27 +31,13 @@ export async function recordPacking(
       ]),
   );
   if (!Object.keys(changes).length) return;
-  await db.query(
-    `INSERT INTO packing_history (family_id, leg, bag_ids, action, actor, changes, entry_id, command, undoes, id)
-    SELECT $1,$10,$2,$3,jsonb_build_object('id',id,'firstName',first_name,'lastName',last_name,'username',username),$5,$6,$7,$8,coalesce($9::uuid,gen_random_uuid()) FROM members WHERE id = $4`,
-    [
-      familyId,
-      bagIds,
-      action,
-      memberId,
-      JSON.stringify(changes),
-      details.entryId ?? null,
-      details.command ? JSON.stringify(details.command) : null,
-      details.undoes ?? null,
-      details.id ?? null,
-      details.leg ?? "outbound",
-    ],
-  );
+  await db.execute(sql`INSERT INTO packing_history (family_id, leg, bag_ids, action, actor, changes, entry_id, command, undoes, id)
+    SELECT ${sql.param(familyId)},${sql.param(details.leg ?? "outbound")},${sql.param(bagIds)},${sql.param(action)},jsonb_build_object('id',id,'firstName',first_name,'lastName',last_name,'username',username),${sql.param(JSON.stringify(changes))},${sql.param(details.entryId ?? null)},${sql.param(details.command ? JSON.stringify(details.command) : null)},${sql.param(details.undoes ?? null)},coalesce(${sql.param(details.id ?? null)}::uuid,gen_random_uuid()) FROM members WHERE id = ${sql.param(memberId)}`);
 }
-export const checkColumns = `id, leg, label, entry_id AS "entryId", checked, checked_at AS "checkedAt", checked_by AS "checkedBy",
+export const checkColumns = `id, leg, label, entry_id AS "entryId", checked, to_char(checked_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "checkedAt", checked_by AS "checkedBy",
   CASE WHEN bag_id IS NOT NULL THEN jsonb_build_object('kind','bag','id',bag_id) WHEN traveler_id IS NOT NULL THEN jsonb_build_object('kind','traveler','id',traveler_id) ELSE NULL END AS location`;
 export async function invalidateDepartureChecks(
-  db: PoolClient,
+  db: DatabaseTransaction,
   memberId: string,
   familyId: string,
   entryId: string | null,
@@ -58,11 +45,9 @@ export async function invalidateDepartureChecks(
   clearLocation = false,
   leg: "outbound" | "return" = "outbound",
 ) {
-  const checks = await db.query<DepartureCheck>(
-    `SELECT ${checkColumns} FROM departure_checks WHERE family_id = $1 AND leg = $5 AND removed_at IS NULL
-    AND (entry_id = $2::uuid OR bag_id = ANY($3::uuid[])) AND (checked OR $4)`,
-    [familyId, entryId, bagIds, clearLocation, leg],
-  );
+  const checks =
+    await db.execute<DepartureCheck>(sql`SELECT ${sql.raw(checkColumns)} FROM departure_checks WHERE family_id = ${sql.param(familyId)} AND leg = ${sql.param(leg)} AND removed_at IS NULL
+    AND (entry_id = ${sql.param(entryId)}::uuid OR bag_id = ANY(${sql.param(bagIds)}::uuid[])) AND (checked OR ${sql.param(clearLocation)})`);
   for (const check of checks.rows) {
     const location =
       clearLocation &&
@@ -70,9 +55,8 @@ export async function invalidateDepartureChecks(
       bagIds.includes(check.location.id)
         ? null
         : check.location;
-    await db.query(
-      `UPDATE departure_checks SET checked = false, checked_at = NULL, checked_by = NULL, bag_id = $2 WHERE id = $1`,
-      [check.id, location?.kind === "bag" ? location.id : null],
+    await db.execute(
+      sql`UPDATE departure_checks SET checked = false, checked_at = NULL, checked_by = NULL, bag_id = ${sql.param(location?.kind === "bag" ? location.id : null)} WHERE id = ${sql.param(check.id)}`,
     );
     await recordPacking(
       db,

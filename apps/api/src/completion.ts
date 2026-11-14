@@ -1,5 +1,6 @@
+import { sql } from "drizzle-orm";
 import { createHash, randomUUID } from "node:crypto";
-import type { PoolClient } from "pg";
+import type { DatabaseTransaction } from "./database";
 import type {
   Completion,
   CompletionInput,
@@ -20,38 +21,36 @@ import { sharedState } from "./sharing";
 import type { Bag } from "@nmt/contracts";
 type TripPhase = Itinerary["phase"];
 
-async function phase(db: PoolClient, tripId: string): Promise<TripPhase> {
+async function phase(
+  db: DatabaseTransaction,
+  tripId: string,
+): Promise<TripPhase> {
   return (
     (
-      await db.query("SELECT phase FROM trip_itineraries WHERE trip_id=$1", [
-        tripId,
-      ])
+      await db.execute<{ phase: TripPhase }>(
+        sql`SELECT phase FROM trip_itineraries WHERE trip_id=${sql.param(tripId)}`,
+      )
     ).rows[0]?.phase ?? "planning"
   );
 }
 async function state(
-  db: PoolClient,
+  db: DatabaseTransaction,
   memberId: string,
   tripId: string,
 ): Promise<Completion> {
   const trip = await requireTripAccess(db, memberId, tripId);
   const saved = (
-    await db.query(
-      `SELECT completed_at AS "completedAt",completed_by AS "completedBy",
-    archived_at AS "archivedAt",archived_by AS "archivedBy" FROM trip_completion WHERE trip_id=$1`,
-      [tripId],
-    )
+    await db.execute(sql`SELECT to_char(completed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "completedAt",completed_by AS "completedBy",
+    to_char(archived_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "archivedAt",archived_by AS "archivedBy" FROM trip_completion WHERE trip_id=${sql.param(tripId)}`)
   ).rows[0];
   const history = (
-    await db.query<Completion["history"][number]>(
-      `SELECT id,action,actor,at FROM trip_completion_history WHERE trip_id=$1 ORDER BY sequence`,
-      [tripId],
+    await db.execute<Completion["history"][number]>(
+      sql`SELECT id,action,actor,to_char(at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS at FROM trip_completion_history WHERE trip_id=${sql.param(tripId)} ORDER BY sequence`,
     )
   ).rows;
   const lessons = (
-    await db.query<Completion["lessons"][number]>(
-      `SELECT id,lesson AS text,actor,at FROM trip_completion_history WHERE trip_id=$1 AND action='lesson_added' ORDER BY sequence`,
-      [tripId],
+    await db.execute<Completion["lessons"][number]>(
+      sql`SELECT id,lesson AS text,actor,to_char(at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS at FROM trip_completion_history WHERE trip_id=${sql.param(tripId)} AND action='lesson_added' ORDER BY sequence`,
     )
   ).rows;
   return {
@@ -68,16 +67,15 @@ async function state(
   };
 }
 async function review(
-  db: PoolClient,
+  db: DatabaseTransaction,
   memberId: string,
   tripId: string,
 ): Promise<CompletionReview> {
   await requireTripAccess(db, memberId, tripId);
   // The same family locks used by packing/sharing keep this accepted review
   // coherent. Locking a row grants no permission to read its private contents.
-  await db.query(
-    "SELECT id FROM families WHERE trip_id=$1 ORDER BY id FOR SHARE",
-    [tripId],
+  await db.execute(
+    sql`SELECT id FROM families WHERE trip_id=${sql.param(tripId)} ORDER BY id FOR SHARE`,
   );
   const detail = await readTrip(db, memberId, tripId);
   const bags: CompletionReview["bags"] = [];
@@ -96,19 +94,19 @@ async function review(
   for (const family of detail.families) {
     await requireFamilyAccess(db, memberId, tripId, family.id);
     for (const bag of (
-      await db.query<Bag>(
-        `SELECT ${bagColumns} FROM bags b WHERE b.family_id=$1 AND b.removed_at IS NULL ORDER BY b.id`,
-        [family.id],
+      await db.execute<Bag>(
+        sql`SELECT ${sql.raw(bagColumns)} FROM bags b WHERE b.family_id=${sql.param(family.id)} AND b.removed_at IS NULL ORDER BY b.id`,
       )
     ).rows)
       addBag(bag);
     const reconciled = await returnItems(db, family.id);
     const entries = (
-      await db.query<{ entryId: string; title: string; unit: string }>(
-        `SELECT id AS "entryId",title,unit FROM checklist_entries WHERE family_id=$1 AND kind='item'
-        AND removed_at IS NULL AND not_needed_reason IS NULL ORDER BY id`,
-        [family.id],
-      )
+      await db.execute<{
+        entryId: string;
+        title: string;
+        unit: string;
+      }>(sql`SELECT id AS "entryId",title,unit FROM checklist_entries WHERE family_id=${sql.param(family.id)} AND kind='item'
+        AND removed_at IS NULL AND not_needed_reason IS NULL ORDER BY id`)
     ).rows;
     for (const entry of [
       ...entries,
@@ -167,30 +165,31 @@ async function review(
   };
 }
 async function record(
-  db: PoolClient,
+  db: DatabaseTransaction,
   memberId: string,
   tripId: string,
   id: string,
   action: Completion["history"][number]["action"],
   lesson: string | null = null,
 ) {
-  await db.query(
-    `INSERT INTO trip_completion_history (id,trip_id,action,actor,lesson)
-    SELECT $1,$2,$3,first_name || ' ' || last_name || ' (@' || username || ')',$5 FROM members WHERE id=$4`,
-    [id, tripId, action, memberId, lesson],
-  );
+  await db.execute(sql`INSERT INTO trip_completion_history (id,trip_id,action,actor,lesson)
+    SELECT ${sql.param(id)},${sql.param(tripId)},${sql.param(action)},first_name || ' ' || last_name || ' (@' || username || ')',${sql.param(lesson)} FROM members WHERE id=${sql.param(memberId)}`);
 }
 export function readCompletion(memberId: string, tripId: string) {
   return transaction(async (db) => {
     await requireTripAccess(db, memberId, tripId);
-    await db.query("SELECT id FROM trips WHERE id=$1 FOR SHARE", [tripId]);
+    await db.execute(
+      sql`SELECT id FROM trips WHERE id=${sql.param(tripId)} FOR SHARE`,
+    );
     return state(db, memberId, tripId);
   });
 }
 export function readCompletionReview(memberId: string, tripId: string) {
   return transaction(async (db) => {
     await requireTripAccess(db, memberId, tripId);
-    await db.query("SELECT id FROM trips WHERE id=$1 FOR SHARE", [tripId]);
+    await db.execute(
+      sql`SELECT id FROM trips WHERE id=${sql.param(tripId)} FOR SHARE`,
+    );
     return review(db, memberId, tripId);
   });
 }
@@ -201,7 +200,9 @@ export function mutateCompletion(
 ) {
   return transaction(async (db) => {
     await requireTripAccess(db, memberId, tripId, "organize");
-    await db.query("SELECT id FROM trips WHERE id=$1 FOR UPDATE", [tripId]);
+    await db.execute(
+      sql`SELECT id FROM trips WHERE id=${sql.param(tripId)} FOR UPDATE`,
+    );
     await createOnce(
       db,
       memberId,
@@ -210,9 +211,8 @@ export function mutateCompletion(
       async (id) => {
         const currentPhase = await phase(db, tripId);
         const confirmed = (
-          await db.query(
-            "SELECT completed_at FROM trip_completion WHERE trip_id=$1",
-            [tripId],
+          await db.execute(
+            sql`SELECT completed_at FROM trip_completion WHERE trip_id=${sql.param(tripId)}`,
           )
         ).rows[0]?.completed_at;
         if (input.kind !== "complete") {
@@ -225,12 +225,10 @@ export function mutateCompletion(
           if (input.kind === "lesson") {
             await record(db, memberId, tripId, id, "lesson_added", input.text);
           } else {
-            const changed = await db.query(
-              `INSERT INTO trip_completion (trip_id,archived_at,archived_by) VALUES ($1,clock_timestamp(),$2)
-            ON CONFLICT (trip_id) DO UPDATE SET archived_at=clock_timestamp(),archived_by=$2
-            WHERE trip_completion.archived_at IS NULL RETURNING trip_id`,
-              [tripId, memberId],
-            );
+            const changed =
+              await db.execute(sql`INSERT INTO trip_completion (trip_id,archived_at,archived_by) VALUES (${sql.param(tripId)},clock_timestamp(),${sql.param(memberId)})
+            ON CONFLICT (trip_id) DO UPDATE SET archived_at=clock_timestamp(),archived_by=${sql.param(memberId)}
+            WHERE trip_completion.archived_at IS NULL RETURNING trip_id`);
             if (changed.rowCount)
               await record(db, memberId, tripId, id, "archived");
           }
@@ -245,16 +243,10 @@ export function mutateCompletion(
             "Arrival information changed. Review it again before confirming Completed.",
           );
         if (currentPhase === "completed" && confirmed) return;
-        await db.query(
-          `INSERT INTO trip_itineraries (trip_id,phase) VALUES ($1,'completed')
-        ON CONFLICT (trip_id) DO UPDATE SET phase='completed'`,
-          [tripId],
-        );
-        await db.query(
-          `INSERT INTO trip_completion (trip_id,completed_at,completed_by) VALUES ($1,clock_timestamp(),$2)
-        ON CONFLICT (trip_id) DO UPDATE SET completed_at=clock_timestamp(),completed_by=$2`,
-          [tripId, memberId],
-        );
+        await db.execute(sql`INSERT INTO trip_itineraries (trip_id,phase) VALUES (${sql.param(tripId)},'completed')
+        ON CONFLICT (trip_id) DO UPDATE SET phase='completed'`);
+        await db.execute(sql`INSERT INTO trip_completion (trip_id,completed_at,completed_by) VALUES (${sql.param(tripId)},clock_timestamp(),${sql.param(memberId)})
+        ON CONFLICT (trip_id) DO UPDATE SET completed_at=clock_timestamp(),completed_by=${sql.param(memberId)}`);
         await record(db, memberId, tripId, id, "completed");
         if (currentPhase !== "completed")
           await itineraryChanged(db, memberId, tripId);
@@ -266,12 +258,9 @@ export function mutateCompletion(
 export function listArchives(memberId: string) {
   return transaction(async (db) => {
     const rows = (
-      await db.query(
-        `SELECT ${tripColumns},c.archived_at AS "archivedAt"
+      await db.execute(sql`SELECT ${sql.raw(tripColumns)},to_char(c.archived_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "archivedAt"
       FROM trips t JOIN trip_members tm ON tm.trip_id=t.id JOIN trip_completion c ON c.trip_id=t.id
-      WHERE tm.member_id=$1 AND c.archived_at IS NOT NULL ORDER BY c.archived_at DESC,t.id FOR SHARE OF tm`,
-        [memberId],
-      )
+      WHERE tm.member_id=${sql.param(memberId)} AND c.archived_at IS NOT NULL ORDER BY c.archived_at DESC,t.id FOR SHARE OF tm`)
     ).rows;
     return {
       archives: rows.map(({ archivedAt, ...trip }) => ({ trip, archivedAt })),
@@ -279,7 +268,7 @@ export function listArchives(memberId: string) {
   });
 }
 export async function checkCompletionPhase(
-  db: PoolClient,
+  db: DatabaseTransaction,
   memberId: string,
   tripId: string,
   next: TripPhase,
@@ -292,9 +281,8 @@ export async function checkCompletionPhase(
     );
   if ((await phase(db, tripId)) === "completed") {
     const saved = (
-      await db.query(
-        "SELECT archived_at FROM trip_completion WHERE trip_id=$1",
-        [tripId],
+      await db.execute(
+        sql`SELECT archived_at FROM trip_completion WHERE trip_id=${sql.param(tripId)}`,
       )
     ).rows[0];
     if (saved?.archived_at)

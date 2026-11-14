@@ -1,5 +1,6 @@
+import { sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
-import type { PoolClient } from "pg";
+import type { DatabaseTransaction } from "./database";
 import {
   GUIDE_FILE_LIMIT,
   type TravelFile,
@@ -39,16 +40,15 @@ const missing = () =>
 // Lock trip membership, then owning family, as packing/sharing do. A shared bag
 // never grants its identifying photo; the actual physical owner is checked again.
 async function owner(
-  db: PoolClient,
+  db: DatabaseTransaction,
   member: string,
   tripId: string,
   row: Row,
   edit = false,
 ) {
   const trip = await requireTripAccess(db, member, tripId);
-  await db.query(
-    "SELECT id FROM families WHERE id=$1 AND trip_id=$2 FOR UPDATE",
-    [row.family_id, tripId],
+  await db.execute(
+    sql`SELECT id FROM families WHERE id=${sql.param(row.family_id)} AND trip_id=${sql.param(tripId)} FOR UPDATE`,
   );
   let family;
   try {
@@ -58,17 +58,15 @@ async function owner(
   }
   if (row.kind === "bag_photo") {
     if (!family) throw missing();
-    const bag = await db.query(
-      "SELECT id FROM bags WHERE id=$1 AND family_id=$2 AND removed_at IS NULL FOR SHARE",
-      [row.bag_id, row.family_id],
+    const bag = await db.execute(
+      sql`SELECT id FROM bags WHERE id=${sql.param(row.bag_id)} AND family_id=${sql.param(row.family_id)} AND removed_at IS NULL FOR SHARE`,
     );
     if (!bag.rowCount) throw missing();
   } else {
     if (!family && row.audience !== "trip") throw missing();
     if (row.entry_id) {
-      const entry = await db.query(
-        "SELECT id FROM itinerary_entries WHERE id=$1 AND trip_id=$2 FOR SHARE",
-        [row.entry_id, tripId],
+      const entry = await db.execute(
+        sql`SELECT id FROM itinerary_entries WHERE id=${sql.param(row.entry_id)} AND trip_id=${sql.param(tripId)} FOR SHARE`,
       );
       if (!entry.rowCount) throw missing();
     }
@@ -88,7 +86,7 @@ async function owner(
   };
 }
 async function current(
-  db: PoolClient,
+  db: DatabaseTransaction,
   member: string,
   tripId: string,
   id: string,
@@ -97,9 +95,8 @@ async function current(
   resourceId(id);
   await requireTripAccess(db, member, tripId);
   const row = (
-    await db.query<Row>(
-      "SELECT * FROM travel_file_records WHERE id=$1 AND trip_id=$2",
-      [id, tripId],
+    await db.execute<Row>(
+      sql`SELECT * FROM travel_file_records WHERE id=${sql.param(id)} AND trip_id=${sql.param(tripId)}`,
     )
   ).rows[0];
   if (!row) throw missing();
@@ -107,9 +104,8 @@ async function current(
   // Family serialization precedes the record lock so replacement and visibility
   // cannot publish against different authority/audiences.
   const locked = (
-    await db.query<Row>(
-      "SELECT * FROM travel_file_records WHERE id=$1 FOR UPDATE",
-      [id],
+    await db.execute<Row>(
+      sql`SELECT * FROM travel_file_records WHERE id=${sql.param(id)} FOR UPDATE`,
     )
   ).rows[0];
   if (!locked) throw missing();
@@ -117,15 +113,14 @@ async function current(
   return { row: locked, capabilities: fresh };
 }
 async function view(
-  db: PoolClient,
+  db: DatabaseTransaction,
   row: Row,
   capabilities: { canEdit: boolean; canShare: boolean; canReadFamily: boolean },
 ): Promise<TravelFile> {
   const file = row.file_id
     ? (
-        await db.query(
-          "SELECT metadata FROM travel_file_versions WHERE record_id=$1 AND id=$2",
-          [row.id, row.file_id],
+        await db.execute<{ metadata: NonNullable<TravelFile["file"]> }>(
+          sql`SELECT metadata FROM travel_file_versions WHERE record_id=${sql.param(row.id)} AND id=${sql.param(row.file_id)}`,
         )
       ).rows[0]?.metadata
     : null;
@@ -144,15 +139,14 @@ async function view(
   };
 }
 async function attempt(
-  db: PoolClient,
+  db: DatabaseTransaction,
   recordId: string,
   id: string,
 ): Promise<Upload> {
   resourceId(id);
   const row = (
-    await db.query<Upload>(
-      "SELECT * FROM travel_file_uploads WHERE record_id=$1 AND id=$2 FOR UPDATE",
-      [recordId, id],
+    await db.execute<Upload>(
+      sql`SELECT * FROM travel_file_uploads WHERE record_id=${sql.param(recordId)} AND id=${sql.param(id)} FOR UPDATE`,
     )
   ).rows[0];
   if (!row) throw missing();
@@ -164,7 +158,7 @@ const uploadView = (u: Upload) => ({
   status: u.file_id ? "ready" : "pending",
 });
 async function authorizedAttempt(
-  db: PoolClient,
+  db: DatabaseTransaction,
   member: string,
   tripId: string,
   row: Row,
@@ -207,40 +201,26 @@ export function beginTravelFile(
         const existing =
           input.kind === "bag_photo"
             ? (
-                await db.query<Row>(
-                  "SELECT * FROM travel_file_records WHERE bag_id=$1",
-                  [input.bagId],
+                await db.execute<Row>(
+                  sql`SELECT * FROM travel_file_records WHERE bag_id=${sql.param(input.bagId)}`,
                 )
               ).rows[0]
             : undefined;
         const recordId = existing?.id ?? uploadId;
         if (!existing)
-          await db.query(
-            "INSERT INTO travel_file_records(id,trip_id,family_id,kind,bag_id,entry_id) VALUES($1,$2,$3,$4,$5,$6)",
-            [
-              recordId,
-              tripId,
-              input.familyId,
-              input.kind,
-              input.bagId ?? null,
-              input.entryId ?? null,
-            ],
+          await db.execute(
+            sql`INSERT INTO travel_file_records(id,trip_id,family_id,kind,bag_id,entry_id) VALUES(${sql.param(recordId)},${sql.param(tripId)},${sql.param(input.familyId)},${sql.param(input.kind)},${sql.param(input.bagId ?? null)},${sql.param(input.entryId ?? null)})`,
           );
         const { fileName, mediaType, byteSize } = input;
-        await db.query(
-          "INSERT INTO travel_file_uploads(id,record_id,details) VALUES($1,$2,$3)",
-          [
-            uploadId,
-            recordId,
-            JSON.stringify({ fileName, mediaType, byteSize }),
-          ],
+        await db.execute(
+          sql`INSERT INTO travel_file_uploads(id,record_id,details) VALUES(${sql.param(uploadId)},${sql.param(recordId)},${sql.param(JSON.stringify({ fileName, mediaType, byteSize }))})`,
         );
       },
     );
     const recordId = (
-      await db.query("SELECT record_id FROM travel_file_uploads WHERE id=$1", [
-        id,
-      ])
+      await db.execute<{ record_id: string }>(
+        sql`SELECT record_id FROM travel_file_uploads WHERE id=${sql.param(id)}`,
+      )
     ).rows[0]?.record_id;
     if (!recordId) throw missing();
     const { row, capabilities } = await current(
@@ -271,9 +251,8 @@ export function listTravelFiles(
     await requireTripAccess(db, member, tripId);
     // Query filters select records; they never establish permission.
     const rows = (
-      await db.query<Row>(
-        "SELECT * FROM travel_file_records WHERE trip_id=$1 AND (($2::uuid IS NOT NULL AND bag_id=$2) OR ($2 IS NULL AND kind='attachment' AND entry_id IS NOT DISTINCT FROM $3::uuid)) ORDER BY id",
-        [tripId, query.bagId ?? null, query.entryId ?? null],
+      await db.execute<Row>(
+        sql`SELECT * FROM travel_file_records WHERE trip_id=${sql.param(tripId)} AND ((${sql.param(query.bagId ?? null)}::uuid IS NOT NULL AND bag_id=${sql.param(query.bagId ?? null)}) OR (${sql.param(query.bagId ?? null)}::uuid IS NULL AND kind='attachment' AND entry_id IS NOT DISTINCT FROM ${sql.param(query.entryId ?? null)}::uuid)) ORDER BY id`,
       )
     ).rows;
     const records: TravelFile[] = [];
@@ -302,9 +281,8 @@ export function pendingTravelUploads(
     const { capabilities } = await current(db, member, tripId, id, true);
     return {
       uploads: (
-        await db.query<Upload>(
-          "SELECT * FROM travel_file_uploads WHERE record_id=$1 AND file_id IS NULL AND (audience='trip' OR $2) ORDER BY created_at DESC",
-          [id, capabilities.canReadFamily],
+        await db.execute<Upload>(
+          sql`SELECT * FROM travel_file_uploads WHERE record_id=${sql.param(id)} AND file_id IS NULL AND (audience='trip' OR ${sql.param(capabilities.canReadFamily)}) ORDER BY created_at DESC`,
         )
       ).rows.map(uploadView),
     };
@@ -331,9 +309,8 @@ export function replaceTravelFile(
       input,
       async (uploadId) => {
         const { requestId, ...details } = input;
-        await db.query(
-          "INSERT INTO travel_file_uploads(id,record_id,details,audience) VALUES($1,$2,$3,$4)",
-          [uploadId, id, JSON.stringify(details), row.audience],
+        await db.execute(
+          sql`INSERT INTO travel_file_uploads(id,record_id,details,audience) VALUES(${sql.param(uploadId)},${sql.param(id)},${sql.param(JSON.stringify(details))},${sql.param(row.audience)})`,
         );
       },
     );
@@ -411,26 +388,15 @@ export function finalizeTravelUpload(
         id: fileId,
         ...(await validateGuideFile(await storage.bytes(key), upload.details)),
       };
-      await db.query(
-        "INSERT INTO travel_file_versions(id,record_id,version,audience,object_key,metadata,actor_id) VALUES($1,$2,$3,$4,$5,$6,$7)",
-        [
-          fileId,
-          id,
-          row.version + 1,
-          row.audience,
-          key,
-          JSON.stringify(file),
-          member,
-        ],
+      await db.execute(
+        sql`INSERT INTO travel_file_versions(id,record_id,version,audience,object_key,metadata,actor_id) VALUES(${sql.param(fileId)},${sql.param(id)},${sql.param(row.version + 1)},${sql.param(row.audience)},${sql.param(key)},${sql.param(JSON.stringify(file))},${sql.param(member)})`,
       );
-      await db.query(
-        "UPDATE travel_file_records SET version=version+1,file_id=$2 WHERE id=$1",
-        [id, fileId],
+      await db.execute(
+        sql`UPDATE travel_file_records SET version=version+1,file_id=${sql.param(fileId)} WHERE id=${sql.param(id)}`,
       );
-      await db.query("UPDATE travel_file_uploads SET file_id=$2 WHERE id=$1", [
-        uploadId,
-        fileId,
-      ]);
+      await db.execute(
+        sql`UPDATE travel_file_uploads SET file_id=${sql.param(fileId)} WHERE id=${sql.param(uploadId)}`,
+      );
       row.version++;
       row.file_id = fileId;
       return { record: await view(db, row, capabilities) };
@@ -458,13 +424,12 @@ export function accessTravelFile(
   return transaction(async (db) => {
     const { row } = await current(db, member, tripId, id);
     const stored = (
-      await db.query<{
+      await db.execute<{
         metadata: NonNullable<TravelFile["file"]>;
         object_key: string;
         audience: "family" | "trip";
       }>(
-        "SELECT metadata,object_key,audience FROM travel_file_versions WHERE record_id=$1 AND version=$2",
-        [id, version ?? row.version],
+        sql`SELECT metadata,object_key,audience FROM travel_file_versions WHERE record_id=${sql.param(id)} AND version=${sql.param(version ?? row.version)}`,
       )
     ).rows[0];
     if (!stored) {
@@ -514,32 +479,20 @@ export function shareTravelFile(
         if (row.audience === input.audience) return;
         if (row.file_id) {
           const stored = (
-            await db.query(
-              "SELECT * FROM travel_file_versions WHERE record_id=$1 AND id=$2",
-              [id, row.file_id],
+            await db.execute(
+              sql`SELECT * FROM travel_file_versions WHERE record_id=${sql.param(id)} AND id=${sql.param(row.file_id)}`,
             )
           ).rows[0];
           const versionId = randomUUID();
-          await db.query(
-            "INSERT INTO travel_file_versions(id,record_id,version,audience,object_key,metadata,actor_id) VALUES($1,$2,$3,$4,$5,$6,$7)",
-            [
-              versionId,
-              id,
-              row.version + 1,
-              input.audience,
-              stored.object_key,
-              stored.metadata,
-              member,
-            ],
+          await db.execute(
+            sql`INSERT INTO travel_file_versions(id,record_id,version,audience,object_key,metadata,actor_id) VALUES(${sql.param(versionId)},${sql.param(id)},${sql.param(row.version + 1)},${sql.param(input.audience)},${sql.param(stored.object_key)},${sql.param(stored.metadata)},${sql.param(member)})`,
           );
-          await db.query(
-            "UPDATE travel_file_records SET audience=$2,version=version+1,file_id=$3 WHERE id=$1",
-            [id, input.audience, versionId],
+          await db.execute(
+            sql`UPDATE travel_file_records SET audience=${sql.param(input.audience)},version=version+1,file_id=${sql.param(versionId)} WHERE id=${sql.param(id)}`,
           );
         } else
-          await db.query(
-            "UPDATE travel_file_records SET audience=$2 WHERE id=$1",
-            [id, input.audience],
+          await db.execute(
+            sql`UPDATE travel_file_records SET audience=${sql.param(input.audience)} WHERE id=${sql.param(id)}`,
           );
       },
     );

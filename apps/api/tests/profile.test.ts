@@ -13,6 +13,33 @@ after(async () => {
   if (fixture) await fixture.close();
 });
 
+test("profile names preserve SQL punctuation and Arabic as literal text", async () => {
+  const token = await fixture.token(
+    "user_literal_names",
+    "literal@example.test",
+  );
+  const input = {
+    firstName: "Amina'); DELETE FROM members; --",
+    lastName: "الحاج علي",
+    username: "literal_names",
+  };
+  const saved = await fixture.request("/api/me", token, input);
+  assert.equal(saved.status, 200, fixture.logs());
+  assert.equal(saved.data.profile.firstName, input.firstName);
+  assert.equal(saved.data.profile.lastName, input.lastName);
+  assert.deepEqual((await fixture.request("/api/me", token)).data, saved.data);
+
+  const other = await fixture.token(
+    "user_literal_other",
+    "other-literal@example.test",
+  );
+  const conflict = await fixture.request("/api/me", other, input);
+  assert.equal(conflict.status, 409, fixture.logs());
+  assert.equal(conflict.data.error.code, "username_taken");
+  assert.deepEqual((await fixture.request("/api/me", token)).data, saved.data);
+  assert.equal((await fixture.request("/api/me", other)).data.profile, null);
+});
+
 test("Google profile suggestions remain unsaved until missing fields are completed", async () => {
   const token = await fixture.token(
     "user_google_draft",

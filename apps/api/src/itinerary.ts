@@ -1,3 +1,5 @@
+import { and, eq, sql } from "drizzle-orm";
+import { itineraryEntries, tripItineraries } from "./schema";
 import {
   itineraryEntryInput,
   type Itinerary,
@@ -6,7 +8,7 @@ import {
   type ItineraryEntryInput,
   type ItineraryEntryPatch,
 } from "@nmt/contracts";
-import type { PoolClient } from "pg";
+import type { DatabaseTransaction } from "./database";
 import { requireTripAccess, resourceId } from "./permissions";
 import { createOnce, transaction } from "./trips";
 import { HttpError } from "./response";
@@ -15,27 +17,18 @@ import { checkCompletionPhase } from "./completion";
 
 const referenceColumns = `accommodation_address AS "accommodationAddress", transport_reference AS "transportReference", meeting_point AS "meetingPoint", contacts`;
 const entryColumns = `id, trip_id AS "tripId", kind, title, starts_at AS "startsAt", ends_at AS "endsAt", ${referenceColumns}, notes`;
-const referenceFields = {
-  phase: "phase",
-  accommodationAddress: "accommodation_address",
-  transportReference: "transport_reference",
-  meetingPoint: "meeting_point",
-  contacts: "contacts",
-} as const;
 
 async function read(
-  db: PoolClient,
+  db: DatabaseTransaction,
   memberId: string,
   tripId: string,
 ): Promise<Itinerary> {
   const trip = await requireTripAccess(db, memberId, tripId);
-  const result = await db.query(
-    `SELECT phase, ${referenceColumns} FROM trip_itineraries WHERE trip_id = $1`,
-    [tripId],
+  const result = await db.execute(
+    sql`SELECT phase, ${sql.raw(referenceColumns)} FROM trip_itineraries WHERE trip_id = ${sql.param(tripId)}`,
   );
-  const entries = await db.query<ItineraryEntry>(
-    `SELECT ${entryColumns} FROM itinerary_entries WHERE trip_id = $1 ORDER BY position, id`,
-    [tripId],
+  const entries = await db.execute<ItineraryEntry>(
+    sql`SELECT ${sql.raw(entryColumns)} FROM itinerary_entries WHERE trip_id = ${sql.param(tripId)} ORDER BY position, id`,
   );
   return {
     phase: "planning",
@@ -49,10 +42,16 @@ async function read(
   };
 }
 
-async function lockItinerary(db: PoolClient, memberId: string, tripId: string) {
+async function lockItinerary(
+  db: DatabaseTransaction,
+  memberId: string,
+  tripId: string,
+) {
   const trip = await requireTripAccess(db, memberId, tripId, "organize");
   // Serialize ordering and partial validation for this trip without touching family grants.
-  await db.query("SELECT id FROM trips WHERE id = $1 FOR UPDATE", [tripId]);
+  await db.execute(
+    sql`SELECT id FROM trips WHERE id = ${sql.param(tripId)} FOR UPDATE`,
+  );
   return trip;
 }
 export function createItineraryEntry(
@@ -75,29 +74,13 @@ export function createItineraryEntry(
       `itinerary:${tripId}`,
       input,
       async (id) => {
-        await db.query(
-          `INSERT INTO itinerary_entries (id, trip_id, kind, title, starts_at, ends_at, accommodation_address, transport_reference, meeting_point, contacts, notes, position)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,(SELECT COALESCE(MAX(position), -1) + 1 FROM itinerary_entries WHERE trip_id = $2))`,
-          [
-            id,
-            tripId,
-            input.kind,
-            input.title,
-            JSON.stringify(input.startsAt),
-            JSON.stringify(input.endsAt),
-            input.accommodationAddress,
-            input.transportReference,
-            input.meetingPoint,
-            JSON.stringify(input.contacts),
-            input.notes,
-          ],
-        );
+        await db.execute(sql`INSERT INTO itinerary_entries (id, trip_id, kind, title, starts_at, ends_at, accommodation_address, transport_reference, meeting_point, contacts, notes, position)
+        VALUES (${sql.param(id)},${sql.param(tripId)},${sql.param(input.kind)},${sql.param(input.title)},${sql.param(JSON.stringify(input.startsAt))},${sql.param(JSON.stringify(input.endsAt))},${sql.param(input.accommodationAddress)},${sql.param(input.transportReference)},${sql.param(input.meetingPoint)},${sql.param(JSON.stringify(input.contacts))},${sql.param(input.notes)},(SELECT COALESCE(MAX(position), -1) + 1 FROM itinerary_entries WHERE trip_id = ${sql.param(tripId)}))`);
         await itineraryChanged(db, memberId, tripId);
       },
     );
-    const result = await db.query<ItineraryEntry>(
-      `SELECT ${entryColumns} FROM itinerary_entries WHERE id = $1 AND trip_id = $2`,
-      [id, tripId],
+    const result = await db.execute<ItineraryEntry>(
+      sql`SELECT ${sql.raw(entryColumns)} FROM itinerary_entries WHERE id = ${sql.param(id)} AND trip_id = ${sql.param(tripId)}`,
     );
     if (!result.rows[0])
       throw new HttpError(
@@ -120,21 +103,15 @@ export function patchItinerary(
     await lockItinerary(db, memberId, tripId);
     if (input.phase)
       await checkCompletionPhase(db, memberId, tripId, input.phase);
-    await db.query(
-      "INSERT INTO trip_itineraries (trip_id) VALUES ($1) ON CONFLICT DO NOTHING",
-      [tripId],
+    await db.execute(
+      sql`INSERT INTO trip_itineraries (trip_id) VALUES (${sql.param(tripId)}) ON CONFLICT DO NOTHING`,
     );
     const fields = Object.keys(input) as (keyof ItineraryPatch)[];
     const before = await read(db, memberId, tripId);
-    await db.query(
-      `UPDATE trip_itineraries SET ${fields.map((key, i) => `${referenceFields[key]} = $${i + 2}`).join(", ")} WHERE trip_id = $1`,
-      [
-        tripId,
-        ...fields.map((key) =>
-          key === "contacts" ? JSON.stringify(input[key]) : input[key],
-        ),
-      ],
-    );
+    await db
+      .update(tripItineraries)
+      .set(input)
+      .where(eq(tripItineraries.tripId, tripId));
     if (
       fields.some(
         (key) => JSON.stringify(input[key]) !== JSON.stringify(before[key]),
@@ -145,14 +122,6 @@ export function patchItinerary(
   });
 }
 
-const entryFields = {
-  ...referenceFields,
-  kind: "kind",
-  title: "title",
-  startsAt: "starts_at",
-  endsAt: "ends_at",
-  notes: "notes",
-};
 export function patchItineraryEntry(
   memberId: string,
   tripId: string,
@@ -162,9 +131,8 @@ export function patchItineraryEntry(
   return transaction(async (db) => {
     const trip = await lockItinerary(db, memberId, tripId);
     resourceId(entryId);
-    const existing = await db.query<ItineraryEntry>(
-      `SELECT ${entryColumns} FROM itinerary_entries WHERE id = $1 AND trip_id = $2`,
-      [entryId, tripId],
+    const existing = await db.execute<ItineraryEntry>(
+      sql`SELECT ${sql.raw(entryColumns)} FROM itinerary_entries WHERE id = ${sql.param(entryId)} AND trip_id = ${sql.param(tripId)}`,
     );
     if (!existing.rows[0])
       throw new HttpError(
@@ -193,17 +161,17 @@ export function patchItineraryEntry(
         "Hajj milestones belong to a Hajj trip.",
       );
     const fields = Object.keys(input) as (keyof ItineraryEntryPatch)[];
-    const result = await db.query<ItineraryEntry>(
-      `UPDATE itinerary_entries SET ${fields.map((key, i) => `${entryFields[key]} = $${i + 3}`).join(", ")} WHERE id = $1 AND trip_id = $2 RETURNING ${entryColumns}`,
-      [
-        entryId,
-        tripId,
-        ...fields.map((key) =>
-          ["contacts", "startsAt", "endsAt"].includes(key)
-            ? JSON.stringify(input[key])
-            : input[key],
+    await db
+      .update(itineraryEntries)
+      .set(input)
+      .where(
+        and(
+          eq(itineraryEntries.id, entryId),
+          eq(itineraryEntries.tripId, tripId),
         ),
-      ],
+      );
+    const result = await db.execute<ItineraryEntry>(
+      sql`SELECT ${sql.raw(entryColumns)} FROM itinerary_entries WHERE id=${entryId} AND trip_id=${tripId}`,
     );
     if (
       fields.some(
@@ -221,9 +189,8 @@ export function orderItinerary(
 ) {
   return transaction(async (db) => {
     await lockItinerary(db, memberId, tripId);
-    const current = await db.query<{ id: string }>(
-      "SELECT id FROM itinerary_entries WHERE trip_id = $1 ORDER BY position, id",
-      [tripId],
+    const current = await db.execute<{ id: string }>(
+      sql`SELECT id FROM itinerary_entries WHERE trip_id = ${sql.param(tripId)} ORDER BY position, id`,
     );
     if (
       current.rows.length !== entryIds.length ||
@@ -234,9 +201,8 @@ export function orderItinerary(
         "itinerary_changed",
         "The itinerary changed. Refresh before reordering.",
       );
-    await db.query(
-      `UPDATE itinerary_entries e SET position = ordered.position - 1 FROM unnest($2::uuid[]) WITH ORDINALITY AS ordered(id, position) WHERE e.trip_id = $1 AND e.id = ordered.id`,
-      [tripId, entryIds],
+    await db.execute(
+      sql`UPDATE itinerary_entries e SET position = ordered.position - 1 FROM unnest(${sql.param(entryIds)}::uuid[]) WITH ORDINALITY AS ordered(id, position) WHERE e.trip_id = ${sql.param(tripId)} AND e.id = ordered.id`,
     );
     if (current.rows.some((row, index) => row.id !== entryIds[index]))
       await itineraryChanged(db, memberId, tripId);
@@ -252,9 +218,8 @@ export function deleteItineraryEntry(
     await lockItinerary(db, memberId, tripId);
     resourceId(entryId);
     // Deleting an already absent entry is safe to repeat after a lost response.
-    const removed = await db.query(
-      "DELETE FROM itinerary_entries WHERE id = $1 AND trip_id = $2",
-      [entryId, tripId],
+    const removed = await db.execute(
+      sql`DELETE FROM itinerary_entries WHERE id = ${sql.param(entryId)} AND trip_id = ${sql.param(tripId)}`,
     );
     if (removed.rowCount) await itineraryChanged(db, memberId, tripId);
     return read(db, memberId, tripId);

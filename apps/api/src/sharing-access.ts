@@ -1,4 +1,5 @@
-import type { PoolClient } from "pg";
+import { sql } from "drizzle-orm";
+import type { DatabaseTransaction } from "./database";
 import {
   requireFamilyAccess,
   requireTripAccess,
@@ -8,7 +9,7 @@ import { HttpError } from "./response";
 
 export type SharedTarget = { kind: "entry" | "bag"; id: string };
 export async function lockSharedContent(
-  db: PoolClient,
+  db: DatabaseTransaction,
   memberId: string,
   tripId: string,
   familyId: string,
@@ -17,9 +18,8 @@ export async function lockSharedContent(
   await requireTripAccess(db, memberId, tripId, "edit");
   resourceId(familyId);
   resourceId(target.id);
-  const family = await db.query(
-    "SELECT id FROM families WHERE id = $1 AND trip_id = $2 FOR UPDATE",
-    [familyId, tripId],
+  const family = await db.execute(
+    sql`SELECT id FROM families WHERE id = ${sql.param(familyId)} AND trip_id = ${sql.param(tripId)} FOR UPDATE`,
   );
   if (!family.rowCount)
     throw new HttpError(
@@ -28,9 +28,8 @@ export async function lockSharedContent(
       "This shared record is not available to you.",
     );
   const table = target.kind === "entry" ? "checklist_entries" : "bags";
-  const record = await db.query(
-    `SELECT id FROM ${table} WHERE id = $1 AND family_id = $2 AND audience = 'trip' AND removed_at IS NULL`,
-    [target.id, familyId],
+  const record = await db.execute(
+    sql`SELECT id FROM ${sql.raw(table)} WHERE id = ${sql.param(target.id)} AND family_id = ${sql.param(familyId)} AND audience = 'trip' AND removed_at IS NULL`,
   );
   if (!record.rowCount)
     throw new HttpError(
@@ -40,7 +39,7 @@ export async function lockSharedContent(
     );
 }
 export async function sharingCapabilities(
-  db: PoolClient,
+  db: DatabaseTransaction,
   memberId: string,
   tripId: string,
   familyId: string,

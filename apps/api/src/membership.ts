@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import type { AccessMember, FamilyRole, TripRole } from "@nmt/contracts";
 import {
   requireFamilyAccess,
@@ -7,7 +8,7 @@ import {
 import { createOnce, transaction } from "./trips";
 import { lockAccess } from "./invitations";
 import { HttpError } from "./response";
-import type { PoolClient } from "pg";
+import type { DatabaseTransaction } from "./database";
 
 export async function listMembers(
   memberId: string,
@@ -17,13 +18,12 @@ export async function listMembers(
   return transaction(async (db) => {
     if (familyId) await requireFamilyAccess(db, memberId, tripId, familyId);
     else await requireTripAccess(db, memberId, tripId);
-    const people = await db.query<AccessMember>(
+    const people = await db.execute<AccessMember>(
       familyId
-        ? `SELECT m.id, m.first_name AS "firstName", m.last_name AS "lastName", m.username, fm.role
-         FROM family_members fm JOIN members m ON m.id = fm.member_id WHERE fm.trip_id = $1 AND fm.family_id = $2 ORDER BY m.username`
-        : `SELECT m.id, m.first_name AS "firstName", m.last_name AS "lastName", m.username, tm.role
-         FROM trip_members tm JOIN members m ON m.id = tm.member_id WHERE tm.trip_id = $1 ORDER BY m.username`,
-      familyId ? [tripId, familyId] : [tripId],
+        ? sql`SELECT m.id, m.first_name AS "firstName", m.last_name AS "lastName", m.username, fm.role
+         FROM family_members fm JOIN members m ON m.id = fm.member_id WHERE fm.trip_id = ${sql.param(tripId)} AND fm.family_id = ${sql.param(familyId)} ORDER BY m.username`
+        : sql`SELECT m.id, m.first_name AS "firstName", m.last_name AS "lastName", m.username, tm.role
+         FROM trip_members tm JOIN members m ON m.id = tm.member_id WHERE tm.trip_id = ${sql.param(tripId)} ORDER BY m.username`,
     );
     return { members: people.rows };
   });
@@ -39,7 +39,7 @@ export async function changeTripMember(
 }
 
 export async function updateTripMember(
-  db: PoolClient,
+  db: DatabaseTransaction,
   actor: string,
   tripId: string,
   target: string,
@@ -53,16 +53,14 @@ export async function updateTripMember(
     tripId,
     !role && target === actor ? "read" : "organize",
   );
-  const existing = await db.query(
-    "SELECT role FROM trip_members WHERE trip_id = $1 AND member_id = $2 FOR UPDATE",
-    [tripId, target],
+  const existing = await db.execute(
+    sql`SELECT role FROM trip_members WHERE trip_id = ${sql.param(tripId)} AND member_id = ${sql.param(target)} FOR UPDATE`,
   );
   if (!existing.rows[0])
     throw new HttpError(404, "not_found", "This member is not in the trip.");
   if (existing.rows[0].role === "organizer" && role !== "organizer") {
-    const others = await db.query(
-      "SELECT 1 FROM trip_members WHERE trip_id = $1 AND member_id <> $2 AND role = 'organizer'",
-      [tripId, target],
+    const others = await db.execute(
+      sql`SELECT 1 FROM trip_members WHERE trip_id = ${sql.param(tripId)} AND member_id <> ${sql.param(target)} AND role = 'organizer'`,
     );
     if (!others.rowCount)
       throw new HttpError(
@@ -72,16 +70,13 @@ export async function updateTripMember(
       );
   }
   if (!role || role === "viewer") {
-    const responsibilities = await db.query<{ family_id: string }>(
-      "SELECT family_id FROM family_members WHERE trip_id = $1 AND member_id = $2 AND role = 'coordinator' FOR UPDATE",
-      [tripId, target],
+    const responsibilities = await db.execute<{ family_id: string }>(
+      sql`SELECT family_id FROM family_members WHERE trip_id = ${sql.param(tripId)} AND member_id = ${sql.param(target)} AND role = 'coordinator' FOR UPDATE`,
     );
     for (const family of responsibilities.rows) {
-      const other = await db.query(
-        `SELECT 1 FROM family_members fm JOIN trip_members tm ON tm.trip_id = fm.trip_id AND tm.member_id = fm.member_id
-          WHERE fm.family_id = $1 AND fm.member_id <> $2 AND fm.role = 'coordinator' AND tm.role <> 'viewer'`,
-        [family.family_id, target],
-      );
+      const other =
+        await db.execute(sql`SELECT 1 FROM family_members fm JOIN trip_members tm ON tm.trip_id = fm.trip_id AND tm.member_id = fm.member_id
+          WHERE fm.family_id = ${sql.param(family.family_id)} AND fm.member_id <> ${sql.param(target)} AND fm.role = 'coordinator' AND tm.role <> 'viewer'`);
       if (!other.rowCount)
         throw new HttpError(
           409,
@@ -97,31 +92,24 @@ export async function updateTripMember(
       );
   }
   if (role)
-    await db.query(
-      "UPDATE trip_members SET role = $3 WHERE trip_id = $1 AND member_id = $2",
-      [tripId, target, role],
+    await db.execute(
+      sql`UPDATE trip_members SET role = ${sql.param(role)} WHERE trip_id = ${sql.param(tripId)} AND member_id = ${sql.param(target)}`,
     );
   else
-    await db.query(
-      "DELETE FROM trip_members WHERE trip_id = $1 AND member_id = $2",
-      [tripId, target],
+    await db.execute(
+      sql`DELETE FROM trip_members WHERE trip_id = ${sql.param(tripId)} AND member_id = ${sql.param(target)}`,
     );
   if (!role)
-    await db.query(
-      `INSERT INTO access_removals (trip_id, member_id, scope, removed_at)
-      VALUES ($1,$2,'trip',clock_timestamp()) ON CONFLICT (trip_id, member_id, scope)
-      DO UPDATE SET removed_at = EXCLUDED.removed_at`,
-      [tripId, target],
-    );
+    await db.execute(sql`INSERT INTO access_removals (trip_id, member_id, scope, removed_at)
+      VALUES (${sql.param(tripId)},${sql.param(target)},'trip',clock_timestamp()) ON CONFLICT (trip_id, member_id, scope)
+      DO UPDATE SET removed_at = EXCLUDED.removed_at`);
   if (role !== "organizer")
-    await db.query(
-      "UPDATE invitations SET trip_approved_by = NULL WHERE trip_id = $1 AND trip_approved_by = $2 AND consumed_at IS NULL",
-      [tripId, target],
+    await db.execute(
+      sql`UPDATE invitations SET trip_approved_by = NULL WHERE trip_id = ${sql.param(tripId)} AND trip_approved_by = ${sql.param(target)} AND consumed_at IS NULL`,
     );
   if (!role || role === "viewer")
-    await db.query(
-      "UPDATE invitations SET family_approved_by = NULL WHERE trip_id = $1 AND family_approved_by = $2 AND consumed_at IS NULL",
-      [tripId, target],
+    await db.execute(
+      sql`UPDATE invitations SET family_approved_by = NULL WHERE trip_id = ${sql.param(tripId)} AND family_approved_by = ${sql.param(target)} AND consumed_at IS NULL`,
     );
   return { saved: true };
 }
@@ -139,7 +127,7 @@ export async function changeFamilyMember(
 }
 
 export async function updateFamilyMember(
-  db: PoolClient,
+  db: DatabaseTransaction,
   actor: string,
   tripId: string,
   familyId: string,
@@ -162,16 +150,13 @@ export async function updateFamilyMember(
       "viewer_limit",
       "An organizer must grant trip edit access before family edit or coordinator access.",
     );
-  const existing = await db.query(
-    "SELECT role FROM family_members WHERE family_id = $1 AND member_id = $2 FOR UPDATE",
-    [familyId, target],
+  const existing = await db.execute(
+    sql`SELECT role FROM family_members WHERE family_id = ${sql.param(familyId)} AND member_id = ${sql.param(target)} FOR UPDATE`,
   );
   if (existing.rows[0]?.role === "coordinator" && role !== "coordinator") {
-    const other = await db.query(
-      `SELECT 1 FROM family_members fm JOIN trip_members tm ON tm.trip_id = fm.trip_id AND tm.member_id = fm.member_id
-        WHERE fm.family_id = $1 AND fm.member_id <> $2 AND fm.role = 'coordinator' AND tm.role <> 'viewer'`,
-      [familyId, target],
-    );
+    const other =
+      await db.execute(sql`SELECT 1 FROM family_members fm JOIN trip_members tm ON tm.trip_id = fm.trip_id AND tm.member_id = fm.member_id
+        WHERE fm.family_id = ${sql.param(familyId)} AND fm.member_id <> ${sql.param(target)} AND fm.role = 'coordinator' AND tm.role <> 'viewer'`);
     if (!other.rowCount)
       throw new HttpError(
         409,
@@ -180,27 +165,19 @@ export async function updateFamilyMember(
       );
   }
   if (role)
-    await db.query(
-      `INSERT INTO family_members (trip_id, family_id, member_id, role) VALUES ($1,$2,$3,$4)
-      ON CONFLICT (family_id, member_id) DO UPDATE SET role = EXCLUDED.role`,
-      [tripId, familyId, target, role],
-    );
+    await db.execute(sql`INSERT INTO family_members (trip_id, family_id, member_id, role) VALUES (${sql.param(tripId)},${sql.param(familyId)},${sql.param(target)},${sql.param(role)})
+      ON CONFLICT (family_id, member_id) DO UPDATE SET role = EXCLUDED.role`);
   else
-    await db.query(
-      "DELETE FROM family_members WHERE family_id = $1 AND member_id = $2",
-      [familyId, target],
+    await db.execute(
+      sql`DELETE FROM family_members WHERE family_id = ${sql.param(familyId)} AND member_id = ${sql.param(target)}`,
     );
   if (!role)
-    await db.query(
-      `INSERT INTO access_removals (trip_id, member_id, scope, removed_at)
-      VALUES ($1,$2,$3,clock_timestamp()) ON CONFLICT (trip_id, member_id, scope)
-      DO UPDATE SET removed_at = EXCLUDED.removed_at`,
-      [tripId, target, familyId],
-    );
+    await db.execute(sql`INSERT INTO access_removals (trip_id, member_id, scope, removed_at)
+      VALUES (${sql.param(tripId)},${sql.param(target)},${sql.param(familyId)},clock_timestamp()) ON CONFLICT (trip_id, member_id, scope)
+      DO UPDATE SET removed_at = EXCLUDED.removed_at`);
   if (role !== "coordinator")
-    await db.query(
-      "UPDATE invitations SET family_approved_by = NULL WHERE family_id = $1 AND family_approved_by = $2 AND consumed_at IS NULL",
-      [familyId, target],
+    await db.execute(
+      sql`UPDATE invitations SET family_approved_by = NULL WHERE family_id = ${sql.param(familyId)} AND family_approved_by = ${sql.param(target)} AND consumed_at IS NULL`,
     );
   return { saved: true };
 }
@@ -288,21 +265,19 @@ export async function deleteOwnedGroup(
       );
     if (familyId) {
       await requireFamilyAccess(db, actor, tripId, familyId, "coordinate");
-      await db.query("DELETE FROM families WHERE trip_id=$1 AND id=$2", [
-        tripId,
-        familyId,
-      ]);
+      await db.execute(
+        sql`DELETE FROM families WHERE trip_id=${sql.param(tripId)} AND id=${sql.param(familyId)}`,
+      );
     } else {
       await requireTripAccess(db, actor, tripId, "organize");
-      const families = await db.query<{ id: string }>(
-        "SELECT id FROM families WHERE trip_id=$1 ORDER BY id",
-        [tripId],
+      const families = await db.execute<{ id: string }>(
+        sql`SELECT id FROM families WHERE trip_id=${sql.param(tripId)} ORDER BY id`,
       );
       // Trip administration does not imply ownership of other families. Deleting
       // a whole trip requires explicit effective coordination of every family.
       for (const family of families.rows)
         await requireFamilyAccess(db, actor, tripId, family.id, "coordinate");
-      await db.query("DELETE FROM trips WHERE id=$1", [tripId]);
+      await db.execute(sql`DELETE FROM trips WHERE id=${sql.param(tripId)}`);
     }
     // Object bytes are deliberately not deleted here: immutable audience versions
     // may share a key. Metadata access disappears; reference-aware GC is separate.

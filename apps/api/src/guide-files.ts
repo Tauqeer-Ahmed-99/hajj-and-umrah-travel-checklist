@@ -1,5 +1,6 @@
+import { sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
-import type { PoolClient } from "pg";
+import type { DatabaseTransaction } from "./database";
 import {
   GUIDE_FILE_LIMIT,
   type FileGuideInput,
@@ -15,7 +16,7 @@ import { guideStorage } from "./guide-storage";
 import { validateGuideFile } from "./guide-file-validation";
 
 async function editable(
-  db: PoolClient,
+  db: DatabaseTransaction,
   memberId: string,
   tripId: string,
   guideId: string,
@@ -42,12 +43,11 @@ type UploadRow = {
   details: Omit<UploadDetails, "requestId">;
   file_id: string | null;
 };
-async function upload(db: PoolClient, guideId: string, id: string) {
+async function upload(db: DatabaseTransaction, guideId: string, id: string) {
   resourceId(id);
   const row = (
-    await db.query<UploadRow>(
-      "SELECT id, details, file_id FROM guide_uploads WHERE guide_id=$1 AND id=$2 FOR UPDATE",
-      [guideId, id],
+    await db.execute<UploadRow>(
+      sql`SELECT id, details, file_id FROM guide_uploads WHERE guide_id=${sql.param(guideId)} AND id=${sql.param(id)} FOR UPDATE`,
     )
   ).rows[0];
   if (!row)
@@ -95,19 +95,11 @@ export function beginFileGuide(
           textDirection: "auto",
           file: null,
         };
-        await db.query(
-          "INSERT INTO guides (id,trip_id,family_id,content,contributor,updated_by) VALUES($1,$2,$3,$4,$5,$5)",
-          [
-            id,
-            tripId,
-            familyId,
-            JSON.stringify(content),
-            JSON.stringify(contributor),
-          ],
+        await db.execute(
+          sql`INSERT INTO guides (id,trip_id,family_id,content,contributor,updated_by) VALUES(${sql.param(id)},${sql.param(tripId)},${sql.param(familyId)},${sql.param(JSON.stringify(content))},${sql.param(JSON.stringify(contributor))},${sql.param(JSON.stringify(contributor))})`,
         );
-        await db.query(
-          "INSERT INTO guide_uploads(id,guide_id,details) VALUES($1,$1,$2)",
-          [id, JSON.stringify({ fileName, mediaType, byteSize })],
+        await db.execute(
+          sql`INSERT INTO guide_uploads(id,guide_id,details) VALUES(${sql.param(id)},${sql.param(id)},${sql.param(JSON.stringify({ fileName, mediaType, byteSize }))})`,
         );
         const guide = await readGuideInTransaction(db, memberId, tripId, id);
         const { canEdit, canShare, ...snapshot } = guide;
@@ -125,9 +117,8 @@ export function listUploads(memberId: string, tripId: string, guideId: string) {
     await editable(db, memberId, tripId, guideId);
     return {
       uploads: (
-        await db.query(
-          "SELECT id,details,file_id FROM guide_uploads WHERE guide_id=$1 AND file_id IS NULL ORDER BY created_at DESC",
-          [guideId],
+        await db.execute<UploadRow>(
+          sql`SELECT id,details,file_id FROM guide_uploads WHERE guide_id=${sql.param(guideId)} AND file_id IS NULL ORDER BY created_at DESC`,
         )
       ).rows.map(uploadView),
     };
@@ -148,9 +139,8 @@ export function beginReplacement(
       input,
       async (id) => {
         const { requestId, ...details } = input;
-        await db.query(
-          "INSERT INTO guide_uploads(id,guide_id,details) VALUES($1,$2,$3)",
-          [id, guideId, JSON.stringify(details)],
+        await db.execute(
+          sql`INSERT INTO guide_uploads(id,guide_id,details) VALUES(${sql.param(id)},${sql.param(guideId)},${sql.param(JSON.stringify(details))})`,
         );
       },
     );
@@ -168,9 +158,8 @@ export function openGuideFile(
     let file = guide.file;
     if (version !== undefined) {
       const snapshot = (
-        await db.query<{ snapshot: GuideRecord }>(
-          "SELECT snapshot FROM guide_versions WHERE guide_id=$1 AND version=$2",
-          [guideId, version],
+        await db.execute<{ snapshot: GuideRecord }>(
+          sql`SELECT snapshot FROM guide_versions WHERE guide_id=${sql.param(guideId)} AND version=${sql.param(version)}`,
         )
       ).rows[0]?.snapshot;
       if (!snapshot)
@@ -190,12 +179,11 @@ export function openGuideFile(
         "The upload is incomplete. Retry the upload before opening.",
       );
     const stored = (
-      await db.query<{
+      await db.execute<{
         object_key: string;
         metadata: NonNullable<GuideRecord["file"]>;
       }>(
-        "SELECT object_key,metadata FROM guide_files WHERE guide_id=$1 AND id=$2",
-        [guideId, file.id],
+        sql`SELECT object_key,metadata FROM guide_files WHERE guide_id=${sql.param(guideId)} AND id=${sql.param(file.id)}`,
       )
     ).rows[0];
     if (!stored)
@@ -269,22 +257,19 @@ export function finalizeGuideUpload(
         id,
         ...(await validateGuideFile(await storage.bytes(key), row.details)),
       };
-      await db.query(
-        "INSERT INTO guide_files(id,guide_id,object_key,metadata) VALUES($1,$2,$3,$4)",
-        [id, guideId, key, JSON.stringify(file)],
+      await db.execute(
+        sql`INSERT INTO guide_files(id,guide_id,object_key,metadata) VALUES(${sql.param(id)},${sql.param(guideId)},${sql.param(key)},${sql.param(JSON.stringify(file))})`,
       );
       const updatedBy = await actor(db, memberId);
-      await db.query(
-        "UPDATE guides SET content=jsonb_set(content,'{file}',$2),version=version+1,updated_by=$3,updated_at=clock_timestamp() WHERE id=$1",
-        [guideId, JSON.stringify(file), JSON.stringify(updatedBy)],
+      await db.execute(
+        sql`UPDATE guides SET content=jsonb_set(content,'{file}',${sql.param(JSON.stringify(file))}),version=version+1,updated_by=${sql.param(JSON.stringify(updatedBy))},updated_at=clock_timestamp() WHERE id=${sql.param(guideId)}`,
       );
       const guide = await readGuideInTransaction(db, memberId, tripId, guideId);
       const { canEdit, canShare, ...snapshot } = guide;
       await saveGuideVersion(db, snapshot, ["file"]);
-      await db.query("UPDATE guide_uploads SET file_id=$2 WHERE id=$1", [
-        uploadId,
-        id,
-      ]);
+      await db.execute(
+        sql`UPDATE guide_uploads SET file_id=${sql.param(id)} WHERE id=${sql.param(uploadId)}`,
+      );
       return { guide };
     } catch (error) {
       await storage.remove(key).catch(() => {});
