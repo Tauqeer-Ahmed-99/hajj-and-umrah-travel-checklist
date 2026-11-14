@@ -4,6 +4,7 @@
   "private": true,
   "main": "index.ts",
   "scripts": {
+    "eas-build-post-install": "node scripts/check-build-inputs.mjs",
     "start": "expo start --dev-client",
     "android": "expo run:android",
     "typecheck": "tsc --noEmit",
