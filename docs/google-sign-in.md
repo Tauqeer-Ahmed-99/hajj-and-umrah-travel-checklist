@@ -1,9 +1,12 @@
 # Native Google sign-in (#3)
 
-Code is implemented; real Google/Clerk linking, release signing and physical-device
-acceptance are **unverified**. EAS project
-`8c2739c3-9d23-4c92-a50a-836d3ea3a94c` is linked, but that does not configure OAuth
-or establish that a signed release works. Nothing was published for this ticket.
+Physical Google/Clerk linking in both signup orders remains **unverified**.
+Release work in #22 has since configured the intended Web/Android OAuth clients
+and both Clerk instances, inspected the actual signed preview certificate, and
+installed the standalone preview on a task emulator. See
+[current service setup](service-setup.md) and [release evidence](release.md).
+The historical feature-slice checks below do not establish those later results
+or physical acceptance. No full public production release has been published.
 
 On November 14, 2026, integration setup ran
 `eas credentials:configure-build --platform android --profile preview` and created
@@ -14,10 +17,11 @@ fingerprints:
 - SHA-1: `02:88:61:6A:60:2F:AC:03:2B:2A:0F:F1:CD:37:F0:32:4B:66:BC:F2`
 - SHA-256: `F6:E8:63:0D:67:45:AC:79:20:F1:5C:8B:DE:A8:55:F9:08:80:E4:E1:29:53:64:5F:92:A9:A1:97:92:98:CE:D5`
 
-Preserve this signing identity for APK upgrades. This is the EAS credential
-record, not an inspection of a built release artifact. No keystore/password was
-downloaded or committed, and no EAS APK build was started. Verify the actual APK
-certificate before registering or asserting the installed Google sign-in path.
+Preserve this signing identity for APK upgrades. #22 independently verified both
+fingerprints against preview APK `0ef81a85-5ce7-4dca-916c-975308dc2e7e`, SHA256
+`37f79dde9dfa89d61efc8fdb086be705ffbf20d3220562aaef4f875541587006`.
+No keystore/password was downloaded or committed. Correct native registration
+and signing are prerequisites, not a completed Google account-linking journey.
 
 ## Implementation and integration interface
 

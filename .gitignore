@@ -18,3 +18,4 @@ apps/mobile/ios/
 .local/
 
 .vercel/
+__pycache__/

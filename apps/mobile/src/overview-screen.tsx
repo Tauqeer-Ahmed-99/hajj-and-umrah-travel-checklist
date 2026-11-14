@@ -5,7 +5,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useAuth } from "@clerk/expo";
+import { useSessionAuth } from "./session-auth";
 import { AppState, BackHandler, View } from "react-native";
 import {
   overviewQuery,
@@ -24,7 +24,7 @@ import { onTripCacheRevoked } from "./trip-cache";
 // A refresh replaces data in place. It never remounts the input, scroll view or
 // keyed rows, and it cannot apply an older query/account response to a new view.
 function useOverview(tripId: string, query: OverviewQuery) {
-  const { getToken } = useAuth();
+  const { getToken } = useSessionAuth();
   const [data, setData] = useState<Overview | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -227,7 +227,7 @@ function Activity({
   refreshedAt: string;
   onBack(): void;
 }) {
-  const { getToken } = useAuth();
+  const { getToken } = useSessionAuth();
   const [data, setData] = useState<OverviewActivity | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);

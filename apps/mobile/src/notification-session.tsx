@@ -1,4 +1,4 @@
-import { useAuth } from "@clerk/expo";
+import { useSessionAuth } from "./session-auth";
 import { useEffect } from "react";
 import { AppState } from "react-native";
 import { onAcceptedTravelChange } from "./accepted-travel-change";
@@ -10,7 +10,7 @@ import {
 } from "./native-notifications";
 
 export function useNotificationSession(memberId: string | null) {
-  const { getToken, sessionId } = useAuth();
+  const { getToken, sessionId } = useSessionAuth();
   useEffect(() => {
     if (!memberId) return;
     setNotificationSession(memberId, sessionId ?? null);

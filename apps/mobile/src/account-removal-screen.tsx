@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth, useClerk } from "@clerk/expo";
+import { useSessionAuth } from "./session-auth";
 import { randomUUID } from "expo-crypto";
 import { accountRemovalInput, type AccountRemoval } from "@nmt/contracts";
 import { Action, Copy, Field, Heading, Notice, Screen } from "./ui";
@@ -105,7 +106,7 @@ export function AccountRemovalForm({ onBack }: { onBack: () => void }) {
 }
 
 export function AccountRemovalRecovery({ intent }: { intent: RemovalIntent }) {
-  const { userId, getToken } = useAuth();
+  const { userId, getToken } = useSessionAuth();
   const { signOut } = useClerk();
   const [state, setState] = useState<AccountRemoval | null>(null);
   const [cleaned, setCleaned] = useState(false);
