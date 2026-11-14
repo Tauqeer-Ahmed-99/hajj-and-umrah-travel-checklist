@@ -87,7 +87,7 @@ function useGuideSave<T>(
     submit,
     cancel,
     uncertain,
-    locked: api.busy || uncertain || api.readOnly,
+    locked: api.busy || uncertain,
     fields: { ...api.error?.fields, ...validation },
   };
 }

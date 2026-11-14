@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSessionAuth } from "./session-auth";
 import { TripError } from "./trip-api";
-import { useTripConnection } from "./trip-cache-state";
 
 export function useTripRequest(timeoutMs = 15_000) {
   const { getToken } = useSessionAuth();
-  const connection = useTripConnection();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<TripError | null>(null);
   const active = useRef(true);
@@ -73,5 +71,7 @@ export function useTripRequest(timeoutMs = 15_000) {
     },
     [getToken, timeoutMs],
   );
-  return { run, busy, error, readOnly: connection.status !== "online" };
+  // Connectivity gates submissions in Action/travelFetch. A permission refresh
+  // must not disable a draft's native input and make it lose keyboard focus.
+  return { run, busy, error };
 }

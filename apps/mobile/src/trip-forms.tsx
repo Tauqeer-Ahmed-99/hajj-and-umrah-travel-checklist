@@ -60,7 +60,7 @@ function useCreate<T, R>(
     busy: api.busy,
     error: api.error,
     uncertain,
-    locked: api.busy || uncertain || api.readOnly,
+    locked: api.busy || uncertain,
     fields: { ...api.error?.fields, ...validation },
     submit,
   };

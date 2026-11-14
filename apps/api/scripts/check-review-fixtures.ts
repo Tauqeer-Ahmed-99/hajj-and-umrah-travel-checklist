@@ -225,14 +225,12 @@ if (command === "seed" || command === "resume") {
   }
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
-  pdf
-    .addPage()
-    .drawText("NMT review unsaved private PDF", {
-      x: 50,
-      y: 700,
-      size: 18,
-      font,
-    });
+  pdf.addPage().drawText("NMT review unsaved private PDF", {
+    x: 50,
+    y: 700,
+    size: 18,
+    font,
+  });
   const bytes = await pdf.save();
   await writeFile(resolve(directory, "review.pdf"), bytes);
   for (let version = 1; version <= 2; version++) {
@@ -319,7 +317,15 @@ if (command === "seed" || command === "resume") {
       e.refs[command === "delete-A" ? "deleteA" : "deleteB"],
       "DELETE",
     );
-  else if (command === "cleanup") {
+  else if (command === "reset-records") {
+    e.refs.deleteA = await entry(native, e.refs.af, "Disposable A record");
+    e.refs.deleteB = await entry(
+      native,
+      e.refs.bf,
+      "Disposable B other record",
+    );
+    await record();
+  } else if (command === "cleanup") {
     for (const id of e.trips) {
       const t = await request(native, `/api/trips/${id}`);
       assert.ok(t.trip.name.startsWith(e.marker));

@@ -54,7 +54,7 @@ export function TravelFileForm({
     [phase, setPhase] = useState("");
   const picked = useRef<File | null>(null),
     active = useRef(true);
-  const locked = api.busy || body !== null || api.readOnly;
+  const locked = api.busy || body !== null;
   useEffect(() => {
     active.current = true;
     return () => {

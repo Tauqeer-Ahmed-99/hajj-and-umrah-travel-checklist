@@ -351,7 +351,7 @@ function ReminderForm({
     !!pending &&
     !!api.error &&
     (api.error.status === 0 || api.error.status >= 500);
-  const locked = api.busy || uncertain || api.readOnly;
+  const locked = api.busy || uncertain;
   useEffect(() => {
     if (existing) return;
     let current = true;
