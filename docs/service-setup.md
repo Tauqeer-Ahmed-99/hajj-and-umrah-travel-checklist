@@ -7,6 +7,7 @@ different and must not be used for this application.
 
 | Service    | Resource             | Dashboard                                                                                                                                                             |
 | ---------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Vercel API | `nmt-travel-api`     | [Project](https://vercel.com/tauqeerahmed99s-projects/nmt-travel-api)                                                                                                 |
 | Neon       | `nmt-travel-db`      | [Vercel resource](https://vercel.com/tauqeerahmed99s-projects/~/integrations/neon/icfg_SEEdxuMZmz1r0PGKSpqo2sgT/resources/storage/store_JbANWhmxn3nGUqfm/guides)      |
 | Clerk      | `nmt-travel`         | [Vercel resource](https://vercel.com/tauqeerahmed99s-projects/~/integrations/clerk/icfg_b4t6wPTG0Yjxsu9ECS97Wlpx/resources/authentication/ir_RUNidSEePN3VWmdD/guides) |
 | Private R2 | `nmt-travel-private` | [Bucket settings](https://dash.cloudflare.com/0d2ad4278f04cbbfd3123a756c9683c1/r2/default/buckets/nmt-travel-private/settings)                                        |
@@ -15,8 +16,9 @@ different and must not be used for this application.
 
 Neon uses the Free plan in Singapore (`sin1`). Neon Auth and Realtime are off;
 the application uses Clerk and its existing API. All 17 migration files have
-been applied and replayed successfully on the selected database. It is not
-connected to a Vercel project yet. An isolated branch recovery exercise restored
+been applied and replayed successfully on the selected database. Its connection
+value is saved in the API project's Preview/Production Secrets; a deployment
+using it has not been verified. An isolated branch recovery exercise restored
 the task trip, permissions and permitted file access after source deletion;
 that task branch and its disposable identities were subsequently removed.
 Existing unrelated databases were not changed. See [release evidence](release.md).
@@ -38,8 +40,9 @@ the Clerk administration API remains available to that implementation.
 R2 uses Standard storage in Asia-Pacific. It has no custom domain and its public
 development URL is disabled. Credential `nmt-travel-api` grants Object Read &
 Write only for this bucket. Its values are held outside the repository in a
-restricted operator file, and have not been added to a deployment or mobile
-bundle. Actual signed PUT/GET, immutable copy/overwrite isolation, anonymous and
+restricted operator file and the API project's Preview/Production Secrets. They
+are absent from mobile configuration; the hosted API still needs a rebuild.
+Actual signed PUT/GET, immutable copy/overwrite isolation, anonymous and
 tampered-key denial, and isolated object copy/restore passed. The real API also
 uploaded, finalized and viewed a private PDF, rejected another family's access,
 and rejected fresh authorization after revocation. These checks used disposable
@@ -99,11 +102,14 @@ domain is a separate configuration step; it has not been completed here.
 
 ## Remaining release work
 
-Create the intended Vercel API project with current-consumer variables only and
-verify hosted API/cron, production DNS/OAuth and notification delivery. Project
-creation required a fresh Vercel authenticator code; its one secure request
-expired and creation was canceled. No API project/public deployment exists in
-the intended team. Correct-account UI import settings and exact commands are in
+The intended Vercel API project exists with seven consumed values saved as
+Secrets for Preview/Production, using development Clerk for hosted preview
+verification. Its default public hostname still serves older source `8d72647`;
+an unauthenticated JSON 401 is not provider acceptance. Rebuilding reviewed source
+`b716cc3` required a fresh Vercel authenticator code; the secure request expired,
+and verification and the pending redeploy were canceled. Complete that rebuild,
+then verify authenticated hosted API/cron, production DNS/OAuth and notification
+delivery. Correct-account UI settings and exact commands are in
 [release acceptance](release.md). No server secret belongs in Expo public config.
 
 An internal signed preview APK and compatible preview OTA were built on normal

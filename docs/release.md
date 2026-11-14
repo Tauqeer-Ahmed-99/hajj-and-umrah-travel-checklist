@@ -13,10 +13,27 @@ ancestry. Authorized preview source refs are `t3/implement-release-readiness` an
 `release-spec-1-preview`; neither changes `main` or the integration checkout.
 
 Only Vercel account `tauqeer-ahmed-99`, team `tauqeerahmed99s-projects` is correct.
-Default CLI credentials are for another account and must not be used. Normal
-authenticated project creation reached mandatory authenticator verification;
-the one secure factor request expired. Creation was canceled. **No intended
-Vercel API project/deployment exists yet.** Prepare `nmt-travel-api` with:
+Default CLI credentials are for another account and must not be used. The
+[intended `nmt-travel-api` project](https://vercel.com/tauqeerahmed99s-projects/nmt-travel-api)
+now exists. Its default hostname is `https://nmt-travel-api.vercel.app`; the
+observed Ready Production deployment still uses older source `8d72647`.
+Unauthenticated requests return JSON 401, which does not establish configured
+provider operation.
+
+Seven consumed API variables were saved as Secrets for Preview and Production:
+`DATABASE_URL`, `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `R2_ENDPOINT`,
+`R2_BUCKET`, `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY`. They select the intended
+Neon/private R2 resources and **development Clerk identities** for isolated hosted
+preview verification. No unrelated team variables were linked. Expo dispatch
+credentials remain absent. Existing deployments do not gain newly saved values.
+
+Rebuilding reviewed source `b716cc3` (application source `b523dad`, followed only
+by evidence documentation) at the default hostname reached Vercel's fresh
+authenticator check. The secure factor request expired; verification and the
+pending redeploy were canceled. No new deployment or promotion completed, and
+authenticated hosted checks remain unrun. Resume through this project's normal
+Redeploy flow with the latest settings; do not promote the older build. Required
+build settings are:
 
 - Git source: the exact reviewed integration/source SHA, not the old `main`.
 - Root directory `apps/api`, Next.js preset, root/outside-directory sources enabled.
@@ -235,7 +252,7 @@ node --env-file=<restricted-clerkdev.env> --import tsx apps/api/scripts/check-re
 | Selected real Neon migrations                     | **PASS**, all 17 files applied; repeat passed; initially 0 members/trips                                                                                                                                                                                       |
 | Real private R2 provider                          | **PASS** signed PUT/GET 120s, copy survives staging overwrite, anonymous 400/tampered 403 denial, object backup-copy/delete/restore; four explicit task keys cleaned                                                                                           |
 | Real development Clerk + Neon + R2 HTTP           | **PASS** two-family privacy/invitations, receipt idempotency, stock/packing limit, separate return reconciliation, private PDF/finalization/read/revocation, last-admin block, owned trip deletion and real Clerk removal                                      |
-| Vercel deployment / production cron               | **BLOCKED**, authenticator factor required for project creation; no hosted API pass                                                                                                                                                                            |
+| Vercel deployment / production cron               | Project exists; seven consumed API Secrets saved for Preview/Production with development Clerk. Reviewed-source redeploy **BLOCKED** by fresh authenticator factor; no authenticated hosted API or cron pass                                                   |
 | Production Clerk DNS/certificates                 | **BLOCKED**, zone-owner access unavailable; no DNS changes                                                                                                                                                                                                     |
 | Google native/email continuity both orders        | **UNRUN** on physical Android; OAuth configuration is not sign-in acceptance                                                                                                                                                                                   |
 | FCM/Expo delivery                                 | Dedicated FCM V1 key assigned and Android client configured; **BLOCKED** server Expo token, **UNRUN** actual device delivery                                                                                                                                   |
@@ -253,7 +270,8 @@ production availability. Later Summary checks used a development client with
 loopback API/proxy/Metro and ADB reverse; those owned helpers are also stopped.
 
 [CI on the reviewed source](https://github.com/Tauqeer-Ahmed-99/hajj-and-umrah-travel-checklist/actions/runs/43568467282)
-passed all checks. The subsequent Summary privacy/selection corrections and five
+passed all checks; [the subsequent documentation source `b716cc3`](https://github.com/Tauqeer-Ahmed-99/hajj-and-umrah-travel-checklist/actions/runs/43570957720)
+also passed CI. The Summary privacy/selection corrections and five
 real-provider development-client journeys, including controlled old/fresh
 response overlap, are recorded in [review-fixes.md](review-fixes.md). They do not
 update the signed Preview B artifact or establish a production/physical pass.
