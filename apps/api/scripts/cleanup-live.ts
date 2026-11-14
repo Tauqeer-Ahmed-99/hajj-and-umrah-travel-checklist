@@ -15,6 +15,7 @@ const saved: {
   users: { id: string; username: string }[];
   trips: string[];
   cleaned?: boolean;
+  sourceDeletedAt?: string;
 } = JSON.parse(await readFile(path, "utf8"));
 assert.match(saved.runId, /^nmt22_[a-f0-9]{12}$/);
 const origin = new URL(saved.origin);
@@ -49,6 +50,7 @@ async function request(
   route: string,
   method: string,
   body?: unknown,
+  status = 200,
 ) {
   const token = (await clerk.sessions.getToken(session)).jwt;
   const response = await fetch(new URL(route, origin), {
@@ -63,13 +65,18 @@ async function request(
   });
   assert.equal(
     response.status,
-    200,
+    status,
     `Task-owned cleanup ${method} ${route} failed`,
   );
   return response.json();
 }
 for (const id of saved.trips) {
   const route = `/api/trips/${id}`;
+  if (saved.sourceDeletedAt) {
+    assert.ok(!Number.isNaN(Date.parse(saved.sourceDeletedAt)));
+    await request(sessions[0], route, "GET", undefined, 404);
+    continue;
+  }
   const trip = tripResponse.parse(await request(sessions[0], route, "GET"));
   assert.equal(trip.trip.name, saved.runId);
   await request(sessions[0], route, "DELETE", {

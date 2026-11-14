@@ -23,6 +23,8 @@ import {
 // deliberately not email-delivery, Google linking or physical-device evidence.
 const origin = new URL(process.argv[2]);
 assert.equal(process.argv[3], "--development-fixtures");
+const retainForRecovery = process.argv[4] === "--retain-for-recovery";
+assert.ok(process.argv[4] === undefined || retainForRecovery);
 assert.ok(process.env.CLERK_SECRET_KEY?.startsWith("sk_test_"));
 assert.ok(!process.env.CLERK_API_URL && !process.env.EXPO_PUSH_API_URL);
 assert.ok(
@@ -52,6 +54,14 @@ const inventory: {
   trips: string[];
   retainedObjectPaths: string[];
   passed: string[];
+  recovery?: {
+    tripId: string;
+    family: string;
+    entryId: string;
+    guide: string;
+    sha256: string;
+    ownerMemberId: string;
+  };
 } = {
   runId,
   origin: origin.origin,
@@ -333,23 +343,35 @@ try {
     requestId: randomUUID(),
     confirmation: "Remove my account",
   });
-  await request(owner, trip, 200, "DELETE", {
-    requestId: randomUUID(),
-    confirmation: "Delete trip",
-  });
-  for (const value of people) {
-    // Every identity was created above, recorded before use, and is checked
-    // against its task marker before the application's provider-deletion path.
-    const current = await clerk.users.getUser(value.clerkId);
-    assert.equal(current.privateMetadata.nmtReleaseCheck, runId);
-    await request(value, "/api/me/removal", 200, "POST", {
+  if (retainForRecovery) {
+    inventory.recovery = {
+      tripId: created.trip.id,
+      family,
+      entryId: entry.entry.id,
+      guide: guidePath,
+      sha256: digest(bytes),
+      ownerMemberId: owner.memberId,
+    };
+    inventory.passed.push("retained-owned-fixtures-for-server-recovery");
+  } else {
+    await request(owner, trip, 200, "DELETE", {
       requestId: randomUUID(),
-      confirmation: "Remove my account",
+      confirmation: "Delete trip",
     });
+    for (const value of people) {
+      // Every identity was created above, recorded before use, and is checked
+      // against its task marker before the application's provider-deletion path.
+      const current = await clerk.users.getUser(value.clerkId);
+      assert.equal(current.privateMetadata.nmtReleaseCheck, runId);
+      await request(value, "/api/me/removal", 200, "POST", {
+        requestId: randomUUID(),
+        confirmation: "Remove my account",
+      });
+    }
+    inventory.passed.push(
+      "last-admin-block-explicit-owned-trip-deletion-and-real-provider-removal",
+    );
   }
-  inventory.passed.push(
-    "last-admin-block-explicit-owned-trip-deletion-and-real-provider-removal",
-  );
   console.log(
     JSON.stringify({
       runId,
