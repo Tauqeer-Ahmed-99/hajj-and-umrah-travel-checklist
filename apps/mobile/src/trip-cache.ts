@@ -751,9 +751,14 @@ export async function refreshTripCache(
     )
       return;
     current(attempt, signal);
+    const read = new AbortController();
+    const abort = () => read.abort();
+    signal.addEventListener("abort", abort, { once: true });
+    if (signal.aborted) read.abort();
+    const timeout = setTimeout(abort, 15_000);
     try {
       const response = await travelFetch(`${origin}${path}`, {
-        signal,
+        signal: read.signal,
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok && ![403, 404].includes(response.status)) unavailable++;
@@ -771,6 +776,9 @@ export async function refreshTripCache(
       )
         return;
       unavailable++;
+    } finally {
+      clearTimeout(timeout);
+      signal.removeEventListener("abort", abort);
     }
   }
   if (

@@ -167,6 +167,10 @@ export function AccountScreen() {
         );
       const result = await accountRequest(token, controller.signal);
       if (current === generation.current && !controller.signal.aborted) {
+        // The profile deadline covers identity restoration. Cached resources
+        // have their own bounded reads below; a larger cache must not repeatedly
+        // time out the entire reconnect check before reaching its final scope.
+        clearTimeout(timeout);
         if (!result.profile && !initializedDraft.current) {
           initializedDraft.current = true;
           setDraft({
