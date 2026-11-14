@@ -1,0 +1,22 @@
+name: Verify and publish isolated compatible Android preview
+on:
+  workflow_dispatch:
+    inputs:
+      expected_runtime:
+        type: string
+        required: true
+        description: Runtime fingerprint inspected from the installed signed APK
+jobs:
+  compatible_preview:
+    type: update
+    # This environment reproduces preview A's actual native inputs (no Firebase
+    # client file). The preview environment has the later Firebase native input.
+    environment: development
+    params:
+      channel: preview
+      platform: android
+      message: Manual isolated release acceptance update
+    hooks:
+      before_update:
+        - run: node scripts/check-build-inputs.mjs
+        - run: node scripts/check-update-runtime.mjs ${{ inputs.expected_runtime }}

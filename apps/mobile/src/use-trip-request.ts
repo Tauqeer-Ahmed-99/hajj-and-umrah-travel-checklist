@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useAuth } from "@clerk/expo";
+import { useSessionAuth } from "./session-auth";
 import { TripError } from "./trip-api";
 import { useTripConnection } from "./trip-cache-state";
 
 export function useTripRequest(timeoutMs = 15_000) {
-  const { getToken } = useAuth();
+  const { getToken } = useSessionAuth();
   const connection = useTripConnection();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<TripError | null>(null);

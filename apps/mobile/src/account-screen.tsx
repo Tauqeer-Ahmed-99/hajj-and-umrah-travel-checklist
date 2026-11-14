@@ -7,7 +7,8 @@ import {
   Text,
   View,
 } from "react-native";
-import { useAuth, useClerk } from "@clerk/expo";
+import { useClerk } from "@clerk/expo";
+import { useSessionAuth } from "./session-auth";
 import {
   addNetworkStateListener,
   getNetworkStateAsync,
@@ -52,7 +53,7 @@ import { clearAllTripNavigation, clearTripNavigation } from "./trip-navigation";
 
 export function AccountScreen() {
   const copies = useGuideCopies();
-  const { getToken } = useAuth();
+  const { getToken } = useSessionAuth();
   const { signOut } = useClerk();
   const { colors } = useTheme();
   const [account, setAccount] = useState<Account | null>(null);

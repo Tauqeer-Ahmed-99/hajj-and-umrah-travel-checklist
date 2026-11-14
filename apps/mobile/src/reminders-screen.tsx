@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Alert, AppState, BackHandler, Linking } from "react-native";
-import { useAuth } from "@clerk/expo";
+import { useSessionAuth } from "./session-auth";
 import { randomUUID } from "expo-crypto";
 import {
   reminderCategory,
@@ -38,7 +38,7 @@ export function RemindersScreen({
   onBack: () => void;
 }) {
   const api = useTripRequest();
-  const { getToken, sessionId } = useAuth();
+  const { getToken, sessionId } = useSessionAuth();
   const [data, setData] = useState<{
     reminders: Reminder[];
     detail: TripDetail;
