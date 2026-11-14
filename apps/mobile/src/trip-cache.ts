@@ -82,9 +82,20 @@ export type TripSnapshot = {
   refreshedAt: number;
   data: unknown;
 };
+export type TripCacheRemoval =
+  | { scope: "trip"; tripId: string }
+  | { scope: "family"; tripId: string; familyId: string }
+  | {
+      scope: "records";
+      tripId: string;
+      projection: "family" | "shared";
+      recordIds: string[];
+    };
 let active: Cache | null = null;
-const revokedListeners = new Set<() => void>();
-export function onTripCacheRevoked(listener: () => void) {
+const revokedListeners = new Set<(removal: TripCacheRemoval) => void>();
+export function onTripCacheRevoked(
+  listener: (removal: TripCacheRemoval) => void,
+) {
   revokedListeners.add(listener);
   return () => {
     revokedListeners.delete(listener);
@@ -177,7 +188,11 @@ export function listTripSnapshots(): TripSnapshot[] {
           file.name === `${prefix}.json` ||
           file.name.startsWith(`${prefix}_`) ||
           (prefix.includes("_families_") &&
-            file.name.startsWith(`${prefix.split("_families_")[0]}_overview`)),
+            file.name.startsWith(
+              `${prefix.split("_families_")[0]}_overview`,
+            )) ||
+          (prefix.endsWith("_shared") &&
+            file.name.startsWith(`${prefix.slice(0, -7)}_overview`)),
       )
     )
       continue;
@@ -230,15 +245,21 @@ function publish(
   // A failed cleanup remains hidden until a subsequent successful cleanup.
   if (new File(directory, "discard").exists) return;
   let lostSharedAccess = false;
+  let removedShared: { items: string[]; bags: string[] } = {
+    items: [],
+    bags: [],
+  };
   let lostFamilyAccess = false;
   let lostOverviewAccess = false;
+  let removedFamilies: string[] = [];
+  let removedFamilyRecords: string[] = [];
   if (/\/overview(?:\/return)?$/.test(path)) {
     try {
       const previous = overviewResponse.parse(
         JSON.parse(new File(directory, name(path)).textSync()).data,
       );
       const next = overviewResponse.parse(record.data);
-      lostOverviewAccess = previous.records.some((row) => {
+      const removed = previous.records.filter((row) => {
         const replacement = next.records.find(
           (n) => n.id === row.id && n.kind === row.kind,
         );
@@ -248,6 +269,26 @@ function publish(
           (row.shared && !replacement.shared)
         );
       });
+      removedFamilyRecords = removed
+        .filter(
+          (row) =>
+            row.access === "family" &&
+            !next.records.some((n) => n.id === row.id && n.access === "family"),
+        )
+        .map((row) => row.id);
+      lostOverviewAccess = removed.length > 0;
+      // A complete overview can also withdraw a shared row. Partial searches
+      // never enter publish; no omitted record proves loss of the whole scope.
+      for (const row of removed) {
+        const nextRow = next.records.find(
+          (n) => n.id === row.id && n.kind === row.kind,
+        );
+        if (row.shared && !nextRow?.shared) {
+          if (row.kind === "bag") removedShared.bags.push(row.id);
+          if (row.kind === "item" || row.kind === "task")
+            removedShared.items.push(row.id);
+        }
+      }
     } catch {
       /* No previous complete overview for this leg. */
     }
@@ -269,6 +310,7 @@ function publish(
         value.cache.blocked.delete(scope);
       }
       lostFamilyAccess = removed.length > 0;
+      removedFamilies = removed.map((family) => family.id);
     } catch {
       if (value.cache.blocked.size) {
         value.cache.owner.clearAccount();
@@ -279,21 +321,59 @@ function publish(
     }
   }
   if (/\/shared\?leg=(outbound|return)$/.test(path)) {
-    try {
-      const previous = sharedContentResponse.parse(
-        JSON.parse(new File(directory, name(path)).textSync()).data,
-      );
-      const next = sharedContentResponse.parse(record.data);
-      lostSharedAccess =
-        previous.items.some(
-          (item) =>
-            !next.items.some((current) => current.entry.id === item.entry.id),
-        ) ||
-        previous.bags.some(
-          (bag) => !next.bags.some((current) => current.id === bag.id),
+    const next = sharedContentResponse.parse(record.data);
+    // Both complete shared responses carry canonical items/bags; only packing
+    // and activity vary by leg. Include an older opposite-leg-only cache too.
+    for (const leg of ["outbound", "return"]) {
+      try {
+        const previous = sharedContentResponse.parse(
+          JSON.parse(
+            new File(
+              directory,
+              name(path.replace(/leg=(outbound|return)$/, `leg=${leg}`)),
+            ).textSync(),
+          ).data,
         );
+        removedShared.items.push(
+          ...previous.items
+            .filter(
+              (item) => !next.items.some((n) => n.entry.id === item.entry.id),
+            )
+            .map((item) => item.entry.id),
+        );
+        removedShared.bags.push(
+          ...previous.bags
+            .filter((bag) => !next.bags.some((n) => n.id === bag.id))
+            .map((bag) => bag.id),
+        );
+      } catch {
+        /* No prior compatible snapshot for this leg. */
+      }
+    }
+  }
+  lostSharedAccess =
+    removedShared.items.length > 0 || removedShared.bags.length > 0;
+  if (lostSharedAccess) {
+    // One durable marker covers BOTH leg projections before either is published.
+    // Redact only the withdrawn shared rows; private family snapshots and other
+    // shared records retain their independent authorization and refresh times.
+    value.generation = ++value.cache.generation;
+    const scope = `${path.split("/").slice(0, 4).join("/")}/shared`.replaceAll(
+      "/",
+      "_",
+    );
+    value.cache.blocked.add(scope);
+    try {
+      new File(directory, `${scope}.revoked`).writeSync(
+        JSON.stringify(removedShared),
+      );
+      finishRevokedCleanup(directory);
+      value.cache.blocked.delete(scope);
     } catch {
-      /* No prior compatible shared snapshot. */
+      value.cache.owner.clearAccount();
+      throw new TripError(
+        "Shared cache cleanup did not finish. Restore current access before opening private data.",
+      );
     }
   }
   if (lostSharedAccess || lostOverviewAccess) {
@@ -319,8 +399,29 @@ function publish(
   pending.writeSync(JSON.stringify(record));
   current(value, signal);
   pending.moveSync(new File(directory, name(path)), { overwrite: true });
-  if (lostSharedAccess || lostFamilyAccess || lostOverviewAccess)
-    for (const listener of revokedListeners) listener();
+  const tripId = path.split("/")[3];
+  for (const familyId of removedFamilies)
+    for (const listener of revokedListeners)
+      listener({ scope: "family", tripId, familyId });
+  const sharedIds = [
+    ...new Set([...removedShared.items, ...removedShared.bags]),
+  ];
+  if (sharedIds.length)
+    for (const listener of revokedListeners)
+      listener({
+        scope: "records",
+        tripId,
+        projection: "shared",
+        recordIds: sharedIds,
+      });
+  if (removedFamilyRecords.length)
+    for (const listener of revokedListeners)
+      listener({
+        scope: "records",
+        tripId,
+        projection: "family",
+        recordIds: removedFamilyRecords,
+      });
   tripCacheChanged();
 }
 export function clearTripCache() {
@@ -393,7 +494,12 @@ function deny(
       "Private cache cleanup could not finish. Retry Refresh cached trips.",
     );
   } finally {
-    for (const listener of revokedListeners) listener();
+    for (const listener of revokedListeners)
+      listener(
+        parts[4] === "families"
+          ? { scope: "family", tripId: parts[3], familyId: parts[5] }
+          : { scope: "trip", tripId: parts[3] },
+      );
     tripCacheChanged();
   }
 }
@@ -403,6 +509,61 @@ function finishRevokedCleanup(directory: Directory) {
     if (!(marker instanceof File) || !marker.name.endsWith(".revoked"))
       continue;
     const prefix = marker.name.slice(0, -8);
+    if (prefix.endsWith("_shared")) {
+      const removed: { items: string[]; bags: string[] } = JSON.parse(
+        marker.textSync(),
+      );
+      if (!Array.isArray(removed.items) || !Array.isArray(removed.bags))
+        throw new TripError(
+          "Shared cache cleanup must finish before opening cached data.",
+        );
+      for (const file of directory.list()) {
+        if (!(file instanceof File)) continue;
+        if (file.name.startsWith(`${prefix.slice(0, -7)}_overview`))
+          file.delete();
+        if (!file.name.startsWith(`${prefix}_`) || !file.name.endsWith(".json"))
+          continue;
+        try {
+          const record = JSON.parse(file.textSync());
+          const shared = sharedContentResponse.parse(record.data);
+          shared.items = shared.items.filter(
+            (item) => !removed.items.includes(item.entry.id),
+          );
+          shared.bags = shared.bags.filter(
+            (bag) => !removed.bags.includes(bag.id),
+          );
+          for (const item of shared.items) {
+            if (item.packing)
+              item.packing.allocations = item.packing.allocations.map(
+                (allocation) => ({
+                  ...allocation,
+                  location:
+                    allocation.location.kind === "bag" &&
+                    removed.bags.includes(allocation.location.id)
+                      ? {
+                          kind: "private" as const,
+                          label: "Private carrying location",
+                        }
+                      : allocation.location,
+                }),
+              );
+          }
+          shared.history = shared.history.filter(
+            (event) =>
+              !removed.items.includes(event.entryId ?? "") &&
+              !event.bagIds.some((id) => removed.bags.includes(id)),
+          );
+          const pending = new File(directory, `${file.name}.pending`);
+          pending.writeSync(JSON.stringify({ ...record, data: shared }));
+          pending.moveSync(file, { overwrite: true });
+        } catch {
+          // A corrupt projection cannot keep revoked content visible.
+          file.delete();
+        }
+      }
+      marker.delete();
+      continue;
+    }
     // A definitive family denial also removes its name/navigation from an older
     // trip detail. Retain the original refresh time: redaction is not a new read.
     const familyScope = prefix.match(
@@ -569,7 +730,7 @@ export async function travelFetch(
 
 export async function refreshTripCache(
   origin: string,
-  token: string,
+  getToken: () => Promise<string | null>,
   signal: AbortSignal,
 ) {
   const value = stamp();
@@ -601,11 +762,35 @@ export async function refreshTripCache(
     )
       return;
     current(attempt, signal);
+    const read = new AbortController();
+    const abort = () => read.abort();
+    signal.addEventListener("abort", abort, { once: true });
+    if (signal.aborted) read.abort();
+    const timeout = setTimeout(abort, 15_000);
     try {
-      const response = await travelFetch(`${origin}${path}`, {
-        signal,
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      current(attempt, read.signal);
+      const response = await Promise.race([
+        (async () => {
+          // A refresh may span many scopes and outlive a short-lived bearer.
+          // Ask the existing session adapter just before each read; never replay
+          // a denied request or reuse an old account's callback.
+          const token = await getToken();
+          current(attempt, read.signal);
+          if (!token)
+            throw new TripError("Current sign-in could not be refreshed.");
+          return travelFetch(`${origin}${path}`, {
+            signal: read.signal,
+            headers: { Authorization: `Bearer ${token}` },
+          });
+        })(),
+        new Promise<never>((_, reject) =>
+          read.signal.addEventListener(
+            "abort",
+            () => reject(new TripError("This access check was interrupted.")),
+            { once: true },
+          ),
+        ),
+      ]);
       if (!response.ok && ![403, 404].includes(response.status)) unavailable++;
     } catch {
       if (signal.aborted)
@@ -621,6 +806,9 @@ export async function refreshTripCache(
       )
         return;
       unavailable++;
+    } finally {
+      clearTimeout(timeout);
+      signal.removeEventListener("abort", abort);
     }
   }
   if (

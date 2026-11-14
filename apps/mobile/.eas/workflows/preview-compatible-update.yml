@@ -9,9 +9,9 @@ on:
 jobs:
   compatible_preview:
     type: update
-    # This environment reproduces preview A's actual native inputs (no Firebase
-    # client file). The preview environment has the later Firebase native input.
-    environment: development
+    # Preview B includes the Firebase Android client file. Resolve these actual
+    # inputs and compare with the inspected APK before publishing any update.
+    environment: preview
     params:
       channel: preview
       platform: android

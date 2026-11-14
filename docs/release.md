@@ -137,17 +137,19 @@ these actual formats rather than assuming an OTA manifest's JSON structure.
   trips. This used Clerk's `+clerk_test`/424242 development shortcut; no real
   mailbox or Google continuity is claimed.
 
-To repeat the compatible A check on a normal cloud/Linux host (Windows Hermes
-remains blocked), use the manual-only workflow from `apps/mobile`:
+The A check above used the `development` environment without Firebase. The
+manual-only workflow now deliberately uses Preview B's `preview` environment
+for the [review fixes](review-fixes.md). On a normal cloud/Linux host (Windows
+Hermes remains blocked), run from `apps/mobile`:
 
 ```powershell
-eas workflow:run .eas/workflows/preview-compatible-update.yml --input expected_runtime=acccc32bf6b5dd40e684543c4321cceabfc0cbc3 --non-interactive --json
+eas workflow:run .eas/workflows/preview-compatible-update.yml --input expected_runtime=7030a563186c138a162568b6d3b7683c7e2cce70 --non-interactive --json
 ```
 
-It publishes only to the isolated `preview` channel. Its `development` environment
-reproduces A's three actual public inputs and has no Firebase client file. The
-`preview` environment includes the later Firebase native input, so it must not be
-silently substituted when claiming compatibility with A. The runtime guard
+It publishes only to the isolated `preview` channel. The `development` environment
+reproduces A's three actual public inputs and has no Firebase client file. To
+repeat A deliberately restore that environment and pass A's inspected runtime;
+never claim compatibility with A using B's native inputs. The runtime guard
 rejected an intentionally wrong runtime and passed the inspected A runtime before
 publishing. There is no automatic GitHub or production publisher.
 
@@ -187,9 +189,10 @@ download was observed without a forced restart, but active packing/reading
 continuity and all physical-device journeys remain unrun. Earlier B attempt
 `bb4b0be8-c527-408d-8bd4-a20497eba67a` errored in Configure expo-updates and is not
 acceptance evidence. Supply the real Firebase client file locally as well as in
-EAS when resolving/building B's native inputs. The manual workflow above still
-reproduces A; a B update must deliberately use B's preview environment and pass
-the guard with B's inspected runtime before publishing to preview.
+EAS when resolving/building B's native inputs. The current manual workflow above
+uses B's preview environment and must pass the guard with B's inspected runtime
+before publishing to preview. Actual review-fix updates and native results are
+recorded separately in [review-fixes.md](review-fixes.md).
 
 ## Server recovery evidence
 

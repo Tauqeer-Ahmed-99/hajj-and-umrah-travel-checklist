@@ -139,11 +139,19 @@ export function OfflineTripsScreen({
   }, [memberId, sessionId]);
   useEffect(
     () =>
-      onTripCacheRevoked(() => {
+      onTripCacheRevoked((removal) => {
+        if (
+          !route ||
+          route.tripId !== removal.tripId ||
+          removal.scope === "records"
+        )
+          return;
+        if (removal.scope === "family" && route.familyId !== removal.familyId)
+          return;
         setRoute(null);
         if (memberId) void clearTripNavigation(memberId, true).catch(() => {});
       }),
-    [memberId],
+    [memberId, route],
   );
   const [, update] = useState(0);
   const [error, setError] = useState("");

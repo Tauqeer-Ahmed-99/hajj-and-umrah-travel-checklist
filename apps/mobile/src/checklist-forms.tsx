@@ -105,7 +105,7 @@ export function useSave<T>(
     subject,
     fields: { ...api.error?.fields, ...validation },
     uncertain,
-    locked: api.busy || uncertain || api.readOnly,
+    locked: api.busy || uncertain,
     submit,
     cancel,
     invalid,

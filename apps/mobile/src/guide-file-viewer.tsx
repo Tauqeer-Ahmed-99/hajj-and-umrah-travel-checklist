@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AppState,
   BackHandler,
@@ -16,7 +16,11 @@ import { StatusBar } from "expo-status-bar";
 import { GUIDE_FILE_LIMIT } from "@nmt/contracts";
 import { useTripRequest } from "./use-trip-request";
 import { guideFileApi } from "./guide-file-api";
+import { guideApi } from "./guide-api";
+import { guideCopyApi } from "./guide-copy-api";
 import { travelFileApi } from "./travel-file-api";
+import { useSessionAuth } from "./session-auth";
+import { deviceNetworkAvailable, subscribeTripCache } from "./trip-cache-state";
 import { TripError } from "./trip-api";
 import { Action, Copy, Heading, Loading, Notice } from "./ui";
 import { useTheme } from "./theme";
@@ -45,12 +49,16 @@ export function GuideFileViewer({
   onBack(): void;
 }) {
   const copies = useGuideCopies();
+  const { getToken } = useSessionAuth();
   const api = useTripRequest(90_000),
     { colors, dark } = useTheme();
   const [view, setView] = useState<{
     uri: string;
     type: string;
     name: string;
+    version: number;
+    fileId: string;
+    sha256: string;
   } | null>(null);
   const [renderError, setRenderError] = useState(false),
     [loaded, setLoaded] = useState(false);
@@ -59,8 +67,38 @@ export function GuideFileViewer({
   const [page, setPage] = useState({ current: 1, total: 0 });
   const [attempt, setAttempt] = useState(0);
   const current = useRef<AbortController | null>(null);
+  const temporaryFile = useRef<File | null>(null);
   const close = useRef(onBack);
   close.current = onBack;
+  const access = useCallback(
+    async (selectedVersion: number, token: string, signal: AbortSignal) => {
+      const file = travelFile
+        ? (
+            await travelFileApi.access(
+              tripId,
+              id,
+              selectedVersion,
+              token,
+              signal,
+            )
+          ).file
+        : (
+            await guideCopyApi.access(
+              tripId,
+              id,
+              selectedVersion,
+              token,
+              signal,
+            )
+          ).guide.file;
+      if (!file)
+        throw new TripError(
+          "Current file access could not be confirmed. Reconnect and retry.",
+        );
+      return file;
+    },
+    [travelFile, tripId, id],
+  );
   useEffect(() => {
     const listener = AppState.addEventListener("change", (state) => {
       if (state !== "active" && !savedCopy) {
@@ -87,28 +125,67 @@ export function GuideFileViewer({
     };
   }, [savedCopy]);
   useEffect(() => {
-    if (!travelFile || !view || version === undefined) return;
+    if (!view || savedCopy) return;
+    const owner = current.current;
+    let active = true;
+    const discard = () => {
+      owner?.abort();
+      try {
+        if (temporaryFile.current?.exists) temporaryFile.current.delete();
+      } finally {
+        temporaryFile.current = null;
+        setView(null);
+        close.current();
+      }
+    };
     // Refresh permission metadata while reading, never the object bytes. A denial
     // closes the temporary view; transient failures can be explicitly retried.
-    const timer = setInterval(() => {
+    const check = () => {
+      if (
+        !active ||
+        owner?.signal.aborted ||
+        deviceNetworkAvailable() === false
+      )
+        return;
       void api.run(async (token, signal) => {
         try {
-          await travelFileApi.access(tripId, id, version, token, signal);
+          const allowed = await access(view.version, token, signal);
+          assertCopySession(copies, signal);
+          if (!active || owner !== current.current || owner?.signal.aborted)
+            return;
+          if (allowed.id !== view.fileId || allowed.sha256 !== view.sha256)
+            discard();
         } catch (error) {
+          assertCopySession(copies, signal);
           if (
+            active &&
+            owner === current.current &&
+            !owner?.signal.aborted &&
             error instanceof TripError &&
             [401, 403, 404].includes(error.status ?? 0)
-          ) {
-            current.current?.abort();
-            setView(null);
-            close.current();
-          }
+          )
+            discard();
           throw error;
         }
       });
-    }, 15_000);
-    return () => clearInterval(timer);
-  }, [travelFile, view, version, tripId, id, api.run]);
+    };
+    const timer = setInterval(check, 15_000);
+    let available = deviceNetworkAvailable();
+    const reconnect = subscribeTripCache(() => {
+      const next = deviceNetworkAvailable();
+      if (next === true && available !== true) check();
+      available = next;
+    });
+    const foreground = AppState.addEventListener("change", (state) => {
+      if (state === "active") check();
+    });
+    return () => {
+      active = false;
+      clearInterval(timer);
+      reconnect();
+      foreground.remove();
+    };
+  }, [view, savedCopy, access, copies, api.run]);
   useEffect(() => {
     const controller = new AbortController();
     current.current = controller;
@@ -129,6 +206,9 @@ export function GuideFileViewer({
               uri: copy.file.uri,
               type: copy.guide.file!.mediaType,
               name: copy.guide.file!.fileName,
+              version: copy.guide.version,
+              fileId: copy.guide.file!.id,
+              sha256: copy.guide.file!.sha256,
             });
         })
         .catch(() => {
@@ -144,10 +224,17 @@ export function GuideFileViewer({
         controller.abort();
       const signal = controller.signal;
       try {
+        const selectedVersion =
+          version ??
+          (travelFile
+            ? undefined
+            : (await guideApi.read(tripId, id, token, signal)).guide.version);
+        if (selectedVersion === undefined)
+          throw new TripError("Refresh files before opening.");
         const opened = await (travelFile ? travelFileApi : guideFileApi).open(
           tripId,
           id,
-          version,
+          selectedVersion,
           token,
           signal,
         );
@@ -177,24 +264,17 @@ export function GuideFileViewer({
           .join("");
         if (checksum !== opened.file.sha256)
           throw new TripError("The file did not arrive intact. Retry Open.");
-        if (travelFile) {
-          if (version === undefined)
-            throw new TripError("Refresh files before opening.");
-          const allowed = await travelFileApi.access(
-            tripId,
-            id,
-            version,
-            token,
-            signal,
+        const freshToken = await getToken();
+        assertCopySession(copies, signal);
+        if (!freshToken)
+          throw new TripError(
+            "Current sign-in could not be checked. Reconnect and retry Open.",
           );
-          if (
-            allowed.file.id !== opened.file.id ||
-            allowed.file.sha256 !== checksum
-          )
-            throw new TripError(
-              "File access changed. Refresh files before opening.",
-            );
-        }
+        const allowed = await access(selectedVersion, freshToken, signal);
+        if (allowed.id !== opened.file.id || allowed.sha256 !== checksum)
+          throw new TripError(
+            "File access changed. Refresh files before opening.",
+          );
         assertCopySession(copies);
         if (signal.aborted) throw new TripError("Opening was interrupted.");
         const extension =
@@ -208,10 +288,14 @@ export function GuideFileViewer({
           return;
         }
         assertCopySession(copies);
+        temporaryFile.current = temporary;
         setView({
           uri: temporary.uri,
           type: opened.file.mediaType,
           name: opened.file.fileName,
+          version: selectedVersion,
+          fileId: opened.file.id,
+          sha256: checksum,
         });
       } finally {
         requestSignal.removeEventListener("abort", abort);
@@ -221,8 +305,20 @@ export function GuideFileViewer({
     return () => {
       controller.abort();
       if (temporary?.exists) temporary.delete();
+      if (temporaryFile.current === temporary) temporaryFile.current = null;
     };
-  }, [tripId, id, version, attempt, api.run, savedCopy, copies, travelFile]);
+  }, [
+    tripId,
+    id,
+    version,
+    attempt,
+    api.run,
+    savedCopy,
+    copies,
+    travelFile,
+    access,
+    getToken,
+  ]);
   return (
     <SafeAreaView
       style={{ flex: 1, backgroundColor: colors.canvas, padding: 16, gap: 12 }}

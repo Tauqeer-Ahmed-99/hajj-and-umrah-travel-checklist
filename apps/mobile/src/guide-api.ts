@@ -45,6 +45,7 @@ export async function guideRequest<T>(
         "Could not complete this guide request. Reconnect and retry.",
       response.status,
       error?.error?.fields,
+      error?.error?.code,
     );
   }
   try {

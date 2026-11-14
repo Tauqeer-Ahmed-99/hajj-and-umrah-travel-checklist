@@ -45,7 +45,7 @@ export function InvitationForm({
     !!pending &&
     !!api.error &&
     (api.error.status === 0 || api.error.status >= 500);
-  const locked = api.busy || uncertain || api.readOnly;
+  const locked = api.busy || uncertain;
   const back = () => {
     if (api.busy) return;
     Alert.alert(

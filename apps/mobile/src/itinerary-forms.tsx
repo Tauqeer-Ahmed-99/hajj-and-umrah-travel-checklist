@@ -94,7 +94,7 @@ function useSave<T>(
   return {
     ...api,
     uncertain,
-    locked: api.busy || uncertain || api.readOnly,
+    locked: api.busy || uncertain,
     fields: { ...api.error?.fields, ...validation },
     submit,
     cancel,

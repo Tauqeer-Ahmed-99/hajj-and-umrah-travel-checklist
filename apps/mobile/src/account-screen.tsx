@@ -167,6 +167,10 @@ export function AccountScreen() {
         );
       const result = await accountRequest(token, controller.signal);
       if (current === generation.current && !controller.signal.aborted) {
+        // The profile deadline covers identity restoration. Cached resources
+        // have their own bounded reads below; a larger cache must not repeatedly
+        // time out the entire reconnect check before reaching its final scope.
+        clearTimeout(timeout);
         if (!result.profile && !initializedDraft.current) {
           initializedDraft.current = true;
           setDraft({
@@ -183,18 +187,27 @@ export function AccountScreen() {
           setOfflineProfile(result.profile);
           // Metadata checks only; this never obtains or downloads guide objects.
           const origin = apiOrigin();
-          if (origin) await refreshTripCache(origin, token, controller.signal);
+          if (origin)
+            await refreshTripCache(origin, getToken, controller.signal);
           // Metadata checks only. No object downloads, exports or save retries.
-          void refreshSavedGuideAccess(copies, token, controller.signal).catch(
-            () => {
+          const copyToken = await getToken();
+          if (
+            copyToken &&
+            current === generation.current &&
+            !controller.signal.aborted
+          )
+            void refreshSavedGuideAccess(
+              copies,
+              copyToken,
+              controller.signal,
+            ).catch(() => {
               if (copies.controller.signal.aborted) {
                 setCleanupBlocked(true);
                 setError(
                   "Private copy cleanup failed. Retry cleanup before opening private data.",
                 );
               }
-            },
-          );
+            });
           if (current === generation.current && !controller.signal.aborted)
             acceptedTravelChange();
         } else {

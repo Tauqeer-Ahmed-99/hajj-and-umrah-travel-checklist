@@ -16,7 +16,8 @@ import { Action, Copy, Field, Heading, Notice, Screen } from "./ui";
 import { GuideChoices, GuideSection } from "./guide-ui";
 import { guideFileApi } from "./guide-file-api";
 import { useTripRequest } from "./use-trip-request";
-import { TripError } from "./trip-api";
+import { completeFileUpload } from "./file-upload";
+import { useSessionAuth } from "./session-auth";
 
 export function GuideFileForm({
   tripId,
@@ -32,7 +33,20 @@ export function GuideFileForm({
   onCancel(): void;
 }) {
   const api = useTripRequest(180_000);
+  const { getToken } = useSessionAuth();
+  const transfer = {
+    authorize: guideFileApi.authorize.bind(null, tripId),
+    finish: guideFileApi.finish.bind(null, tripId),
+  };
   const [familyId, setFamilyId] = useState(families[0]?.id ?? "");
+  useEffect(() => {
+    if (
+      !initial &&
+      familyId &&
+      !families.some((family) => family.id === familyId)
+    )
+      onCancel();
+  }, [initial, familyId, families, onCancel]);
   const [title, setTitle] = useState(""),
     [category, setCategory] = useState("");
   const [description, setDescription] = useState(""),
@@ -51,7 +65,7 @@ export function GuideFileForm({
   const [guideId, setGuideId] = useState(initial?.id);
   const picked = useRef<File | null>(null),
     active = useRef(true);
-  const locked = api.busy || body !== null || api.readOnly;
+  const locked = api.busy || body !== null;
   useEffect(() => {
     active.current = true;
     return () => {
@@ -108,14 +122,14 @@ export function GuideFileForm({
     }
   };
   const finish = async (selected: { id: string; upload: GuideUpload }) => {
-    const result = await api.run((token, signal) =>
-      guideFileApi.finish(
-        tripId,
-        selected.id,
-        selected.upload.id,
-        token,
+    const result = await api.run((_, signal) =>
+      completeFileUpload(transfer, {
+        session: selected,
+        getToken,
         signal,
-      ),
+        prepared: setSession,
+        phase: setPhase,
+      }),
     );
     if (result) onSaved(result.guide);
   };
@@ -154,9 +168,11 @@ export function GuideFileForm({
       return;
     }
     if (
-      session &&
-      (session.upload.byteSize !== picked.current.size ||
-        session.upload.mediaType !== mediaType)
+      parsed.data.byteSize !== picked.current.size ||
+      parsed.data.mediaType !== mediaType ||
+      (session &&
+        (session.upload.byteSize !== picked.current.size ||
+          session.upload.mediaType !== mediaType))
     ) {
       setValidation(
         "Choose a file with the same type and size to retry this upload, or start a different file.",
@@ -166,56 +182,41 @@ export function GuideFileForm({
     setBody(parsed.data);
     setValidation("");
     const file = picked.current;
-    const result = await api.run(async (token, signal) => {
-      let selected = session;
-      if (!selected) {
-        setPhase("Preparing upload…");
-        const created = guideId
-          ? await guideFileApi.replace(
-              tripId,
-              guideId,
-              parsed.data as UploadDetails,
-              token,
-              signal,
-            )
-          : await guideFileApi.begin(
-              tripId,
-              parsed.data as FileGuideInput,
-              token,
-              signal,
-            );
-        selected = { id: created.guide.id, upload: created.upload };
-        if (signal.aborted)
-          throw new TripError(
-            "The upload was interrupted. Check your guides before retrying.",
-          );
-        setSession(selected);
-        setGuideId(selected.id);
-      }
-      if (selected.upload.status !== "ready") {
-        setPhase("Uploading file…");
-        await guideFileApi.put(
-          tripId,
-          selected.id,
-          selected.upload.id,
+    const result = await api.run((_, signal) =>
+      completeFileUpload(
+        {
+          ...transfer,
+          prepare: async (token, requestSignal) => {
+            const created = guideId
+              ? await guideFileApi.replace(
+                  tripId,
+                  guideId,
+                  parsed.data as UploadDetails,
+                  token,
+                  requestSignal,
+                )
+              : await guideFileApi.begin(
+                  tripId,
+                  parsed.data as FileGuideInput,
+                  token,
+                  requestSignal,
+                );
+            return { id: created.guide.id, upload: created.upload };
+          },
+        },
+        {
+          session,
           file,
-          token,
+          getToken,
           signal,
-        );
-      }
-      if (signal.aborted)
-        throw new TripError(
-          "The upload was interrupted. Retry finishing this upload.",
-        );
-      setPhase("Checking file…");
-      return guideFileApi.finish(
-        tripId,
-        selected.id,
-        selected.upload.id,
-        token,
-        signal,
-      );
-    });
+          phase: setPhase,
+          prepared: (selected) => {
+            setSession(selected);
+            setGuideId(selected.id);
+          },
+        },
+      ),
+    );
     if (result) onSaved(result.guide);
   };
   return (

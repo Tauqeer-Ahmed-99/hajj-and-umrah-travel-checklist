@@ -3,6 +3,7 @@ export class TripError extends Error {
     message: string,
     public status = 0,
     public fields?: Record<string, string>,
+    public code?: string,
   ) {
     super(message);
   }

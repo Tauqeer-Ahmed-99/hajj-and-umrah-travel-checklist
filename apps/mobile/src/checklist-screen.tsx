@@ -26,6 +26,7 @@ import { ChecklistChoices, ChecklistSection } from "./checklist-ui";
 import { AcquisitionForm, AcquisitionSummary } from "./acquisition-form";
 import { VisibilityForm } from "./sharing-forms";
 import type { ChecklistView } from "./trip-navigation";
+import { onTripCacheRevoked } from "./trip-cache";
 
 export function ChecklistDestination({
   families,
@@ -172,6 +173,45 @@ export function ChecklistScreen({
   const [saved, setSaved] = useState(false);
   const [view, setView] = useState<ChecklistView>(initialView ?? "all");
   const [selectedId, setSelectedId] = useState(initialId);
+  useEffect(
+    () =>
+      onTripCacheRevoked((removal) => {
+        if (
+          removal.tripId !== tripId ||
+          removal.scope !== "records" ||
+          removal.projection !== "family"
+        )
+          return;
+        const removed = (id?: string) => !!id && removal.recordIds.includes(id);
+        setEditor((current) => {
+          if (!current) return current;
+          const id =
+            "entry" in current
+              ? current.entry?.id
+              : "initial" in current
+                ? current.initial?.id
+                : "id" in current
+                  ? current.id
+                  : undefined;
+          return removed(id) ? null : current;
+        });
+        setSelectedId((id) => (removed(id) ? undefined : id));
+        setData((current) =>
+          current
+            ? {
+                ...current,
+                checklist: {
+                  ...current.checklist,
+                  entries: current.checklist.entries.filter(
+                    (entry) => !removed(entry.id),
+                  ),
+                },
+              }
+            : current,
+        );
+      }),
+    [tripId],
+  );
   useEffect(() => {
     onRemember?.(view, selectedId);
   }, [view, selectedId, onRemember]);
