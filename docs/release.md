@@ -42,6 +42,24 @@ build settings are:
 - Current API-consumer values only, as listed in `apps/api/.env.example`.
   Apply the database migrations separately; never migrate as part of every build.
 
+The subsequently requested Drizzle ORM migration is implemented in `0e4ca2f`
+with review corrections in `14ec026`. Use the current integration tip for the
+next API deployment; the canceled `b716cc3` attempt above is historical. The API
+now uses Drizzle's node-postgres client, typed schema, query builders and
+parameterized SQL, including its transaction API. The 17 existing SQL migration
+files and their ledger are unchanged. No live database migration or deployment
+was performed for this refactor.
+
+Local verification passed the full **127/127** HTTP/PostgreSQL suite on the
+initial migration. After final review, **8/8** Overview scenarios passed, including
+a new checkout ISO-timestamp regression observed failing before its fix. All
+workspace types, final API production build and formatting passed. Independent
+schema comparison covered 40 tables/309 columns, keys, checks, indexes, identity
+generation and null uniqueness; both review findings were fixed and a fresh
+spec recheck cleared them. These checks do not update any signed artifact or
+establish hosted/production acceptance. The database workflow is in the
+[README](../README.md).
+
 Neon project `noisy-silence-54970798` (`nmt-travel-db`, Free/sin1, PostgreSQL 18)
 main branch `br-solitary-boat-azmwoy1i`, database `neondb`, has all **17** repository
 migration files applied. Applying them a second time passed. Auth/Realtime remain
