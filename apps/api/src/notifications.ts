@@ -23,17 +23,33 @@ export async function permittedEvent(
   },
 ) {
   await requireTripAccess(db, row.recipient_id, row.trip_id);
-  if (row.family_id)
-    await requireFamilyAccess(db, row.recipient_id, row.trip_id, row.family_id);
-  if (
-    row.entry_id &&
-    !(
-      await db.query(
-        "SELECT id FROM checklist_entries WHERE id = $1 AND family_id = $2 AND removed_at IS NULL FOR SHARE",
-        [row.entry_id, row.family_id],
-      )
-    ).rowCount
-  )
+  let familyAccess = false;
+  if (row.family_id) {
+    try {
+      await requireFamilyAccess(
+        db,
+        row.recipient_id,
+        row.trip_id,
+        row.family_id,
+      );
+      familyAccess = true;
+    } catch (error) {
+      if (!(error instanceof HttpError && error.status === 404 && row.entry_id))
+        throw error;
+    }
+  }
+  if (!row.entry_id) return;
+  // Preserve membership -> family grant -> entry lock order. The exact current
+  // item, including its audience, stays locked through dispatch; an old event's
+  // owning family is attribution, not an additional grant for trip-shared items.
+  const entry = (
+    await db.query<{ audience: string }>(
+      `SELECT e.audience FROM checklist_entries e JOIN families f ON f.id = e.family_id
+       WHERE e.id = $1 AND e.family_id = $2 AND f.trip_id = $3 AND e.removed_at IS NULL FOR SHARE OF e`,
+      [row.entry_id, row.family_id, row.trip_id],
+    )
+  ).rows[0];
+  if (!entry || (!familyAccess && entry.audience !== "trip"))
     throw new HttpError(
       404,
       "not_found",

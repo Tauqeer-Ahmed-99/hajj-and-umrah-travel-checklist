@@ -593,6 +593,211 @@ test("important accepted assignments and trip changes dispatch according to pref
   fixture.pushOutcome("ok");
 });
 
+test("cross-family shared assignments and deadlines use current item access, including queued unsharing and grant removal", async () => {
+  const owner = await member("shared_notify_owner");
+  const target = await member("shared_notify_target");
+  const journey = await trip(owner);
+  // Trip admission deliberately carries no owning-family grant.
+  const offer = await fixture.request(
+    `${journey.path}/invitations`,
+    owner.token,
+    {
+      recipient: { kind: "username", value: target.username },
+      tripRole: "member",
+    },
+    "POST",
+  );
+  assert.equal(offer.status, 201);
+  assert.equal(
+    (
+      await fixture.request(
+        `/api/invitations/${offer.data.invitation.id}/accept`,
+        target.token,
+        {},
+        "POST",
+      )
+    ).status,
+    200,
+  );
+  const registration = {
+    deviceId: randomUUID(),
+    token: `ExpoPushToken[${randomUUID()}]`,
+    tripIds: [journey.path.split("/").at(-1)!],
+    localSchedules: [],
+  };
+  const register = (enabled: boolean) =>
+    fixture.request("/api/notifications/device", target.token, {
+      ...registration,
+      tripIds: enabled ? registration.tripIds : [],
+    });
+  await register(true);
+  await fixture.request(
+    "/api/notifications",
+    target.token,
+    { assignments: true, deadlines: true },
+    "PATCH",
+  );
+  const checklist = `${journey.path}/families/${journey.familyId}/checklist`;
+  const category = await fixture.request(
+    `${checklist}/categories`,
+    owner.token,
+    { name: "SECRET shared supplies", requestId: randomUUID() },
+    "POST",
+  );
+  const create = async () => {
+    const created = await fixture.request(
+      `${checklist}/entries`,
+      owner.token,
+      {
+        categoryId: category.data.category.id,
+        kind: "task",
+        title: "SECRET shared task",
+        requiredQuantity: null,
+        unit: "",
+        taskStatus: "to_do",
+        beneficiaries: { kind: "family" },
+        responsibleMemberId: owner.id,
+      },
+      "POST",
+    );
+    assert.equal(created.status, 201, JSON.stringify(created.data));
+    return `${checklist}/entries/${created.data.entry.id}`;
+  };
+  const visibility = (path: string, audience: string) =>
+    fixture.request(
+      `${path}/visibility`,
+      owner.token,
+      { audience, requestId: randomUUID() },
+      "POST",
+    );
+  const drain = async () => {
+    assert.equal(
+      (
+        await fixture.request(
+          "/api/notifications/dispatch",
+          "fixture-dispatch-only",
+          {},
+          "POST",
+        )
+      ).status,
+      200,
+    );
+    await notificationsSettled(target.token);
+  };
+  const start = fixture.pushes.length;
+  const shared = await create();
+  assert.equal((await visibility(shared, "trip")).status, 200);
+  assert.equal(
+    (
+      await fixture.request(
+        shared,
+        owner.token,
+        { responsibleMemberId: target.id },
+        "PATCH",
+      )
+    ).status,
+    200,
+  );
+  await drain();
+  assert.equal(
+    fixture.pushes.length,
+    start + 1,
+    "An authorized shared assignee needs no owning-family grant",
+  );
+  await fixture.request(
+    shared,
+    owner.token,
+    { dueDate: "2026-11-19" },
+    "PATCH",
+  );
+  await drain();
+  await drain();
+  assert.equal(
+    fixture.pushes.length,
+    start + 2,
+    "The shared deadline dispatches once",
+  );
+  for (const push of fixture.pushes.slice(start))
+    assert.deepEqual(Object.keys(push as object).sort(), [
+      "body",
+      "channelId",
+      "title",
+      "to",
+      "ttl",
+    ]);
+  assert.ok(!JSON.stringify(fixture.pushes.slice(start)).includes("SECRET"));
+
+  // Queue before device eligibility; change authority before dispatch, without a timing race.
+  await register(false);
+  const revoked = await create();
+  await visibility(revoked, "trip");
+  await fixture.request(
+    revoked,
+    owner.token,
+    { responsibleMemberId: target.id },
+    "PATCH",
+  );
+  await visibility(revoked, "family");
+  await register(true);
+  await drain();
+  assert.equal(
+    fixture.pushes.length,
+    start + 2,
+    "Unsharing suppresses a queued assignment",
+  );
+
+  await register(false);
+  await admit(journey, owner, target);
+  const privateItem = await create();
+  await fixture.request(
+    privateItem,
+    owner.token,
+    { responsibleMemberId: target.id },
+    "PATCH",
+  );
+  await fixture.request(
+    `${journey.path}/families/${journey.familyId}/members/${target.id}`,
+    owner.token,
+    undefined,
+    "DELETE",
+  );
+  // The existing shared item remains authorized after the same grant removal.
+  await fixture.request(
+    shared,
+    owner.token,
+    { dueDate: "2026-11-18" },
+    "PATCH",
+  );
+  await register(true);
+  await drain();
+  assert.equal(
+    fixture.pushes.length,
+    start + 3,
+    "Grant removal suppresses private content but retains shared access",
+  );
+
+  await register(false);
+  await fixture.request(
+    shared,
+    owner.token,
+    { dueDate: "2026-11-17" },
+    "PATCH",
+  );
+  await fixture.request(
+    "/api/notifications",
+    target.token,
+    { deadlines: false },
+    "PATCH",
+  );
+  await register(true);
+  await drain();
+  assert.equal(
+    fixture.pushes.length,
+    start + 3,
+    "Current preferences suppress a queued deadline",
+  );
+});
+
 test("acknowledged native schedules suppress fallback pushes and registrations cannot claim another member's reminder", async () => {
   const owner = await member("native_deadline");
   const outsider = await member("native_outsider");

@@ -177,7 +177,11 @@ export function listTripSnapshots(): TripSnapshot[] {
           file.name === `${prefix}.json` ||
           file.name.startsWith(`${prefix}_`) ||
           (prefix.includes("_families_") &&
-            file.name.startsWith(`${prefix.split("_families_")[0]}_overview`)),
+            file.name.startsWith(
+              `${prefix.split("_families_")[0]}_overview`,
+            )) ||
+          (prefix.endsWith("_shared") &&
+            file.name.startsWith(`${prefix.slice(0, -7)}_overview`)),
       )
     )
       continue;
@@ -230,6 +234,10 @@ function publish(
   // A failed cleanup remains hidden until a subsequent successful cleanup.
   if (new File(directory, "discard").exists) return;
   let lostSharedAccess = false;
+  let removedShared: { items: string[]; bags: string[] } = {
+    items: [],
+    bags: [],
+  };
   let lostFamilyAccess = false;
   let lostOverviewAccess = false;
   if (/\/overview(?:\/return)?$/.test(path)) {
@@ -284,16 +292,43 @@ function publish(
         JSON.parse(new File(directory, name(path)).textSync()).data,
       );
       const next = sharedContentResponse.parse(record.data);
+      removedShared = {
+        items: previous.items
+          .filter(
+            (item) => !next.items.some((n) => n.entry.id === item.entry.id),
+          )
+          .map((item) => item.entry.id),
+        bags: previous.bags
+          .filter((bag) => !next.bags.some((n) => n.id === bag.id))
+          .map((bag) => bag.id),
+      };
       lostSharedAccess =
-        previous.items.some(
-          (item) =>
-            !next.items.some((current) => current.entry.id === item.entry.id),
-        ) ||
-        previous.bags.some(
-          (bag) => !next.bags.some((current) => current.id === bag.id),
-        );
+        removedShared.items.length > 0 || removedShared.bags.length > 0;
     } catch {
       /* No prior compatible shared snapshot. */
+    }
+  }
+  if (lostSharedAccess) {
+    // One durable marker covers BOTH leg projections before either is published.
+    // Redact only the withdrawn shared rows; private family snapshots and other
+    // shared records retain their independent authorization and refresh times.
+    value.generation = ++value.cache.generation;
+    const scope = `${path.split("/").slice(0, 4).join("/")}/shared`.replaceAll(
+      "/",
+      "_",
+    );
+    value.cache.blocked.add(scope);
+    try {
+      new File(directory, `${scope}.revoked`).writeSync(
+        JSON.stringify(removedShared),
+      );
+      finishRevokedCleanup(directory);
+      value.cache.blocked.delete(scope);
+    } catch {
+      value.cache.owner.clearAccount();
+      throw new TripError(
+        "Shared cache cleanup did not finish. Restore current access before opening private data.",
+      );
     }
   }
   if (lostSharedAccess || lostOverviewAccess) {
@@ -403,6 +438,61 @@ function finishRevokedCleanup(directory: Directory) {
     if (!(marker instanceof File) || !marker.name.endsWith(".revoked"))
       continue;
     const prefix = marker.name.slice(0, -8);
+    if (prefix.endsWith("_shared")) {
+      const removed: { items: string[]; bags: string[] } = JSON.parse(
+        marker.textSync(),
+      );
+      if (!Array.isArray(removed.items) || !Array.isArray(removed.bags))
+        throw new TripError(
+          "Shared cache cleanup must finish before opening cached data.",
+        );
+      for (const file of directory.list()) {
+        if (!(file instanceof File)) continue;
+        if (file.name.startsWith(`${prefix.slice(0, -7)}_overview`))
+          file.delete();
+        if (!file.name.startsWith(`${prefix}_`) || !file.name.endsWith(".json"))
+          continue;
+        try {
+          const record = JSON.parse(file.textSync());
+          const shared = sharedContentResponse.parse(record.data);
+          shared.items = shared.items.filter(
+            (item) => !removed.items.includes(item.entry.id),
+          );
+          shared.bags = shared.bags.filter(
+            (bag) => !removed.bags.includes(bag.id),
+          );
+          for (const item of shared.items) {
+            if (item.packing)
+              item.packing.allocations = item.packing.allocations.map(
+                (allocation) => ({
+                  ...allocation,
+                  location:
+                    allocation.location.kind === "bag" &&
+                    removed.bags.includes(allocation.location.id)
+                      ? {
+                          kind: "private" as const,
+                          label: "Private carrying location",
+                        }
+                      : allocation.location,
+                }),
+              );
+          }
+          shared.history = shared.history.filter(
+            (event) =>
+              !removed.items.includes(event.entryId ?? "") &&
+              !event.bagIds.some((id) => removed.bags.includes(id)),
+          );
+          const pending = new File(directory, `${file.name}.pending`);
+          pending.writeSync(JSON.stringify({ ...record, data: shared }));
+          pending.moveSync(file, { overwrite: true });
+        } catch {
+          // A corrupt projection cannot keep revoked content visible.
+          file.delete();
+        }
+      }
+      marker.delete();
+      continue;
+    }
     // A definitive family denial also removes its name/navigation from an older
     // trip detail. Retain the original refresh time: redaction is not a new read.
     const familyScope = prefix.match(
