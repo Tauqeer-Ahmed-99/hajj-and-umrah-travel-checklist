@@ -1,0 +1,18 @@
+appId: in.nmtsolutions.travel
+---
+# Start on A's Account after saving a private guide and caching both legs.
+- scrollUntilVisible:
+    element: "Sign out"
+- tapOn: "Sign out"
+- extendedWaitUntil:
+    visible: "Send email code"
+    timeout: 30000
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: "Send email code"
+    timeout: 30000
+- assertNotVisible: "@${ACCOUNT_OLD_USERNAME}"
+# Sign in as B with the existing real email/Google flow. Inspect actual app-only
+# files, scheduled notifications, cached trips and late responses; inject cleanup
+# failure and verify B's private gate stays closed until explicit successful retry.

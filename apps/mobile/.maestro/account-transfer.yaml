@@ -1,0 +1,17 @@
+appId: in.nmtsolutions.travel
+---
+# Start as the coordinator on Family access, with an approved editor B.
+# ACCOUNT_SUCCESSOR_LABEL is the exact rendered Name (@username) radio label.
+- tapOn: "Transfer family responsibility"
+- assertVisible: "Transfer family responsibility"
+- tapOn: "${ACCOUNT_SUCCESSOR_LABEL}"
+- scrollUntilVisible:
+    element: "Transfer responsibility"
+- tapOn: "Transfer responsibility"
+- extendedWaitUntil:
+    visible: "Family access"
+    timeout: 30000
+- stopApp
+- launchApp
+# Sign in as B separately; confirm persisted coordinator and trip organizer
+# transfers independently. No transfer grants previously unapproved family access.

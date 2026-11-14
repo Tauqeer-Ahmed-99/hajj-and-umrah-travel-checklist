@@ -18,17 +18,16 @@ import { AccountError, accountRequest, apiOrigin } from "./api";
 import { Action, Copy, Field, Heading, Loading, Notice, Screen } from "./ui";
 import { useTheme } from "./theme";
 import { TripsScreen } from "./trips-screen";
-import { clearTripNavigation } from "./trip-navigation";
 import { useNotificationSession } from "./notification-session";
 import { clearNotifications } from "./native-notifications";
 import { useGuideCopies } from "./guide-copy-context";
 import {
-  clearGuideCopies,
   clearSessionGuideCopies,
   rememberCopyProfile,
   restoreCopyProfile,
   refreshSavedGuideAccess,
   subscribeGuideCopies,
+  suspendGuideCopies,
 } from "./guide-copies";
 import { OfflineGuidesScreen } from "./guide-copy-ui";
 import { OfflineTripsScreen } from "./offline-trips-screen";
@@ -40,6 +39,16 @@ import {
   useTripConnection,
 } from "./trip-cache-state";
 import { acceptedTravelChange } from "./accepted-travel-change";
+import { onAccessChanged } from "./access-events";
+import {
+  accountDeadline,
+  cleanupPrivateAccount,
+  rememberRemovalIntent,
+  removalIntentChanged,
+} from "./account-lifecycle";
+import { AccountRemovalForm } from "./account-removal-screen";
+import { accountRemovalRequest } from "./account-removal-api";
+import { clearAllTripNavigation, clearTripNavigation } from "./trip-navigation";
 
 export function AccountScreen() {
   const copies = useGuideCopies();
@@ -62,6 +71,8 @@ export function AccountScreen() {
   const [showAccount, setShowAccount] = useState(false);
   const [showOffline, setShowOffline] = useState(false);
   const [showCached, setShowCached] = useState(false);
+  const [showRemoval, setShowRemoval] = useState(false);
+  const [cleanupBlocked, setCleanupBlocked] = useState(false);
   const connection = useTripConnection();
   const [offlineProfile, setOfflineProfile] = useState(() =>
     restoreCopyProfile(copies),
@@ -85,7 +96,18 @@ export function AccountScreen() {
           setAccount((previous) => (previous?.profile ? null : previous));
           setShowOffline(false);
           setShowCached(false);
-          void clearNotifications().catch(() => {});
+          void clearAllTripNavigation().catch(() => {
+            setCleanupBlocked(true);
+            setError(
+              "Private navigation cleanup failed. Retry cleanup before opening private data.",
+            );
+          });
+          void clearNotifications().catch(() => {
+            setCleanupBlocked(true);
+            setError(
+              "Private notification cleanup failed. Retry cleanup before opening private data.",
+            );
+          });
         }
       }),
     [copies],
@@ -93,6 +115,10 @@ export function AccountScreen() {
 
   const load = useCallback(async () => {
     if (signedOut.current) return;
+    if (copies.controller.signal.aborted) {
+      setCleanupBlocked(true);
+      return;
+    }
     const previousMemberId = restoreCopyProfile(copies)?.id;
     request.current?.abort();
     const controller = new AbortController();
@@ -159,13 +185,19 @@ export function AccountScreen() {
           if (origin) await refreshTripCache(origin, token, controller.signal);
           // Metadata checks only. No object downloads, exports or save retries.
           void refreshSavedGuideAccess(copies, token, controller.signal).catch(
-            () => {},
+            () => {
+              if (copies.controller.signal.aborted) {
+                setCleanupBlocked(true);
+                setError(
+                  "Private copy cleanup failed. Retry cleanup before opening private data.",
+                );
+              }
+            },
           );
           if (current === generation.current && !controller.signal.aborted)
             acceptedTravelChange();
         } else {
-          if (previousMemberId)
-            void clearTripNavigation(previousMemberId).catch(() => {});
+          if (previousMemberId) await clearTripNavigation(previousMemberId);
           clearSessionGuideCopies(copies);
           setOfflineProfile(null);
           setShowOffline(false);
@@ -183,9 +215,12 @@ export function AccountScreen() {
         error instanceof AccountError &&
         [401, 403, 404].includes(error.status)
       ) {
-        if (previousMemberId)
-          void clearTripNavigation(previousMemberId).catch(() => {});
-        clearSessionGuideCopies(copies);
+        try {
+          clearSessionGuideCopies(copies);
+          if (previousMemberId) await clearTripNavigation(previousMemberId);
+        } catch {
+          setCleanupBlocked(true);
+        }
         setOfflineProfile(null);
         setShowOffline(false);
         setAccount(null);
@@ -196,6 +231,7 @@ export function AccountScreen() {
             ? error.message
             : "Could not load your profile. Check your connection, then try again.",
         );
+      if (copies.controller.signal.aborted) setCleanupBlocked(true);
       if (
         current === generation.current &&
         connectionState().status !== "online"
@@ -212,6 +248,13 @@ export function AccountScreen() {
       if (current === generation.current) setLoading(false);
     }
   }, [getToken, copies]);
+  useEffect(
+    () =>
+      onAccessChanged(() => {
+        if (!signedOut.current) void load();
+      }),
+    [load],
+  );
   useEffect(() => {
     void load();
     return () => {
@@ -260,7 +303,6 @@ export function AccountScreen() {
     signedOut.current = true;
     ++generation.current;
     request.current?.abort();
-    const memberId = account?.profile?.id ?? offlineProfile?.id;
     // Invalidate copies synchronously before waiting for navigation/provider I/O.
     setAccount(null);
     setDraft({ firstName: "", lastName: "", username: "" });
@@ -268,16 +310,18 @@ export function AccountScreen() {
     setError("");
     setHidden(true);
     setLeaving(true);
+    suspendGuideCopies();
     try {
-      clearGuideCopies();
+      await accountDeadline(
+        cleanupPrivateAccount(
+          (await accountDeadline(getToken(), 5_000).catch(() => null)) ??
+            undefined,
+        ),
+      );
       setOfflineProfile(null);
       setShowOffline(false);
       setShowCached(false);
-      await clearNotifications(
-        (await getToken().catch(() => null)) ?? undefined,
-      );
-      if (memberId) await clearTripNavigation(memberId).catch(() => {});
-      await signOut();
+      await accountDeadline(signOut());
     } catch {
       setError(
         "Sign-out could not finish. Reconnect and try signing out again.",
@@ -303,13 +347,13 @@ export function AccountScreen() {
     return () => listener.remove();
   }, [account?.profile, hidden, saving]);
   useEffect(() => {
-    if (!account?.profile || !showAccount || hidden) return;
+    if (!account?.profile || !showAccount || hidden || showRemoval) return;
     const listener = BackHandler.addEventListener("hardwareBackPress", () => {
       setShowAccount(false);
       return true;
     });
     return () => listener.remove();
-  }, [account?.profile, showAccount, hidden]);
+  }, [account?.profile, showAccount, hidden, showRemoval]);
   async function save() {
     if (saving || hidden) return;
     const parsed = profileInput.safeParse(draft);
@@ -381,11 +425,28 @@ export function AccountScreen() {
       if (current === generation.current) setSaving(false);
     }
   }
+  if (cleanupBlocked && !hidden)
+    return (
+      <Screen>
+        <Heading>Private data unavailable</Heading>
+        <Notice error>
+          Private cleanup did not finish. Trip data stays closed until cleanup
+          succeeds.
+        </Notice>
+        <Action
+          title="Retry cleanup and sign out"
+          busy={leaving}
+          onPress={() => void logout()}
+        />
+      </Screen>
+    );
   if (hidden)
     return (
       <Screen>
         <Heading>Signing out</Heading>
-        <Copy>Your profile has been cleared from this screen.</Copy>
+        <Copy>
+          Private data is closed while local cleanup and sign-out finish.
+        </Copy>
         {error && <Notice error>{error}</Notice>}
         <Action
           title="Retry sign out"
@@ -394,6 +455,8 @@ export function AccountScreen() {
         />
       </Screen>
     );
+  if (showRemoval)
+    return <AccountRemovalForm onBack={() => setShowRemoval(false)} />;
   if (showOffline && offlineProfile)
     return <OfflineGuidesScreen onBack={() => setShowOffline(false)} />;
   if (showCached && offlineProfile)
@@ -430,6 +493,49 @@ export function AccountScreen() {
         <Heading>Could not load your profile</Heading>
         <Notice error>{error}</Notice>
         <Action title="Try again" onPress={() => void load()} />
+        <Action
+          title="Check account removal"
+          secondary
+          onPress={() => {
+            void (async () => {
+              const controller = new AbortController();
+              request.current?.abort();
+              request.current = controller;
+              const current = ++generation.current;
+              const timer = setTimeout(() => controller.abort(), 15_000);
+              try {
+                const token = await getToken();
+                if (!token || controller.signal.aborted) return;
+                const status = await accountRemovalRequest(
+                  `Bearer ${token}`,
+                  controller.signal,
+                );
+                if (current !== generation.current || controller.signal.aborted)
+                  return;
+                if (status.requestId) {
+                  await rememberRemovalIntent({
+                    accountId: copies.accountId,
+                    requestId: status.requestId,
+                  });
+                  removalIntentChanged();
+                } else
+                  setError(
+                    "The server confirms removal has not started. Refresh your profile to continue.",
+                  );
+              } catch (failure) {
+                if (current === generation.current)
+                  setError(
+                    failure instanceof Error
+                      ? failure.message
+                      : "Removal status could not be checked.",
+                  );
+              } finally {
+                clearTimeout(timer);
+                if (request.current === controller) request.current = null;
+              }
+            })();
+          }}
+        />
         {offlineProfile && (
           <>
             <Copy muted>
@@ -507,6 +613,12 @@ export function AccountScreen() {
             title="Refresh profile"
             secondary
             onPress={() => void load()}
+          />
+          <Action
+            title="Review account removal"
+            secondary
+            requiresConnection
+            onPress={() => setShowRemoval(true)}
           />
         </>
       ) : (

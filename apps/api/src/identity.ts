@@ -18,7 +18,7 @@ export function clerkClient() {
         : process.env.CLERK_API_URL,
   }));
 }
-export async function identify(request: Request) {
+export async function verifySession(request: Request) {
   if (!/^Bearer \S+$/i.test(request.headers.get("authorization") ?? "")) {
     throw new HttpError(401, "invalid_session", "Sign in to continue.");
   }
@@ -58,6 +58,13 @@ export async function identify(request: Request) {
   ) {
     throw new HttpError(401, "invalid_session", "Sign in from NMT Travel.");
   }
+  return { clerkUserId: auth.userId, sessionId: auth.sessionId };
+}
+
+export async function identify(request: Request) {
+  const verified = await verifySession(request);
+  const auth = { userId: verified.clerkUserId, sessionId: verified.sessionId };
+  const client = clerkClient();
   let user;
   let session;
   try {

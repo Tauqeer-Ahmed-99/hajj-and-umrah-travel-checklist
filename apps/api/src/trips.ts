@@ -17,6 +17,7 @@ import {
   type PermissionDatabase,
 } from "./permissions";
 import { HttpError } from "./response";
+import { lockAccountAccess, requireActiveMember } from "./account-access";
 
 export async function transaction<T>(
   work: (db: PoolClient) => Promise<T>,
@@ -100,6 +101,8 @@ export async function readTrip(
 
 export async function createTrip(memberId: string, input: TripInput) {
   return transaction(async (db) => {
+    await lockAccountAccess(db);
+    await requireActiveMember(db, memberId);
     const tripId = await createOnce(
       db,
       memberId,
@@ -143,6 +146,7 @@ export async function createFamily(
   input: FamilyInput,
 ) {
   return transaction(async (db) => {
+    await lockAccountAccess(db);
     await requireTripAccess(db, memberId, tripId, "organize");
     const familyId = await createOnce(
       db,

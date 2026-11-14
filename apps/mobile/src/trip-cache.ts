@@ -328,9 +328,14 @@ export function clearTripCache() {
   if (!value) return;
   value.cache.generation++;
   if (value.cache.directory.exists) {
-    new File(value.cache.directory, "discard").writeSync("discard");
-    tripCacheChanged();
-    value.cache.directory.delete();
+    try {
+      new File(value.cache.directory, "discard").writeSync("discard");
+      tripCacheChanged();
+      value.cache.directory.delete();
+    } catch (error) {
+      value.cache.owner.clearAccount();
+      throw error;
+    }
   }
   value.cache.blocked.clear();
   tripCacheChanged();
@@ -345,7 +350,9 @@ function deny(
   current(value, undefined, method === "GET");
   if (
     status === 401 ||
-    ["profile_incomplete", "email_unverified"].includes(code ?? "") ||
+    ["profile_incomplete", "email_unverified", "account_removed"].includes(
+      code ?? "",
+    ) ||
     (path === "/api/me" && [403, 404].includes(status))
   ) {
     value.cache.generation++;
@@ -450,7 +457,11 @@ export async function travelFetch(
     method === "POST" &&
     (/\/(copy-access|open|summary)$/.test(path) ||
       /^\/api\/trips\/[^/]+\/travel-files\/[^/]+\/access$/.test(path));
-  const cleanup = method === "DELETE" && path === "/api/notifications/device";
+  const cleanup =
+    (method === "DELETE" && path === "/api/notifications/device") ||
+    (path === "/api/me/removal" &&
+      new Headers(init.headers).get("Authorization")?.startsWith("Removal ") ===
+        true);
   // Explicit unregistration must still work after local account invalidation.
   // Its exact token is authorized on the server, and its response owns no cache.
   const value = cleanup ? null : stamp();
@@ -509,6 +520,7 @@ export async function travelFetch(
           "invalid_session",
           "profile_incomplete",
           "email_unverified",
+          "account_removed",
           "not_found",
           "trip_forbidden",
           "family_forbidden",

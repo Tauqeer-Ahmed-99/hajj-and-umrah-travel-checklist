@@ -10,6 +10,7 @@ import {
 } from "./permissions";
 import { HttpError } from "./response";
 import type { PoolClient } from "pg";
+import { lockAccountAccess, requireActiveMember } from "./account-access";
 
 export const preferenceColumns = `assignments, deadlines, trip_changes AS "tripChanges"`;
 export async function permittedEvent(
@@ -41,6 +42,7 @@ export async function permittedEvent(
 }
 export function readNotifications(actor: string) {
   return transaction(async (db) => {
+    await requireActiveMember(db, actor);
     const preferences = (
       await db.query<NotificationPreferences>(
         `SELECT ${preferenceColumns} FROM notification_preferences WHERE member_id = $1`,
@@ -69,6 +71,7 @@ export function patchNotifications(
   input: Partial<NotificationPreferences>,
 ) {
   return transaction(async (db) => {
+    await requireActiveMember(db, actor);
     await db.query(
       "INSERT INTO notification_preferences (member_id) VALUES ($1) ON CONFLICT DO NOTHING",
       [actor],
@@ -93,6 +96,8 @@ export function registerDevice(
   input: NotificationDeviceInput,
 ) {
   return transaction(async (db) => {
+    await lockAccountAccess(db);
+    await requireActiveMember(db, identity.id);
     for (const tripId of input.tripIds)
       await requireTripAccess(db, identity.id, tripId);
     for (const schedule of input.localSchedules) {

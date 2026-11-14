@@ -70,3 +70,20 @@ export function clearTripNavigation(memberId: string, preserveScope = false) {
     if (keys.length) await AsyncStorage.multiRemove(keys);
   });
 }
+export async function clearAllTripNavigation() {
+  // Close the current session before draining writes, including both legacy and
+  // #17's session-scoped overview/search/completion navigation keys.
+  activeKey = null;
+  revision++;
+  await writes;
+  const keys = await AsyncStorage.getAllKeys();
+  const members = new Set(
+    keys.flatMap((name) => {
+      const match = /^nmt\.member\.([a-f0-9-]{36})\..*navigation$/.exec(name);
+      return match ? [match[1]] : [];
+    }),
+  );
+  await Promise.all(
+    [...members].map((memberId) => clearTripNavigation(memberId)),
+  );
+}

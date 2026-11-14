@@ -1,5 +1,10 @@
 # Cached trip data (#15)
 
+#21's [account removal and cleanup contract](account-removal.md) extends the
+existing controller/tombstone gates to durable removal recovery, notification
+cleanup and #17's session-scoped navigation. Cleanup failure keeps private access
+closed until an explicit successful retry.
+
 [Overview and search #17](overview-and-search.md) adds separate complete outbound
 and return overview snapshots, saved permitted-record search and account/session
 view restoration. Family/shared access loss invalidates combined overviews using

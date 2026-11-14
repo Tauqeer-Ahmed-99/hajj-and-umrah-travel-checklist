@@ -80,10 +80,13 @@ export function startGuideCopies(accountId: string): CopySession {
   active = session;
   return session;
 }
-export function clearGuideCopies() {
+export function suspendGuideCopies() {
   active?.controller.abort();
   active = null;
   changed();
+}
+export function clearGuideCopies() {
+  suspendGuideCopies();
   const base = root();
   if (base.exists) {
     // An interrupted cleanup must also discard bytes on the next same-account
@@ -100,6 +103,7 @@ export function clearSessionGuideCopies(session: CopySession) {
   changed();
   new File(root(), "discard").writeSync("discard");
   for (const entry of session.directory.list()) entry.delete();
+  clearGuideViewCache();
   new File(root(), "discard").delete();
   session.controller = new AbortController();
   for (const [id, generation] of session.generations)

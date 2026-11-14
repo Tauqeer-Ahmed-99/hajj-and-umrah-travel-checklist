@@ -11,6 +11,7 @@ const deviceKey = "nmt.notification.device";
 const permissionKey = "nmt.notification.permissionAsked";
 const ownerKey = "nmt.notification.owner";
 const acknowledgedKey = "nmt.notification.schedules";
+const cleanupKey = "nmt.notification.cleanup";
 export async function uncertainReminderSchedules(
   memberId: string,
   sessionId: string,
@@ -77,11 +78,21 @@ async function cancelLocal(clearJournal = true) {
 export function clearNotifications(token?: string) {
   ++generation;
   return serial(async () => {
+    await AsyncStorage.setItem(cleanupKey, "required");
     await cancelLocal();
+    await AsyncStorage.removeItem(cleanupKey);
     if (token)
       await reminderApi
         .unregister(await deviceId(), token, AbortSignal.timeout(5000))
         .catch(() => {});
+  });
+}
+export function finishNotificationCleanup() {
+  return serial(async () => {
+    if (await AsyncStorage.getItem(cleanupKey)) {
+      await cancelLocal();
+      await AsyncStorage.removeItem(cleanupKey);
+    }
   });
 }
 export async function requestNotificationPermission() {

@@ -1,5 +1,10 @@
 # Account flow (#2)
 
+#21 adds [safe responsibility transfer, account removal and recovery](account-removal.md),
+including the permanent application tombstone, removal-only receipt and shared
+private-storage/notification/navigation cleanup gate. Its contract supersedes
+the original logout-only behavior described below.
+
 #14 adds Clerk's encrypted offline resource restoration and an account-bound
 completed-profile gate solely for explicitly saved guide copies. See
 [offline guide entry, cleanup and acceptance](guide-copies.md). The no-profile-cache

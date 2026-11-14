@@ -3,6 +3,7 @@ import { trip as tripContract, type Family, type Trip } from "@nmt/contracts";
 import { database } from "./database";
 import { identify } from "./identity";
 import { HttpError } from "./response";
+import { removedAccount } from "./account-access";
 
 export type PermissionDatabase = Pick<PoolClient, "query">;
 export const tripColumns = `t.id, t.name, t.kind, t.start_date::text AS "startDate",
@@ -16,10 +17,13 @@ export async function requireMember(request: Request): Promise<string> {
 
 export async function requireMemberIdentity(request: Request) {
   const identity = await identify(request);
-  const result = await database().query<{ id: string }>(
-    "SELECT id FROM members WHERE clerk_user_id = $1",
-    [identity.clerkUserId],
-  );
+  const result = await database().query<{
+    id: string;
+    removal_started_at: Date | null;
+  }>("SELECT id, removal_started_at FROM members WHERE clerk_user_id = $1", [
+    identity.clerkUserId,
+  ]);
+  if (result.rows[0]?.removal_started_at) throw removedAccount();
   if (!result.rows[0])
     throw new HttpError(
       403,

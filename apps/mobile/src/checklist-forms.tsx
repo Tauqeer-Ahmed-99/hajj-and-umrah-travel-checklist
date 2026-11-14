@@ -43,7 +43,7 @@ type Validator<T> = {
 export function useSave<T>(
   schema: Validator<T>,
   operation: (value: T, token: string, signal: AbortSignal) => Promise<unknown>,
-  props: FormProps,
+  props: Omit<FormProps, "scope"> & Partial<Pick<FormProps, "scope">>,
 ) {
   const api = useTripRequest();
   const subject = props.subject ?? "checklist";

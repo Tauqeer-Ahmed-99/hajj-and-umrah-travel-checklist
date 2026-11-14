@@ -1,0 +1,14 @@
+appId: in.nmtsolutions.travel
+---
+# Start on Account. This review never submits account/provider deletion.
+- scrollUntilVisible:
+    element: "Review account removal"
+- tapOn: "Review account removal"
+- assertVisible: "Remove your account"
+- scrollUntilVisible:
+    element: "Type Remove my account"
+- assertVisible: "Type Remove my account"
+- tapOn: "Cancel"
+- assertVisible: "Leave this form?"
+- tapOn: "Leave form"
+- assertVisible: "Profile saved"
