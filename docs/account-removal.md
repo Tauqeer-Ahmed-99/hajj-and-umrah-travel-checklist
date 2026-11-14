@@ -190,7 +190,7 @@ gated and drained before cleanup. User-owned device files, external storage
 folders and device appearance preferences are untouched.
 
 The visual plan extends the existing native system: left-aligned scalable system
-text, 22/30 headings, 17-point body, 56 dp actions, semantic deep-green/neutral
+text, 28/36 headings, 16/25 body, 17-point action text, 56 dp actions, semantic deep-green/neutral
 light/dark colors (`#185C43`, `#A9D8B8`, `#F6F5EF`, `#10241C`, `#17382B`,
 `#F0F4EA`). Explanations and exact action labels carry the consequence; no new
 decorative palette, fonts or motion. Error/status text uses live announcements,
@@ -270,3 +270,63 @@ Android cleanup/network/restart/viewer/notification/accessibility behavior and
 signed/Hermes install/upgrade/OTA compatibility remain external acceptance gates.
 Production deletion is expressly outside this task. Combined-tree commands and
 observed results are recorded below after the final integration merge.
+
+## Combined verification and handback
+
+Implementation commit `3a2ac71` was followed by merge
+`2ef1cf088ac3e048bf68a47c610fc817e7084847`, incorporating integration
+`5117b533c96e4052c855bf5add34ae54245481bd` with #17 and #20. The conflicts were
+the account cleanup seam, session-scoped navigation, trip navigation imports and
+contract exports. Both overview legs, scoped activity/search, archive references,
+completion views and the existing family/shared audience gates were retained.
+Cleanup now drains #17's serialized writes and calls `clearTripNavigation` for
+every stored member/session scope, including its legacy keys.
+
+`589ae7d` added the combined retained-attribution/access assertions and tightened
+the removal nonce to UUIDv4 with case-normalized recovery. The extra HTTP tracer
+first failed **200 vs expected 422** for a version-one UUID; validation now rejects
+it before any application/provider change, while uppercase UUIDv4 recovery works.
+Merge `9c078e71d81442fd3b15a65ae2261166318730bf` then incorporated latest
+integration `060286849f8c92062fe0cb5c4b680350ea683652`. That last integration
+update changed only `docs/account-flow.md` and `docs/service-setup.md`; no
+application or test code changed. Its provisioning history belongs to the root
+integration work, not service operations by this implementer. The final source
+tree before this evidence-only note is `194f184d342dd51f6c985a6737bb825b55148319`.
+
+- `npm test` on the combined #17/#20 tree passed **124/124 authenticated HTTP/real
+  PostgreSQL scenarios**, normal exit, no failures/skips/cancellations, in
+  **530.97 seconds**. Application/test source stayed fixed throughout the run.
+  This includes all eight then-existing removal scenarios and all acquisition,
+  checklist, completion/archive, guide/file, invitation, itinerary, overview,
+  packing, profile, reminder, return, sharing, summary and travel-file regressions.
+- After the bounded receipt-format hardening, the direct focused command above
+  passed **9/9** on final application code in **63.12 seconds**, normal exit with
+  no skips/failures/cancellations. It re-exercised all eight removal scenarios,
+  including simultaneous account removal, current-scope reauthorization,
+  PostgreSQL loss after provider deletion, retained SQL017/019 attribution,
+  overview/activity/archive denial and revoked email offers for replacement
+  accounts. The full suite is not claimed as a separate 125-scenario run.
+- `npm run typecheck --workspaces --if-present` and `npm run build:api` passed
+  on final combined source. The production build includes all new dynamic
+  removal/responsibility/group paths and existing overview/archive routes. No
+  hosted credentials or production deletion were needed.
+- From `apps/mobile`, `npx expo export --platform android --output-dir dist-js
+--no-bytecode` passed on final source (**1,095 modules**). This is JavaScript
+  bundling, not Hermes, an APK, native cleanup or device acceptance. No new native
+  module/dependency was introduced.
+- `npm run format:check` and `git diff --check` passed. One fixture declaration
+  was formatted after the broad run; it changes no fixture behavior. The direct
+  Node runner, Windows PG18 `io_method=sync`, lockfile, package manifests and
+  existing SQL017/018/019 match integration. SQL020 is the sole task migration.
+- `adb devices` returned no attached device/emulator; `Get-Command maestro`
+  found no runner. The four new native flows, two-account transfers/removals,
+  offline cold-start/reconnect, real filesystem/notification failure recovery,
+  account-switch cleanup, PDF/image cancellation, TalkBack, large text and visual
+  QA remain **prepared, unrun**. Real hosted Clerk/R2/Neon/Vercel, production
+  deletion/session revocation, signing/Hermes/install/upgrade/OTA and backup/
+  recovery acceptance remain open. No Node mocks stand in for those checks.
+
+No service operations, real messages/device exports, issue closure, push, PR,
+binary or OTA publication were performed. The isolated task branch is
+`t3/safe-account-removal-transfer`; final SHA, clean-worktree and integration
+ancestry checks accompany the handback.
