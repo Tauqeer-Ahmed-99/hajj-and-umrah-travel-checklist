@@ -14,8 +14,12 @@ different and must not be used for this application.
 ## Configuration verified
 
 Neon uses the Free plan in Singapore (`sin1`). Neon Auth and Realtime are off;
-the application uses Clerk and its existing API. The database is not connected
-to a Vercel project or migrated yet. Existing databases were not changed.
+the application uses Clerk and its existing API. All 17 migration files have
+been applied and replayed successfully on the selected database. It is not
+connected to a Vercel project yet. An isolated branch recovery exercise restored
+the task trip, permissions and permitted file access after source deletion;
+that task branch and its disposable identities were subsequently removed.
+Existing unrelated databases were not changed. See [release evidence](release.md).
 
 Clerk uses Hobby with no paid add-ons and production domain
 `travel.nmtsolutions.in`. Both development and production instances have email
@@ -23,7 +27,7 @@ verification codes for signup and login, require verified email, and have passwo
 signup and password addition disabled. Native applications are enabled. The
 Android package `in.nmtsolutions.travel` is registered in both with the existing
 EAS preview signing SHA-256 recorded in [Google sign-in](google-sign-in.md). The
-resulting APK certificate still needs independent verification. First and last
+actual preview APK certificate now matches that registered identity. First and last
 names are not required by Clerk; the application's profile gate owns them.
 
 Clerk's user permission to delete an account directly is disabled in both
@@ -35,24 +39,40 @@ R2 uses Standard storage in Asia-Pacific. It has no custom domain and its public
 development URL is disabled. Credential `nmt-travel-api` grants Object Read &
 Write only for this bucket. Its values are held outside the repository in a
 restricted operator file, and have not been added to a deployment or mobile
-bundle. An authenticated read-only S3 listing succeeded and returned zero
-objects. No object was uploaded by this setup check. Existing buckets and tokens
-were not changed. Actual API upload, immutable validation, viewing and revocation
-checks remain pending; see [guide files](guide-files.md) and
-[travel files](travel-files.md).
+bundle. Actual signed PUT/GET, immutable copy/overwrite isolation, anonymous and
+tampered-key denial, and isolated object copy/restore passed. The real API also
+uploaded, finalized and viewed a private PDF, rejected another family's access,
+and rejected fresh authorization after revocation. These checks used disposable
+development identities. Referenced immutable objects are retained deliberately;
+account removal never deletes their bytes. Existing buckets/tokens were not
+changed. Physical viewing and production checks remain separate.
 
 ## Google OAuth preparation
 
 Google Cloud project `nmt-travel` has no linked billing account. Its NMT Travel
 OAuth consent configuration is created for an External audience in Testing mode,
-using the signed-in owner's support/contact address. No OAuth client or test-user
-entry has been created yet. Clerk development Google remains enabled with shared
-credentials; the empty custom-credentials draft was discarded. Native Google
-requires custom Web and Android clients as described in
-[Google sign-in](google-sign-in.md). The development Clerk callback is
-`https://polite-reptile-6620.clerk.accounts.dev/v1/oauth_callback`; obtain the
-production callback from that instance before configuring it. Existing Google
-Cloud projects were not modified.
+using the signed-in owner's support/contact address. The owner is the one
+configured test user. The Web client is
+`25995067202-352dv27r48c33djo27i3kmi601kgl3eh.apps.googleusercontent.com`;
+the Android client is
+`25995067202-efm67oepebtu1k68jut0i0glnnpeshkv.apps.googleusercontent.com`,
+for `in.nmtsolutions.travel` and the verified preview certificate SHA-1.
+Both Clerk instances now use custom Web credentials, with signup/signin enabled
+and only basic identity scopes. Exact callbacks are
+`https://polite-reptile-6620.clerk.accounts.dev/v1/oauth_callback` and
+`https://clerk.travel.nmtsolutions.in/v1/oauth_callback`.
+Production branding/domain/consent requirements and physical Google/email
+continuity remain unverified. Existing unrelated Google projects were not changed.
+
+Firebase was enabled on this existing Google project using Spark/no-cost, with
+Analytics off. Its Android app is
+`1:25995067202:android:ce29a907a261c36e2512db`. The dedicated service account
+`nmt-travel-expo-push@nmt-travel.iam.gserviceaccount.com` has only the Firebase
+Cloud Messaging API admin role. Its private key is assigned to this EAS Android
+application for FCM V1, separate from the public Android client configuration in
+the EAS preview environment. The API's Expo Push access token is still missing:
+normal Expo owner email-code sign-in required a factor that expired unanswered.
+Remote push dispatch remains disabled; no real delivery pass is claimed.
 
 ## Production DNS still pending
 
@@ -79,16 +99,24 @@ domain is a separate configuration step; it has not been completed here.
 
 ## Remaining release work
 
-Configure the intended Vercel API project with current-consumer variables only,
-run the complete migration set, configure Google OAuth and notification delivery,
-and perform real multi-account/provider/file/recovery checks. No API project or
-public deployment has been created in the intended team yet. No server secret
-belongs in Expo public configuration.
+Create the intended Vercel API project with current-consumer variables only and
+verify hosted API/cron, production DNS/OAuth and notification delivery. Project
+creation required a fresh Vercel authenticator code; its one secure request
+expired and creation was canceled. No API project/public deployment exists in
+the intended team. Correct-account UI import settings and exact commands are in
+[release acceptance](release.md). No server secret belongs in Expo public config.
 
-The EAS project and remote preview signing identity exist. No complete signed
-release APK or OTA update is published. No Android device is attached and no AVD
-is configured; installed system images alone are not a device journey. Hermes
-execution remains blocked by Windows Application Control. A normal cloud build
-can establish compilation, but physical Android email/Google continuity, lifecycle,
-offline files, accessibility, install/upgrade and compatible/incompatible update
-journeys remain required. See the feature runbooks for prepared, unrun checks.
+An internal signed preview APK and compatible preview OTA were built on normal
+EAS/Linux hosts. Actual APK/certificate/Hermes/runtime/secret inspection passed.
+A task-owned headless Android 16 Play Store emulator installed it and received
+the compatible update on next start. This exposed and verified a fix for a
+native Clerk token-callback render loop. A second signed Firebase-configured APK
+has a distinct runtime and versionCode 2; install-r preserved the account, cached
+trip and saved PDF across disconnected cold starts. Reconnected real-provider
+reads verified the same identity, quantities, bag and private PDF hash. These are
+supplemental emulator results; no physical Android device is attached. Exact
+build/source/artifact identities are in [release evidence](release.md). Windows
+Hermes policy was not changed.
+Physical Google/email continuity, lifecycle/offline/SAF, accessibility/Arabic,
+install/upgrade and OTA journeys remain launch gates. Public production release
+and production OTA wait for those gates and the parent's final review/fixes.
