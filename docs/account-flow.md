@@ -172,16 +172,23 @@ projects or domains belonging to that account were changed. Earlier hosting and
 migration checks are historical evidence only; their resources and URL are no
 longer a configured deployment for this app.
 
-Recreate the Vercel/Neon/Clerk setup under the selected Tauqeer account. Browser
-sign-in is available, but the separate CLI device-authorization attempt could not
-complete because its Allow Access button remained disabled. Do not reuse the
-other account's CLI credentials or its Clerk Marketplace acceptance link.
+The selected Tauqeer account now has Neon `nmt-travel-db` (Free, Singapore) and
+Clerk `nmt-travel` (Hobby). They were created through the authenticated Vercel
+browser, with Clerk's marketplace terms accepted for the correct team. Neither
+resource is connected to a deployment yet. The dedicated R2 bucket
+`nmt-travel-private` is also created, with public access disabled and a scoped
+server credential. See [current service setup](service-setup.md) for dashboard
+links, actual configuration evidence and remaining gates.
+
+Browser sign-in is available, but the separate CLI device-authorization attempt
+could not complete because its Allow Access button remained disabled. Do not reuse
+the other account's CLI credentials or its Clerk Marketplace acceptance link.
 The intended account's token settings were subsequently reached with the team
 scope and a one-day expiration selected. Vercel requires the account owner's
 current authenticator code before issuing that token. The secure code request
 expired unanswered, so verification was canceled and no token was issued.
-Production DNS/OAuth, a private R2 bucket, and device verification remain
-unfinished. EAS preview signing setup is recorded in
+Production DNS/OAuth, API deployment, migrations, live application file checks and
+device verification remain unfinished. EAS preview signing setup is recorded in
 [google-sign-in.md](google-sign-in.md). No APK or OTA update has been published,
 and these resources do not establish the rest of specification #1.
 
