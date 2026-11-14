@@ -139,19 +139,15 @@ export async function startFixture(
         req.socket.destroy();
         return;
       }
-      res
-        .writeHead(existed ? 200 : 404)
-        .end(
-          JSON.stringify(
-            existed
-              ? { id, object: "user", deleted: true }
-              : {
-                  errors: [
-                    { code: "resource_not_found", message: "Not found" },
-                  ],
-                },
-          ),
-        );
+      res.writeHead(existed ? 200 : 404).end(
+        JSON.stringify(
+          existed
+            ? { id, object: "user", deleted: true }
+            : {
+                errors: [{ code: "resource_not_found", message: "Not found" }],
+              },
+        ),
+      );
       return;
     }
     const user = identities.get(path.replace("/v1/users/", ""));

@@ -1,5 +1,9 @@
 # Invitations and scoped access (#5)
 
+#21 extends these same locks, approvals and last-administrator protections with
+[persisted responsibility transfer, explicit owned-group deletion and account removal](account-removal.md).
+Ordinary leaving never silently deletes a group.
+
 This slice adds real, persisted recipient invitations and secondary Android
 screens for organizers, family coordinators, and recipients. It uses the existing
 Clerk identity, completed application member, PostgreSQL memberships, and central

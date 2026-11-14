@@ -6,6 +6,12 @@ branch began clean at `5f05bae8cc4446490d6b6b90aacf39cede5d6b96`, identical to
 real message/export, issue closure, push, PR, binary or OTA publication is part
 of this work. SQL020 belongs to this ticket; SQL017/018/019 are not edited.
 
+Related contracts: [account flow](account-flow.md),
+[invitations and access](invitations-and-access.md), [guide copies](guide-copies.md),
+[offline trip data](offline-trip-data.md), [travel files](travel-files.md),
+[overview/search/activity](overview-and-search.md) and
+[completion/archive](completion-and-archive.md).
+
 ## Responsibility and deletion contract
 
 All paths use the existing verified Clerk bearer identity and completed member,
@@ -126,6 +132,10 @@ work or treat traveler profiles as accounts. Retention is intentional:
 | Invitations (`recipient_member_id`, approval/creator/consumer FKs)                             | Retain accepted history against the tombstone, revoke pending targeted/created offers and invalidate obsolete approvals. No old offer revives access.                                                                         |
 | Reminder creator FK on another member's reminder                                               | Retain attribution. The removed member's personally owned reminders are deleted.                                                                                                                                              |
 | Notification preferences/devices/local schedules/events/deliveries                             | Remove the account's registration/preferences/events; normal FK cascades clear their schedules/deliveries. Future dispatch rechecks current membership. Already delivered provider/device notifications have existing bounds. |
+
+SQL019's nullable `trip_completion.completed_by` and `archived_by` also retain
+their member references. Completion/archive times and the named, append-only
+lesson/activity history remain for authorized members. SQL019 is unchanged.
 
 Explicit family/trip deletion instead uses the existing contained-resource FK
 cascades: travelers, categories/entries and acquisition, packing/history and both

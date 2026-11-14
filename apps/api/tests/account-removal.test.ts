@@ -349,6 +349,35 @@ async function recovery(requestId: string, retry = false) {
   });
   return { status: response.status, data: await response.json() };
 }
+
+test("removal accepts only random UUIDv4 receipts and case-normalized recovery remains usable after provider deletion", async () => {
+  const owner = await member("receipt_format");
+  const invalid = await fixture.request(
+    "/api/me/removal",
+    owner.token,
+    {
+      confirmation: "Remove my account",
+      requestId: "00000000-0000-1000-8000-000000000000",
+    },
+    "POST",
+  );
+  assert.equal(invalid.status, 422);
+  assert.equal(
+    (await fixture.request("/api/me/removal", owner.token)).data.state,
+    "active",
+  );
+  const requestId = randomUUID().toUpperCase();
+  const accepted = await fixture.request(
+    "/api/me/removal",
+    owner.token,
+    { confirmation: "Remove my account", requestId },
+    "POST",
+  );
+  assert.equal(accepted.status, 200);
+  assert.equal(accepted.data.requestId, requestId.toLowerCase());
+  assert.equal((await recovery(requestId)).data.state, "completed");
+  assert.equal((await recovery(requestId, true)).data.state, "completed");
+});
 test("unknown provider completion remains pending until an explicit receipt retry confirms absence, even after the sign-in is gone", async () => {
   const owner = await member("unknown_owner");
   const input = { confirmation: "Remove my account", requestId: randomUUID() };
@@ -618,6 +647,54 @@ test("removal retains traveler, shared records, immutable file versions and auth
     ).status,
     200,
   );
+  const review = await fixture.request(
+    `${journey.path}/completion/review`,
+    owner.token,
+  );
+  assert.equal(review.status, 200, fixture.logs());
+  const completeInput = {
+    kind: "complete",
+    reviewToken: review.data.reviewToken,
+    travelConfirmed: true,
+    requestId: randomUUID(),
+  };
+  assert.equal(
+    (
+      await fixture.request(
+        `${journey.path}/completion`,
+        owner.token,
+        completeInput,
+        "POST",
+      )
+    ).status,
+    200,
+  );
+  assert.equal(
+    (
+      await fixture.request(
+        `${journey.path}/completion`,
+        owner.token,
+        {
+          kind: "lesson",
+          text: "Retain safe arrival history",
+          requestId: randomUUID(),
+        },
+        "POST",
+      )
+    ).status,
+    200,
+  );
+  assert.equal(
+    (
+      await fixture.request(
+        `${journey.path}/completion`,
+        owner.token,
+        { kind: "archive", archiveConfirmed: true, requestId: randomUUID() },
+        "POST",
+      )
+    ).status,
+    200,
+  );
   await fixture.request(
     `${family}/responsibility`,
     owner.token,
@@ -655,6 +732,45 @@ test("removal retains traveler, shared records, immutable file versions and auth
     next.token,
   );
   assert.ok(JSON.stringify(checklistHistory.data).includes("history_owner"));
+  const completion = await fixture.request(
+    `${journey.path}/completion`,
+    next.token,
+  );
+  assert.equal(completion.data.completedBy, owner.id);
+  assert.equal(completion.data.archivedBy, owner.id);
+  assert.ok(JSON.stringify(completion.data.lessons).includes("history_owner"));
+  const activity = await fixture.request(
+    `${journey.path}/overview/activity?entryId=${entry.data.entry.id}`,
+    next.token,
+  );
+  assert.equal(activity.status, 200, fixture.logs());
+  assert.ok(JSON.stringify(activity.data.history).includes("history_owner"));
+  for (const path of [
+    "/overview",
+    "/overview/return",
+    "/completion",
+    "/completion/review",
+  ]) {
+    assert.equal(
+      (await fixture.request(`${journey.path}${path}`, owner.token)).status,
+      403,
+    );
+  }
+  assert.equal(
+    (await fixture.request("/api/trips/archives", owner.token)).status,
+    403,
+  );
+  assert.equal(
+    (
+      await fixture.request(
+        `${journey.path}/completion`,
+        owner.token,
+        completeInput,
+        "POST",
+      )
+    ).status,
+    403,
+  );
   assert.equal(
     (await fixture.request(`${family}/packing?leg=outbound`, next.token)).data
       .bags[0].id,

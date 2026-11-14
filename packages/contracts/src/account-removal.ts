@@ -10,7 +10,7 @@ export const groupDeletionInput = z.strictObject({
 });
 export const accountRemovalInput = z.strictObject({
   confirmation: z.literal("Remove my account"),
-  requestId: z.uuid(),
+  requestId: z.uuidv4().toLowerCase(),
 });
 export const accountRemovalResponse = z.object({
   state: z.enum(["active", "provider_pending", "completed"]),
