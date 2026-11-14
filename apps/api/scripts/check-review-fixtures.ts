@@ -315,6 +315,17 @@ if (command === "seed" || command === "resume") {
   if (command === "revoke-shared") {
     await visibility(owner, e.refs.shared, "family");
     await visibility(owner, e.refs.bag, "family");
+  } else if (command === "revoke-retained") {
+    await visibility(owner, e.refs.retained, "family");
+    const shared = await request(native, `${e.refs.a}/shared`);
+    assert.equal(
+      shared.items.some(
+        (item: any) => item.entry.id === e.refs.retained.split("/").at(-1),
+      ),
+      false,
+    );
+  } else if (command === "restore-retained") {
+    await visibility(owner, e.refs.retained, "trip");
   } else if (command === "restore-shared") {
     await visibility(owner, e.refs.shared, "trip");
     await visibility(owner, e.refs.bag, "trip");

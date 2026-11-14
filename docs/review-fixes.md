@@ -216,3 +216,71 @@ There were no integration changes requiring another application suite.
 477 files against nine actual server-secret values/encodings, without printing
 values (`final-source-secrets.log`). No dependency, native input or application source changed after the
 tested preview source `c6f56c92efe9dad8ce98c3e924a112ed2f11dd6d`.
+
+## Summary follow-up after the independent recheck
+
+The first recheck found that Summary did not consume the new scoped removal
+events. A trip-level Summary route stayed mounted when a family grant was
+withdrawn, retaining private checklist labels and outgoing preview text even
+after reconnect received authoritative family denials.
+
+Summary now removes affected family/record choices and selections, discards a
+preview containing those selections, and advances its request generation before
+handling the event. Earlier pending choices/preview responses cannot restore
+the removed text. Other trips, remaining selections, and previews containing
+only unaffected selections are retained. Refreshing choices remains explicit;
+no share or write is replayed.
+
+The regression was executed on the task-owned Android emulator through the real
+development client and Metro, with actual Clerk, Neon and R2 fixtures and the
+existing loopback network proxy. This follow-up is **development-client native
+evidence**, separate from the earlier signed Preview B/OTA evidence. No new
+signed update or production artifact was published for this follow-up.
+
+- Red at `19a8879`: cache the other family's checklist, preview its private
+  `Revocable both-leg task`, disconnect without backgrounding, revoke the family
+  grant while retaining trip membership, and reconnect. Actual traveler/checklist
+  HTTP `404`s completed; the assertion failed because the private preview stayed
+  visible.
+- Green with the scoped Summary handler: the same reconnect journey removed the
+  preview after a real family `404`. An independently authorized selected task,
+  `Disposable A record`, remained selected and produced a new preview without
+  reselection. Its outgoing text excluded the revoked task.
+- A separate scoped-refresh check cached the complete overview, previewed only
+  the authorized task, then revoked a different shared record while disconnected.
+  After the refreshed overview completed, the exact authorized preview remained
+  unchanged. The fixture helper confirmed the removed record was absent from
+  the authenticated shared projection.
+- Workspace TypeScript, Android JavaScript export (`--no-bytecode`), formatting
+  and whitespace checks passed. The existing API suite's 126/126 result remains
+  the server baseline; this mobile-only handler does not change server behavior.
+
+The native runner, before/after XML and sanitized HTTP metadata are retained in
+the existing outside-Git `review/` evidence directory. The regression command is
+`python .local/summary-native.py revoke` from the repository root after the
+documented fixture/preview setup;
+it requires both a fresh authoritative family denial and removal of the text.
+[summary-revocation.yaml](../apps/mobile/.maestro/summary-revocation.yaml) records
+the equivalent prepared Maestro journey; Maestro itself remains unrun.
+
+Automatic approval review rejected starting a local API plus public tunnel and
+extracting public client configuration from the restricted Clerk file, each as
+“blocked by policy.” The accepted test setup instead kept API/proxy/Metro on
+loopback, used ADB reverse, and resolved existing public mobile configuration
+through normal `eas env:exec preview`. No public tunnel was restarted. The first
+older debug client lacked ExpoNetwork; a matching local debug build passed using
+the repository's optional Windows CMake staging script. Those setup failures
+are not native acceptance results.
+
+Pending-response races, physical-device and signed-artifact follow-up acceptance
+remain unrun. Existing production/provider gates remain open.
+
+The disposable follow-up trips/families and both fixture accounts were removed
+through the actual application/provider interfaces after marker/ownership checks.
+Immutable R2 objects remain under the existing retention policy. The owned
+loopback API, proxy and Metro processes were identified by executable, command,
+creation time and listener before stopping them. The task emulator was restored
+to the hash-verified signed Preview B APK, then shut down. Shared T3 helpers were
+left untouched. Implementation checkouts were unregistered after clean-tree and
+merged-ancestry checks; Windows denied removal of some generated-file residue,
+which remains in those former checkout directories without ACL/security changes.

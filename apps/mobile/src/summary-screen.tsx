@@ -21,6 +21,7 @@ import { ChecklistChoices, ChecklistSection } from "./checklist-ui";
 import { useTripRequest } from "./use-trip-request";
 import { useTheme } from "./theme";
 import { summaryApi } from "./summary-api";
+import { onTripCacheRevoked } from "./trip-cache";
 
 const blankSelection = (): SummarySelection => ({
   tripDetails: false,
@@ -75,6 +76,68 @@ export function SummaryScreen({
   useEffect(() => {
     void load();
   }, [load]);
+  useEffect(
+    () =>
+      onTripCacheRevoked((removal) => {
+        if (removal.tripId !== tripId) return;
+        // A pending choices/preview response may predate this access change,
+        // including scopes whose choices have not arrived yet.
+        generation.current++;
+        const removesFamily = (familyId: string) =>
+          removal.scope === "trip" ||
+          (removal.scope === "family" && removal.familyId === familyId);
+        const removesEntry = (entryId: string) =>
+          removal.scope === "records" && removal.recordIds.includes(entryId);
+        const selected = selection.checklist.some(
+          (family) =>
+            removesFamily(family.familyId) ||
+            family.entryIds.some(removesEntry),
+        );
+        const affected = choices?.families.some(
+          (family) =>
+            removesFamily(family.id) ||
+            family.entries.some((entry) => removesEntry(entry.id)),
+        );
+        setChoices((value) =>
+          removal.scope === "trip" || !value
+            ? null
+            : {
+                ...value,
+                families: value.families.flatMap((family) => {
+                  if (removesFamily(family.id)) return [];
+                  const entries = family.entries.filter(
+                    (entry) => !removesEntry(entry.id),
+                  );
+                  return entries.length === family.entries.length
+                    ? [family]
+                    : entries.length
+                      ? [{ ...family, entries }]
+                      : [];
+                }),
+              },
+        );
+        setSelection((value) =>
+          removal.scope === "trip"
+            ? blankSelection()
+            : {
+                ...value,
+                checklist: value.checklist.flatMap((family) => {
+                  if (removesFamily(family.familyId)) return [];
+                  const entryIds = family.entryIds.filter(
+                    (id) => !removesEntry(id),
+                  );
+                  return entryIds.length ? [{ ...family, entryIds }] : [];
+                }),
+              },
+        );
+        if (removal.scope === "trip" || selected) setPreview(null);
+        if (removal.scope === "trip" || selected || affected || working.current)
+          setNotice(
+            "Access or available records changed. Affected checklist choices and previews were removed. Other selections are kept. Refresh summary choices to check what is currently available.",
+          );
+      }),
+    [choices, selection, tripId],
+  );
   useEffect(() => {
     alive.current = true;
     const listener = AppState.addEventListener("change", (state) => {
