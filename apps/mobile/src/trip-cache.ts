@@ -719,7 +719,7 @@ export async function travelFetch(
 
 export async function refreshTripCache(
   origin: string,
-  token: string,
+  getToken: () => Promise<string | null>,
   signal: AbortSignal,
 ) {
   const value = stamp();
@@ -757,10 +757,28 @@ export async function refreshTripCache(
     if (signal.aborted) read.abort();
     const timeout = setTimeout(abort, 15_000);
     try {
-      const response = await travelFetch(`${origin}${path}`, {
-        signal: read.signal,
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await Promise.race([
+        (async () => {
+          // A refresh may span many scopes and outlive a short-lived bearer.
+          // Ask the existing session adapter just before each read; never replay
+          // a denied request or reuse an old account's callback.
+          const token = await getToken();
+          current(attempt, read.signal);
+          if (!token)
+            throw new TripError("Current sign-in could not be refreshed.");
+          return travelFetch(`${origin}${path}`, {
+            signal: read.signal,
+            headers: { Authorization: `Bearer ${token}` },
+          });
+        })(),
+        new Promise<never>((_, reject) =>
+          read.signal.addEventListener(
+            "abort",
+            () => reject(new TripError("This access check was interrupted.")),
+            { once: true },
+          ),
+        ),
+      ]);
       if (!response.ok && ![403, 404].includes(response.status)) unavailable++;
     } catch {
       if (signal.aborted)

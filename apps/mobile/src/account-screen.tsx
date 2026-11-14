@@ -187,7 +187,8 @@ export function AccountScreen() {
           setOfflineProfile(result.profile);
           // Metadata checks only; this never obtains or downloads guide objects.
           const origin = apiOrigin();
-          if (origin) await refreshTripCache(origin, token, controller.signal);
+          if (origin)
+            await refreshTripCache(origin, getToken, controller.signal);
           // Metadata checks only. No object downloads, exports or save retries.
           void refreshSavedGuideAccess(copies, token, controller.signal).catch(
             () => {
