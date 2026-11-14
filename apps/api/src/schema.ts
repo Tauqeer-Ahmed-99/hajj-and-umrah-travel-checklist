@@ -8,7 +8,6 @@ import {
   foreignKey,
   check,
   index,
-  uniqueIndex,
   uuid,
   text,
   timestamp,
@@ -395,7 +394,9 @@ END)))`,
 export const checklistHistory = pgTable(
   "checklist_history",
   {
-    sequence: bigint("sequence", { mode: "number" }).notNull(),
+    sequence: bigint("sequence", { mode: "number" })
+      .generatedAlwaysAsIdentity()
+      .notNull(),
     id: uuid("id").defaultRandom().notNull(),
     familyId: uuid("family_id").notNull(),
     entityType: text("entity_type").notNull(),
@@ -425,7 +426,10 @@ export const checklistHistory = pgTable(
       .onUpdate("no action"),
     unique("checklist_history_id_key").on(table.id),
     primaryKey({ name: "checklist_history_pkey", columns: [table.sequence] }),
-    index("checklist_history_family_idx").on(table.familyId, table.sequence),
+    index("checklist_history_family_idx").on(
+      table.familyId,
+      table.sequence.desc().nullsFirst(),
+    ),
   ],
 );
 
@@ -1132,12 +1136,9 @@ export const packingAllocations = pgTable(
       "packing_allocations_check",
       sql`((bag_id IS NULL) <> (traveler_id IS NULL))`,
     ),
-    unique("packing_allocations_entry_id_leg_bag_id_traveler_id_key").on(
-      table.entryId,
-      table.leg,
-      table.bagId,
-      table.travelerId,
-    ),
+    unique("packing_allocations_entry_id_leg_bag_id_traveler_id_key")
+      .on(table.entryId, table.leg, table.bagId, table.travelerId)
+      .nullsNotDistinct(),
     foreignKey({
       name: "packing_allocations_family_id_bag_id_fkey",
       columns: [table.familyId, table.bagId],
@@ -1174,7 +1175,9 @@ export const packingAllocations = pgTable(
 export const packingHistory = pgTable(
   "packing_history",
   {
-    sequence: bigint("sequence", { mode: "number" }).notNull(),
+    sequence: bigint("sequence", { mode: "number" })
+      .generatedAlwaysAsIdentity()
+      .notNull(),
     id: uuid("id").defaultRandom().notNull(),
     familyId: uuid("family_id").notNull(),
     leg: text("leg").notNull(),
@@ -1221,7 +1224,10 @@ export const packingHistory = pgTable(
       .onDelete("no action")
       .onUpdate("no action"),
     unique("packing_history_undoes_key").on(table.undoes),
-    index("packing_history_family_idx").on(table.familyId, table.sequence),
+    index("packing_history_family_idx").on(
+      table.familyId,
+      table.sequence.desc().nullsFirst(),
+    ),
   ],
 );
 
@@ -1746,7 +1752,9 @@ export const tripCompletion = pgTable(
 export const tripCompletionHistory = pgTable(
   "trip_completion_history",
   {
-    sequence: bigint("sequence", { mode: "number" }).notNull(),
+    sequence: bigint("sequence", { mode: "number" })
+      .generatedAlwaysAsIdentity()
+      .notNull(),
     id: uuid("id").notNull(),
     tripId: uuid("trip_id").notNull(),
     action: text("action").notNull(),

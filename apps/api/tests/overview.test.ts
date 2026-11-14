@@ -635,6 +635,41 @@ test("scheduled travel retains its zone, while an essential in an unreviewed bag
   );
 });
 
+test("return checkout confirmations retain the same ISO timestamp in Overview", async () => {
+  const j = await setup("overview_checkout");
+  const proposed = await fixture.request(
+    `${j.family}/return-preparation`,
+    j.owner.token,
+    { requestId: randomUUID(), kind: "propose" },
+    "POST",
+  );
+  assert.equal(proposed.status, 200, fixture.logs());
+  const checkId = proposed.data.checkout[0].id;
+  const checked = await fixture.request(
+    `${j.family}/return-preparation`,
+    j.owner.token,
+    {
+      requestId: randomUUID(),
+      kind: "checkout",
+      checkId,
+      checked: true,
+      physicalConfirmed: true,
+    },
+    "POST",
+  );
+  assert.equal(checked.status, 200, fixture.logs());
+  const response = await fixture.request(
+    `${j.trip}/overview/return`,
+    j.owner.token,
+  );
+  assert.equal(response.status, 200, fixture.logs());
+  const overview = overviewResponse.parse(response.data);
+  const record = overview.records.find((row) => row.id === checkId);
+  assert.ok(record);
+  assert.equal(record.status, "Checkout confirmed");
+  assert.equal(record.confirmedAt, checked.data.checkout[0].checkedAt);
+});
+
 test("return overview uses independent reviewed possession and locations while preserving outbound search and family-only reconciliation", async () => {
   const j = await setup("overview_return");
   const reader = await admit(j, "overview_return_reader", "viewer");

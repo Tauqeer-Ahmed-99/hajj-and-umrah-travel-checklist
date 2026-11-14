@@ -270,7 +270,7 @@ export function readOverview(
           checked: boolean;
           checkedAt: string | null;
         }>(
-          sql`SELECT id,label,checked,checked_at AS "checkedAt" FROM return_checkout WHERE family_id=${sql.param(family.id)} ORDER BY area`,
+          sql`SELECT id,label,checked,to_char(checked_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "checkedAt" FROM return_checkout WHERE family_id=${sql.param(family.id)} ORDER BY area`,
         );
         for (const check of checkout.rows) {
           const row = base(
