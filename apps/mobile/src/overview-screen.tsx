@@ -90,10 +90,50 @@ function useOverview(tripId: string, query: OverviewQuery) {
       if (state === "active") void load();
       else request.current?.abort();
     });
-    const stop = onTripCacheRevoked(() => {
+    const stop = onTripCacheRevoked((removal) => {
+      if (removal.tripId !== tripId) return;
       request.current?.abort();
-      setData(null);
-      dataKey.current = "";
+      if (removal.scope === "trip") {
+        setData(null);
+        dataKey.current = "";
+      } else {
+        setData((previous) => {
+          if (!previous) return previous;
+          const records = previous.records.filter((record) =>
+            removal.scope === "family"
+              ? record.familyId !== removal.familyId ||
+                record.access === "shared"
+              : !removal.recordIds.includes(record.id) ||
+                record.access !== removal.projection,
+          );
+          return {
+            ...previous,
+            records,
+            preparation: { activeItems: 0, availableItems: 0, openTasks: 0 },
+            readiness: {
+              verification: "not_verified",
+              confirmedBags: 0,
+              totalBags: 0,
+              unknownOrReviewBags: 0,
+            },
+            actions: previous.actions.map((action) => {
+              const references = action.records.filter((reference) =>
+                records.some(
+                  (record) =>
+                    record.id === reference.id &&
+                    record.kind === reference.kind,
+                ),
+              );
+              return {
+                ...action,
+                records: references,
+                count: references.length,
+              };
+            }),
+          };
+        });
+        void load();
+      }
     });
     return () => {
       request.current?.abort();

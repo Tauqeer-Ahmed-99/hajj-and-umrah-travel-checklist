@@ -37,6 +37,7 @@ import { locationLabel, travelerName } from "./packing-ui";
 import { VisibilityForm } from "./sharing-forms";
 import type { PackingView } from "./trip-navigation";
 import { TravelFilesScreen } from "./travel-files-screen";
+import { onTripCacheRevoked } from "./trip-cache";
 
 export function BagsDestination({
   families,
@@ -189,6 +190,55 @@ export function PackingScreen({
     initialView ?? (initialLeg === "return" ? "review" : "bags"),
   );
   const [selectedId, setSelectedId] = useState(initialId);
+  useEffect(
+    () =>
+      onTripCacheRevoked((removal) => {
+        if (
+          removal.tripId !== tripId ||
+          removal.scope !== "records" ||
+          removal.projection !== "family"
+        )
+          return;
+        const removed = (id?: string) => !!id && removal.recordIds.includes(id);
+        setEditor((current) => {
+          if (!current) return current;
+          const id =
+            "bag" in current
+              ? current.bag.id
+              : "item" in current
+                ? current.item.entryId
+                : "check" in current
+                  ? current.check.id
+                  : "initial" in current
+                    ? current.initial?.id
+                    : "id" in current
+                      ? current.id
+                      : undefined;
+          return removed(id) ? null : current;
+        });
+        setSelectedId((id) => (removed(id) ? undefined : id));
+        setData((current) =>
+          current
+            ? {
+                ...current,
+                packing: {
+                  ...current.packing,
+                  bags: current.packing.bags.filter((bag) => !removed(bag.id)),
+                  items: current.packing.items.filter(
+                    (item) => !removed(item.entryId),
+                  ),
+                  history: current.packing.history.filter(
+                    (event) =>
+                      !removed(event.entryId ?? "") &&
+                      !event.bagIds.some(removed),
+                  ),
+                },
+              }
+            : current,
+        );
+      }),
+    [tripId],
+  );
   useEffect(() => {
     onRemember?.(leg, view, selectedId);
   }, [leg, view, selectedId, onRemember]);

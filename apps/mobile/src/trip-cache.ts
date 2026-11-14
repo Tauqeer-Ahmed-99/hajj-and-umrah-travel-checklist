@@ -82,9 +82,20 @@ export type TripSnapshot = {
   refreshedAt: number;
   data: unknown;
 };
+export type TripCacheRemoval =
+  | { scope: "trip"; tripId: string }
+  | { scope: "family"; tripId: string; familyId: string }
+  | {
+      scope: "records";
+      tripId: string;
+      projection: "family" | "shared";
+      recordIds: string[];
+    };
 let active: Cache | null = null;
-const revokedListeners = new Set<() => void>();
-export function onTripCacheRevoked(listener: () => void) {
+const revokedListeners = new Set<(removal: TripCacheRemoval) => void>();
+export function onTripCacheRevoked(
+  listener: (removal: TripCacheRemoval) => void,
+) {
   revokedListeners.add(listener);
   return () => {
     revokedListeners.delete(listener);
@@ -240,13 +251,15 @@ function publish(
   };
   let lostFamilyAccess = false;
   let lostOverviewAccess = false;
+  let removedFamilies: string[] = [];
+  let removedFamilyRecords: string[] = [];
   if (/\/overview(?:\/return)?$/.test(path)) {
     try {
       const previous = overviewResponse.parse(
         JSON.parse(new File(directory, name(path)).textSync()).data,
       );
       const next = overviewResponse.parse(record.data);
-      lostOverviewAccess = previous.records.some((row) => {
+      const removed = previous.records.filter((row) => {
         const replacement = next.records.find(
           (n) => n.id === row.id && n.kind === row.kind,
         );
@@ -256,6 +269,26 @@ function publish(
           (row.shared && !replacement.shared)
         );
       });
+      removedFamilyRecords = removed
+        .filter(
+          (row) =>
+            row.access === "family" &&
+            !next.records.some((n) => n.id === row.id && n.access === "family"),
+        )
+        .map((row) => row.id);
+      lostOverviewAccess = removed.length > 0;
+      // A complete overview can also withdraw a shared row. Partial searches
+      // never enter publish; no omitted record proves loss of the whole scope.
+      for (const row of removed) {
+        const nextRow = next.records.find(
+          (n) => n.id === row.id && n.kind === row.kind,
+        );
+        if (row.shared && !nextRow?.shared) {
+          if (row.kind === "bag") removedShared.bags.push(row.id);
+          if (row.kind === "item" || row.kind === "task")
+            removedShared.items.push(row.id);
+        }
+      }
     } catch {
       /* No previous complete overview for this leg. */
     }
@@ -277,6 +310,7 @@ function publish(
         value.cache.blocked.delete(scope);
       }
       lostFamilyAccess = removed.length > 0;
+      removedFamilies = removed.map((family) => family.id);
     } catch {
       if (value.cache.blocked.size) {
         value.cache.owner.clearAccount();
@@ -302,12 +336,12 @@ function publish(
           .filter((bag) => !next.bags.some((n) => n.id === bag.id))
           .map((bag) => bag.id),
       };
-      lostSharedAccess =
-        removedShared.items.length > 0 || removedShared.bags.length > 0;
     } catch {
       /* No prior compatible shared snapshot. */
     }
   }
+  lostSharedAccess =
+    removedShared.items.length > 0 || removedShared.bags.length > 0;
   if (lostSharedAccess) {
     // One durable marker covers BOTH leg projections before either is published.
     // Redact only the withdrawn shared rows; private family snapshots and other
@@ -354,8 +388,29 @@ function publish(
   pending.writeSync(JSON.stringify(record));
   current(value, signal);
   pending.moveSync(new File(directory, name(path)), { overwrite: true });
-  if (lostSharedAccess || lostFamilyAccess || lostOverviewAccess)
-    for (const listener of revokedListeners) listener();
+  const tripId = path.split("/")[3];
+  for (const familyId of removedFamilies)
+    for (const listener of revokedListeners)
+      listener({ scope: "family", tripId, familyId });
+  const sharedIds = [
+    ...new Set([...removedShared.items, ...removedShared.bags]),
+  ];
+  if (sharedIds.length)
+    for (const listener of revokedListeners)
+      listener({
+        scope: "records",
+        tripId,
+        projection: "shared",
+        recordIds: sharedIds,
+      });
+  if (removedFamilyRecords.length)
+    for (const listener of revokedListeners)
+      listener({
+        scope: "records",
+        tripId,
+        projection: "family",
+        recordIds: removedFamilyRecords,
+      });
   tripCacheChanged();
 }
 export function clearTripCache() {
@@ -428,7 +483,12 @@ function deny(
       "Private cache cleanup could not finish. Retry Refresh cached trips.",
     );
   } finally {
-    for (const listener of revokedListeners) listener();
+    for (const listener of revokedListeners)
+      listener(
+        parts[4] === "families"
+          ? { scope: "family", tripId: parts[3], familyId: parts[5] }
+          : { scope: "trip", tripId: parts[3] },
+      );
     tripCacheChanged();
   }
 }

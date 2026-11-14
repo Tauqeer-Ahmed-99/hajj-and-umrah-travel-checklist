@@ -104,14 +104,26 @@ export function TripsScreen({
   const [preferenceError, setPreferenceError] = useState("");
   useEffect(
     () =>
-      onTripCacheRevoked(() => {
+      onTripCacheRevoked((removal) => {
+        if (
+          removal.scope === "records" ||
+          !route ||
+          !("tripId" in route) ||
+          route.tripId !== removal.tripId
+        )
+          return;
+        if (
+          removal.scope === "family" &&
+          (!("familyId" in route) || route.familyId !== removal.familyId)
+        )
+          return;
         setRoute({ screen: "list" });
         void clearTripNavigation(profile.id, true).catch(() => {});
         setPreferenceError(
           "Trip access changed. Open a permitted trip again after refreshing.",
         );
       }),
-    [profile.id],
+    [profile.id, route],
   );
   useEffect(() => {
     let active = true;

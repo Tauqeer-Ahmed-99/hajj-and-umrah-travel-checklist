@@ -13,6 +13,7 @@ import { useTripRequest } from "./use-trip-request";
 import { sharingApi } from "./sharing-api";
 import { tripApi } from "./trip-api";
 import { invitationApi } from "./invitation-api";
+import { onTripCacheRevoked } from "./trip-cache";
 import { AcquisitionForm, AcquisitionSummary } from "./acquisition-form";
 import { BagStateForm } from "./packing-forms";
 import {
@@ -54,6 +55,45 @@ export function SharedScreen({
     initialView ?? "items",
   );
   const [selectedId, setSelectedId] = useState(initialId);
+  useEffect(
+    () =>
+      onTripCacheRevoked((removal) => {
+        if (
+          removal.tripId !== tripId ||
+          removal.scope !== "records" ||
+          removal.projection !== "shared"
+        )
+          return;
+        const removed = (id: string) => removal.recordIds.includes(id);
+        setEditor((current) =>
+          current &&
+          removed("item" in current ? current.item.entry.id : current.bag.id)
+            ? null
+            : current,
+        );
+        setSelectedId((id) => (id && removed(id) ? undefined : id));
+        setData((current) =>
+          current
+            ? {
+                ...current,
+                shared: {
+                  ...current.shared,
+                  items: current.shared.items.filter(
+                    (item) => !removed(item.entry.id),
+                  ),
+                  bags: current.shared.bags.filter((bag) => !removed(bag.id)),
+                  history: current.shared.history.filter(
+                    (event) =>
+                      !removed(event.entryId ?? "") &&
+                      !event.bagIds.some(removed),
+                  ),
+                },
+              }
+            : current,
+        );
+      }),
+    [tripId],
+  );
   const [query, setQuery] = useState("");
   const [saved, setSaved] = useState(false);
   const load = useCallback(async () => {
