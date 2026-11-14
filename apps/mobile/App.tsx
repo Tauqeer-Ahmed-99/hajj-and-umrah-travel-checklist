@@ -15,7 +15,14 @@ import { AuthScreen } from "./src/auth-screen";
 import { AccountScreen } from "./src/account-screen";
 import { apiOrigin } from "./src/api";
 import { GuideCopyProvider } from "./src/guide-copy-context";
-import { clearGuideCopies } from "./src/guide-copies";
+import {
+  accountDeadline,
+  cleanupPrivateAccount,
+  onRemovalIntent,
+  readRemovalIntent,
+  type RemovalIntent,
+} from "./src/account-lifecycle";
+import { AccountRemovalRecovery } from "./src/account-removal-screen";
 
 class AuthBoundary extends Component<
   { children: ReactNode },
@@ -48,22 +55,66 @@ function Session() {
   const [slow, setSlow] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [failure, setFailure] = useState("");
+  const [intent, setIntent] = useState<RemovalIntent | null>(null);
+  const [intentReady, setIntentReady] = useState(false);
+  const [intentError, setIntentError] = useState("");
+  const [receiptAttempt, setReceiptAttempt] = useState(0);
+  const [cleanupReady, setCleanupReady] = useState(false);
+  const [cleanupError, setCleanupError] = useState("");
+  const [cleanupAttempt, setCleanupAttempt] = useState(0);
+  useEffect(() => {
+    let active = true;
+    const read = async () => {
+      try {
+        const saved = await readRemovalIntent();
+        if (active) {
+          setIntent(saved);
+          setIntentError("");
+          setIntentReady(true);
+        }
+      } catch {
+        if (active)
+          setIntentError(
+            "The protected removal receipt could not be read. Retry before opening an account.",
+          );
+      }
+    };
+    void read();
+    const stop = onRemovalIntent(() => {
+      void read();
+    });
+    return () => {
+      active = false;
+      stop();
+    };
+  }, [receiptAttempt]);
   useEffect(() => {
     if (isLoaded) return;
     const timer = setTimeout(() => setSlow(true), 15_000);
     return () => clearTimeout(timer);
   }, [isLoaded]);
   useEffect(() => {
-    if (isLoaded && !isSignedIn) {
-      try {
-        clearGuideCopies();
-      } catch {
-        setFailure(
-          "Private guide cleanup could not finish. Sign in to retry cleanup before opening saved guides.",
-        );
-      }
+    let active = true;
+    setCleanupReady(false);
+    if (isLoaded && !isSignedIn && intentReady && !intent) {
+      void accountDeadline(cleanupPrivateAccount())
+        .then(() => {
+          if (active) {
+            setCleanupReady(true);
+            setCleanupError("");
+          }
+        })
+        .catch(() => {
+          if (active)
+            setCleanupError(
+              "Private trip, guide or notification cleanup did not finish. Retry cleanup before signing in or switching accounts.",
+            );
+        });
     }
-  }, [isLoaded, isSignedIn]);
+    return () => {
+      active = false;
+    };
+  }, [isLoaded, isSignedIn, intentReady, intent, cleanupAttempt]);
   async function retry() {
     setRetrying(true);
     setFailure("");
@@ -77,6 +128,25 @@ function Session() {
       setRetrying(false);
     }
   }
+  if (intentError)
+    return (
+      <Screen>
+        <Heading>Private storage unavailable</Heading>
+        <Notice error>{intentError}</Notice>
+        <Action
+          title="Retry protected receipt"
+          onPress={() => setReceiptAttempt((n) => n + 1)}
+        />
+      </Screen>
+    );
+  if (!intentReady)
+    return (
+      <Screen>
+        <Loading message="Checking protected account state…" />
+      </Screen>
+    );
+  if (intent)
+    return <AccountRemovalRecovery key={intent.requestId} intent={intent} />;
   if (!isLoaded)
     return (
       <Screen>
@@ -94,6 +164,23 @@ function Session() {
           </>
         )}
         {failure && <Notice error>{failure}</Notice>}
+      </Screen>
+    );
+  if (!isSignedIn && !cleanupReady)
+    return (
+      <Screen>
+        <Heading>Clearing private data</Heading>
+        {cleanupError ? (
+          <>
+            <Notice error>{cleanupError}</Notice>
+            <Action
+              title="Retry private cleanup"
+              onPress={() => setCleanupAttempt((n) => n + 1)}
+            />
+          </>
+        ) : (
+          <Loading message="Clearing private trip and notification state…" />
+        )}
       </Screen>
     );
   return isSignedIn && userId ? (

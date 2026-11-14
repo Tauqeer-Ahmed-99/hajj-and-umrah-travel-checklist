@@ -11,6 +11,7 @@ import {
 import { apiOrigin } from "./api";
 import { travelFetch } from "./trip-cache";
 import { TripError } from "./trip-api";
+import { accessChanged } from "./access-events";
 
 export type AccessChange = {
   path: string;
@@ -51,7 +52,10 @@ async function request<T>(
   }
   try {
     const result = schema.parse(await response.json());
-    if (method !== "GET") acceptedTravelChange();
+    if (method !== "GET") {
+      acceptedTravelChange();
+      accessChanged();
+    }
     return result;
   } catch {
     throw new TripError(

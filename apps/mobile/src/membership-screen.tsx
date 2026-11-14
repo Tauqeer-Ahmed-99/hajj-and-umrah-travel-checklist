@@ -23,6 +23,7 @@ import {
 } from "./invitation-ui";
 import { InvitationForm } from "./invitation-form";
 import { useTheme } from "./theme";
+import { ResponsibilityForm } from "./responsibility-form";
 
 type AccessView = {
   detail: TripDetail;
@@ -51,6 +52,9 @@ export function MembershipScreen({
   const [pending, setPending] = useState(false);
   const [saved, setSaved] = useState("");
   const [created, setCreated] = useState<Invitation | null>(null);
+  const [responsibility, setResponsibility] = useState<
+    "transfer" | "delete" | null
+  >(null);
   const load = useCallback(async () => {
     setData(null);
     setEditing(null);
@@ -76,8 +80,8 @@ export function MembershipScreen({
     }
   }, [api.run, tripId, familyId]);
   const refresh = useCallback(async () => {
-    if (mode === "list") await load();
-  }, [load, mode]);
+    if (mode === "list" && !responsibility) await load();
+  }, [load, mode, responsibility]);
   useAccessRefresh(refresh);
   const back = () => {
     if (editing && roleChanged)
@@ -92,7 +96,7 @@ export function MembershipScreen({
     else if (editing) setEditing(null);
     else onBack();
   };
-  useAccessBack(back, api.busy, mode === "list");
+  useAccessBack(back, api.busy, mode === "list" && !responsibility);
   const family = data?.detail.families.find((f) => f.id === familyId);
   const canManage = familyId
     ? !!family?.canCoordinate
@@ -116,8 +120,8 @@ export function MembershipScreen({
     Alert.alert(
       familyId ? "Remove family access?" : "Remove trip access?",
       familyId
-        ? `@${member.username} will lose access to this family’s private records. Their trip membership stays.`
-        : `@${member.username} will lose this trip and all its family access.`,
+        ? `@${member.username} will lose this family's private records. Trip membership and any explicitly trip-shared content stay. Shared records, travelers and history remain for others. Managed copies and notification state are removed when connected clients refresh. Exported device files and unreachable offline devices cannot be recalled. The last effective coordinator must transfer responsibility or explicitly delete their owned family first.`
+        : `@${member.username} will lose this trip and all its family access. Shared records, travelers and history remain for others. Managed copies and notification state are removed when connected clients refresh. Exported device files and unreachable offline devices cannot be recalled. Last organizers and coordinators must transfer responsibility or explicitly delete their owned group first.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -130,6 +134,26 @@ export function MembershipScreen({
             }),
         },
       ],
+    );
+  if (responsibility && data)
+    return (
+      <ResponsibilityForm
+        path={`/trips/${tripId}${familyId ? `/families/${familyId}` : ""}`}
+        family={!!familyId}
+        members={data.members}
+        actor={profile.id}
+        name={family?.name ?? data.detail.trip.name}
+        deleting={responsibility === "delete"}
+        onBack={() => {
+          setResponsibility(null);
+          void load();
+        }}
+        onSaved={() => {
+          setResponsibility(null);
+          if (responsibility === "delete") onBack();
+          else void load();
+        }}
+      />
     );
   if (mode === "compose" && data)
     return (
@@ -202,6 +226,28 @@ export function MembershipScreen({
             Assign another organizer or coordinator before removing the last
             responsible member. Trip viewers cannot edit family content.
           </Notice>
+          {canManage && (
+            <>
+              <Action
+                title={
+                  familyId
+                    ? "Transfer family responsibility"
+                    : "Transfer trip responsibility"
+                }
+                secondary
+                requiresConnection
+                disabled={pending || api.busy}
+                onPress={() => setResponsibility("transfer")}
+              />
+              <Action
+                title={familyId ? "Delete owned family" : "Delete owned trip"}
+                secondary
+                requiresConnection
+                disabled={pending || api.busy}
+                onPress={() => setResponsibility("delete")}
+              />
+            </>
+          )}
           {editing ? (
             <AccessSection title={`Access for @${editing.username}`}>
               <Copy>

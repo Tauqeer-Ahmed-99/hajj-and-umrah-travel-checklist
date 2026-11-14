@@ -15,6 +15,7 @@ import {
   type CopySession,
 } from "./guide-copies";
 import { startTripCache } from "./trip-cache";
+import { accountDeadline, preparePrivateAccount } from "./account-lifecycle";
 const Context = createContext<CopySession | null>(null);
 export function GuideCopyProvider({
   accountId,
@@ -29,26 +30,34 @@ export function GuideCopyProvider({
   useEffect(() => {
     let current: CopySession | undefined;
     let stopCache: (() => void) | undefined;
-    try {
-      current = startGuideCopies(accountId);
-      const owner = current;
-      stopCache = startTripCache({
-        directory: owner.directory,
-        current: () => {
-          assertCopySession(owner);
-          return owner.controller;
-        },
-        completed: () => !!restoreCopyProfile(owner),
-        clearAccount: () => clearSessionGuideCopies(owner),
-      });
-      setSession(current);
-      setError("");
-    } catch {
-      setError(
-        "Private guide storage could not be prepared or cleared. Retry before opening this account.",
-      );
-    }
+    let cancelled = false;
+    setSession(null);
+    void (async () => {
+      try {
+        await accountDeadline(preparePrivateAccount(accountId));
+        if (cancelled) return;
+        current = startGuideCopies(accountId);
+        const owner = current;
+        stopCache = startTripCache({
+          directory: owner.directory,
+          current: () => {
+            assertCopySession(owner);
+            return owner.controller;
+          },
+          completed: () => !!restoreCopyProfile(owner),
+          clearAccount: () => clearSessionGuideCopies(owner),
+        });
+        setSession(current);
+        setError("");
+      } catch {
+        if (cancelled) return;
+        setError(
+          "Private trip, guide or notification cleanup could not finish. Retry before opening this account.",
+        );
+      }
+    })();
     return () => {
+      cancelled = true;
       stopCache?.();
       if (current) {
         try {

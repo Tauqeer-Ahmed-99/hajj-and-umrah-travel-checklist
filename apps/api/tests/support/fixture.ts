@@ -67,6 +67,9 @@ export async function startFixture(
   >();
   const sessions = new Map<string, { userId: string; status: string }>();
   let providerUnavailable = false;
+  let deletionOutcome: "ok" | "failed" | "unknown" = "ok";
+  let nextDeletion: { received: () => void; resume: Promise<void> } | undefined;
+  let releaseDeletion: (() => void) | undefined;
   const pushes: unknown[] = [];
   let pushOutcome: "ok" | "unknown" | "unregistered" = "ok";
   let nextPush: { received: () => void; resume: Promise<void> } | undefined;
@@ -115,6 +118,40 @@ export async function startFixture(
     }
     if (path === "/v1/jwks") {
       res.end(JSON.stringify({ keys: [jwk] }));
+      return;
+    }
+    if (req.method === "DELETE" && path.startsWith("/v1/users/")) {
+      if (deletionOutcome === "failed") {
+        res.writeHead(503).end("{}");
+        return;
+      }
+      const id = path.replace("/v1/users/", "");
+      const existed = identities.delete(id);
+      for (const session of sessions.values())
+        if (session.userId === id) session.status = "revoked";
+      const held = nextDeletion;
+      nextDeletion = undefined;
+      if (held) {
+        held.received();
+        await held.resume;
+      }
+      if (deletionOutcome === "unknown") {
+        req.socket.destroy();
+        return;
+      }
+      res
+        .writeHead(existed ? 200 : 404)
+        .end(
+          JSON.stringify(
+            existed
+              ? { id, object: "user", deleted: true }
+              : {
+                  errors: [
+                    { code: "resource_not_found", message: "Not found" },
+                  ],
+                },
+          ),
+        );
       return;
     }
     const user = identities.get(path.replace("/v1/users/", ""));
@@ -268,6 +305,7 @@ export async function startFixture(
   }
   async function cleanup() {
     releasePush?.();
+    releaseDeletion?.();
     await stopApi();
     await new Promise<void>((done) => provider.close(() => done()));
     await postgres.stop();
@@ -305,6 +343,25 @@ export async function startFixture(
     close: cleanup,
     logs: () => output,
     pushes,
+    deletionOutcome: (value: typeof deletionOutcome) => {
+      deletionOutcome = value;
+    },
+    holdNextDeletion: () => {
+      let received!: () => void, resume!: () => void;
+      const arrived = new Promise<void>((done) => {
+        received = done;
+      });
+      const proceed = new Promise<void>((done) => {
+        resume = done;
+      });
+      const release = () => {
+        releaseDeletion = undefined;
+        resume();
+      };
+      releaseDeletion = release;
+      nextDeletion = { received, resume: proceed };
+      return { received: arrived, release };
+    },
     // Pin a request at the external provider boundary without replacing dispatch.
     holdNextPush: () => {
       if (releasePush) throw new Error("A provider push is already held");

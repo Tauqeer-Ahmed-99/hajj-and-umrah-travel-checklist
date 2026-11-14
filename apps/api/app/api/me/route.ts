@@ -3,6 +3,7 @@ import { database } from "../../../src/database";
 import { identify } from "../../../src/identity";
 import { failure, HttpError, json } from "../../../src/response";
 import { profileJson } from "../../../src/input";
+import { removedAccount } from "../../../src/account-access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,10 +15,12 @@ export async function GET(request: Request) {
   try {
     const identity = await identify(request);
     const result = await database().query(
-      `SELECT ${columns} FROM members WHERE clerk_user_id = $1`,
+      `SELECT ${columns}, removal_started_at FROM members WHERE clerk_user_id = $1`,
       [identity.clerkUserId],
     );
     const profile = result.rows[0] ?? null;
+    if (profile?.removal_started_at) throw removedAccount();
+    if (profile) delete profile.removal_started_at;
     return json({
       profile,
       email: identity.email,
@@ -33,6 +36,11 @@ export async function GET(request: Request) {
 export async function PUT(request: Request) {
   try {
     const identity = await identify(request);
+    const existing = await database().query(
+      "SELECT removal_started_at FROM members WHERE clerk_user_id=$1",
+      [identity.clerkUserId],
+    );
+    if (existing.rows[0]?.removal_started_at) throw removedAccount();
     const body = await profileJson(request);
     const parsed = profileInput.safeParse(body);
     if (!parsed.success) {
@@ -57,16 +65,22 @@ export async function PUT(request: Request) {
       ON CONFLICT (clerk_user_id) DO UPDATE
       SET first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name,
           updated_at = now()
-      WHERE members.username = EXCLUDED.username
+      WHERE members.username = EXCLUDED.username AND members.removal_started_at IS NULL
       RETURNING ${columns}`,
       [identity.clerkUserId, input.firstName, input.lastName, input.username],
     );
-    if (!result.rows[0])
+    if (!result.rows[0]) {
+      const current = await database().query(
+        "SELECT removal_started_at FROM members WHERE clerk_user_id=$1",
+        [identity.clerkUserId],
+      );
+      if (current.rows[0]?.removal_started_at) throw removedAccount();
       throw new HttpError(
         409,
         "username_locked",
         "Your username is already saved and cannot be changed.",
       );
+    }
     return json({ profile: result.rows[0], email: identity.email });
   } catch (error) {
     if (

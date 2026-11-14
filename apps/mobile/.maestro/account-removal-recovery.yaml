@@ -1,0 +1,17 @@
+appId: in.nmtsolutions.travel
+---
+# Nonproduction only. Start after a deliberately lost removal response/receipt.
+# This flow performs status reads only, never provider deletion/retry.
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: "Check account removal"
+    timeout: 30000
+- assertNotVisible: "Open cached trips"
+- assertNotVisible: "Open saved guides"
+- scrollUntilVisible:
+    element: "Check removal status"
+- tapOn: "Check removal status"
+# Observe the injected canonical active/pending/completed result. Reconnect alone
+# must never send a write. Retry remaining account removal requires a separate,
+# deliberate user action in the controlled account environment.

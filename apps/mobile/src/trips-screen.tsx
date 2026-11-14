@@ -22,6 +22,7 @@ import {
   destinations,
   rememberTripNavigation,
   restoreTripNavigation,
+  activateTripNavigation,
   type Destination,
 } from "./trip-navigation";
 import { FamilyForm, TravelerForm, TripForm } from "./trip-forms";
@@ -65,6 +66,7 @@ export function TripsScreen({
 }) {
   const [route, setRoute] = useState<Route | null>(null);
   const [preferenceError, setPreferenceError] = useState("");
+  useEffect(() => activateTripNavigation(profile.id), [profile.id]);
   useEffect(
     () =>
       onTripCacheRevoked(() => {

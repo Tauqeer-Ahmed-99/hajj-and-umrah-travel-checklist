@@ -8,6 +8,7 @@ import {
 } from "./permissions";
 import { HttpError } from "./response";
 import { createOnce, transaction } from "./trips";
+import { lockAccountAccess, requireActiveMember } from "./account-access";
 
 type Recipient = { id: string; email: string };
 type InvitationRow = {
@@ -30,6 +31,7 @@ type InvitationRow = {
 // their FOR SHARE membership rows. No itinerary row or private content is locked.
 export async function lockAccess(db: PoolClient, tripId: string) {
   resourceId(tripId);
+  await lockAccountAccess(db);
   await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 5))", [
     tripId,
   ]);
@@ -97,7 +99,7 @@ export async function createInvitation(
         let recipientId: string | null = null;
         if (input.recipient.kind === "username") {
           const target = await db.query<{ id: string }>(
-            "SELECT id FROM members WHERE username = $1",
+            "SELECT id FROM members WHERE username = $1 AND removal_started_at IS NULL",
             [input.recipient.value],
           );
           recipientId = target.rows[0]?.id ?? null;
@@ -274,6 +276,7 @@ export async function acceptInvitation(recipient: Recipient, id: string) {
   return transaction(async (db) => {
     const initial = await recipientRow(db, recipient, id);
     await lockAccess(db, initial.trip_id);
+    await requireActiveMember(db, recipient.id);
     const row = await recipientRow(db, recipient, id);
     requirePending(row);
     const removal = await db.query(

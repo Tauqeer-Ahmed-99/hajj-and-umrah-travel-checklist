@@ -8,6 +8,7 @@ export * from "./summaries";
 export * from "./packing";
 export * from "./return-preparation";
 export * from "./sharing";
+export * from "./account-removal";
 
 export const profileInput = z.strictObject({
   firstName: z
