@@ -41,6 +41,19 @@ were not changed. Actual API upload, immutable validation, viewing and revocatio
 checks remain pending; see [guide files](guide-files.md) and
 [travel files](travel-files.md).
 
+## Google OAuth preparation
+
+Google Cloud project `nmt-travel` has no linked billing account. Its NMT Travel
+OAuth consent configuration is created for an External audience in Testing mode,
+using the signed-in owner's support/contact address. No OAuth client or test-user
+entry has been created yet. Clerk development Google remains enabled with shared
+credentials; the empty custom-credentials draft was discarded. Native Google
+requires custom Web and Android clients as described in
+[Google sign-in](google-sign-in.md). The development Clerk callback is
+`https://polite-reptile-6620.clerk.accounts.dev/v1/oauth_callback`; obtain the
+production callback from that instance before configuring it. Existing Google
+Cloud projects were not modified.
+
 ## Production DNS still pending
 
 The domain's nameservers resolve to Cloudflare. The currently signed-in
