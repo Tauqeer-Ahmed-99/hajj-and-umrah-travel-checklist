@@ -9,6 +9,11 @@ offline guide copies #14 and the reminder overlap regression. Integration #15
 The final verification section records the precise integrated revision. Latest
 integration also brought #19 at `5f05bae8cc4446490d6b6b90aacf39cede5d6b96`;
 private bag-photo/attachment destinations and their guarded requests are retained.
+Completion/archive #20 then landed during the final merge at
+`7acea40fe2f336bb81d77494fe070a1d9e1c26e1`. Its scoped arrival review, deliberate
+Completed transition, archive routes and cached trip-only lessons are retained.
+The navigation schema now restores both overview/search and completion views
+under the same member/session gate; it does not restore the former unscoped hint.
 
 ## Authorized read contract
 
@@ -275,7 +280,7 @@ expo-network dependency), Google/email-code provider flows, EAS update delivery
 and physical-device acceptance remain open. No service provisioning, real
 message/export, issue closure, push, PR, binary or OTA publication occurred.
 
-## Final combined verification
+## Combined checkpoint before completion integration
 
 Latest integration `5f05bae8cc4446490d6b6b90aacf39cede5d6b96` (#19 over #10,
 #15, #9 and the summary/reminder baseline) was merged at
@@ -306,6 +311,27 @@ cached leg keys, return review/checkout and the central write/session guard.
   SQL014/016/017 match latest integration. #17 adds no migration or environment
   variable.
 
-The final integration ancestry and clean committed branch accompany the handoff.
+## Final combined verification
+
+Completion/archive integration `7acea40fe2f336bb81d77494fe070a1d9e1c26e1` merged
+at `7568cd5ed4e717d76c423c361fe6fd7a72cff9c6` after the checkpoint above. Conflict resolution retained both cached
+readers, both navigation hints, session-scoped cleanup and all main destinations.
+
+- Fresh full `npm test` on this actual combined tree: **116/116 authenticated
+  HTTP/real PostgreSQL scenarios passed**, 0 failures, skipped tests or
+  cancellations, normal exit in **471.2 seconds**. This includes all seven
+  overview scenarios, all five completion/archive scenarios and prior regressions.
+  API/test/migration source stayed fixed throughout this run.
+- Workspace TypeScript passed. Android JS export with `--no-bytecode` passed
+  with **1,087 modules**, including completion/archive and all overview/cache
+  destinations. No binary was built or published.
+- The fresh `npm run build:api` production build passed, including overview,
+  item activity, both leg interfaces, completion/review, archives and existing
+  protected routes. Generated Next declarations match their tracked form.
+- Final changed-file Prettier and `git diff --check` passed. The direct Node
+  runner, PG18 Windows `io_method=sync` fixture, lockfile and SQL014/016/017 match
+  latest integration. SQL018 remains unused. Final ancestry/clean-branch checks
+  accompany the committed handoff.
+
 The prepared native journeys and all device/provider/release gates above remain
 unrun; local checks do not establish them.
