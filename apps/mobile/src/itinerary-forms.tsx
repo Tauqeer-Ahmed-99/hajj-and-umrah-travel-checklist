@@ -346,7 +346,8 @@ export function PhaseForm({
   initial,
   onSaved,
   onCancel,
-}: FormProps & { initial: Itinerary["phase"] }) {
+  onCompletion,
+}: FormProps & { initial: Itinerary["phase"]; onCompletion: () => void }) {
   const [phase, setPhase] = useState(initial);
   const save = useSave(
     itineraryPatch,
@@ -374,11 +375,22 @@ export function PhaseForm({
         This records the trip phase only. It does not confirm bag collection or
         religious completion.
       </Notice>
-      <SaveActions
-        save={save}
-        title="Save phase"
-        onSave={() => void save.submit({ phase })}
-      />
+      {phase === "completed" ? (
+        <>
+          <Notice>
+            Review permitted home-arrival bag collection and unresolved
+            belongings before confirming Completed.
+          </Notice>
+          <Action title="Continue to arrival review" onPress={onCompletion} />
+          <Action title="Cancel" secondary onPress={save.cancel} />
+        </>
+      ) : (
+        <SaveActions
+          save={save}
+          title="Save phase"
+          onSave={() => void save.submit({ phase })}
+        />
+      )}
     </Screen>
   );
 }

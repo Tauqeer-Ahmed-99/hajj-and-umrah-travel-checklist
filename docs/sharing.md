@@ -64,6 +64,11 @@ family grant. They must not fetch private family snapshots just because an item
 is shared. Selected item notes are intentionally shared; private bag and history
 free text never enter the shared projection.
 
+[Overview and search #17](overview-and-search.md) uses the selected-leg
+`sharedState(db, memberId, tripId, leg, activityEntryId?)` interface. An optional
+item ID narrows both history queries before their limit; it preserves every
+existing sharing-period, allocation-redaction and structured-activity rule.
+
 The integrated [summary API](travel-summaries.md) now offers permitted shared
 checklist records to readers without a family grant, using a generic group label
 and its existing fixed field allowlist. Private family names, notes, categories,

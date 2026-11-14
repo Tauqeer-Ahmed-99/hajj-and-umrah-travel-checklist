@@ -1,0 +1,27 @@
+appId: in.nmtsolutions.travel
+---
+# Prepared, unrun. Use a standalone preview with an embedded bundle, not Metro.
+# Online: open Overview once so its complete authorized projection is saved.
+- scrollUntilVisible:
+    element: "Find belongings and responsibilities"
+- tapOn: "Find belongings and responsibilities"
+- assertVisible: "Last successful refresh.*"
+- setAirplaneMode: enabled
+- stopApp
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible: "Open cached trips"
+    timeout: 45000
+- tapOn: "Open cached trips"
+- assertVisible: "Cached overview and belongings"
+- assertVisible: "Stale reference view.*"
+- tapOn: "Find a saved item or carrying location"
+- inputText: ${OVERVIEW_ITEM}
+- scrollUntilVisible:
+    element: "${OVERVIEW_BAG}"
+- assertVisible: "${OVERVIEW_BAG}"
+- assertNotVisible: "Save item"
+- assertNotVisible: "Confirm packing"
+- assertNotVisible: ${OVERVIEW_PRIVATE_NOTE}
+- setAirplaneMode: disabled

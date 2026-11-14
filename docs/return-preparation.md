@@ -1,5 +1,9 @@
 # Return belongings and packing (#10)
 
+[#20 completion and archive](completion-and-archive.md) adds a permitted
+home-arrival review and deliberate organizer confirmation without changing these
+independent collection, possession, reconciliation or history contracts.
+
 Approved test seams: authenticated HTTP application requests with real disposable
 PostgreSQL, controlling only external identity; prepared native Android journeys
 for forms, restart, accessibility and physical confirmation. These seams were

@@ -1,89 +1,89 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-
-export const destinations = [
-  "Overview",
-  "Checklist",
-  "Bags",
-  "Guides",
-] as const;
-export type Destination = (typeof destinations)[number];
-type Navigation = { tripId: string; destination: Destination };
-function isDestination(value: unknown): value is Destination {
-  return destinations.some((name) => name === value);
-}
-const key = (memberId: string) => `nmt.member.${memberId}.navigation`;
-// Serialize writes, including logout cleanup, across screen mounts. Only IDs and
-// the selected destination are stored; no trip, roster, profile, or draft data.
-const writes = new Map<string, Promise<void>>();
-let allowedMember: string | null = null;
-let generation = 0;
-export function activateTripNavigation(memberId: string) {
-  allowedMember = memberId;
-  ++generation;
-  return () => {
-    if (allowedMember === memberId) {
-      allowedMember = null;
-      ++generation;
-    }
-  };
-}
-function enqueue(memberId: string, write: () => Promise<void>) {
-  const previous = writes.get(memberId) ?? Promise.resolve();
-  const pending = previous.catch(() => {}).then(write);
-  writes.set(memberId, pending);
-  void pending
-    .finally(() => {
-      if (writes.get(memberId) === pending) writes.delete(memberId);
-    })
-    .catch(() => {});
+import {
+  tripNavigation as navigation,
+  type TripNavigation,
+} from "@nmt/contracts";
+export {
+  destinations,
+  type Destination,
+  type PackingView,
+  type ChecklistView,
+  type TripNavigation,
+} from "@nmt/contracts";
+const prefix = (memberId: string) => `nmt.member.${memberId}.`;
+const key = (memberId: string, sessionId: string) =>
+  `${prefix(memberId)}${sessionId}.navigation`;
+let writes = Promise.resolve();
+let activeKey: string | null = null;
+let revision = 0;
+function enqueue<T>(work: () => Promise<T>): Promise<T> {
+  const pending = writes.catch(() => {}).then(work);
+  writes = pending.then(
+    () => {},
+    () => {},
+  );
   return pending;
 }
-export async function restoreTripNavigation(
+export function restoreTripNavigation(
   memberId: string,
-): Promise<Navigation | null> {
-  await writes.get(memberId)?.catch(() => {});
-  const value = await AsyncStorage.getItem(key(memberId));
-  if (!value) return null;
-  try {
-    const parsed: unknown = JSON.parse(value);
-    if (
-      typeof parsed === "object" &&
-      parsed &&
-      "tripId" in parsed &&
-      typeof parsed.tripId === "string" &&
-      /^[0-9a-f-]{36}$/i.test(parsed.tripId) &&
-      "destination" in parsed &&
-      isDestination(parsed.destination)
-    )
-      return { tripId: parsed.tripId, destination: parsed.destination };
-    return null;
-  } catch {
-    return null;
-  }
+  sessionId: string,
+): Promise<TripNavigation | null> {
+  return enqueue(async () => {
+    activeKey = key(memberId, sessionId);
+    // Retain only resource IDs and filter choices for this exact account/session.
+    const obsolete = (await AsyncStorage.getAllKeys()).filter(
+      (k) =>
+        k.startsWith("nmt.member.") &&
+        k.endsWith(".navigation") &&
+        k !== activeKey,
+    );
+    if (obsolete.length) await AsyncStorage.multiRemove(obsolete);
+    const value = await AsyncStorage.getItem(activeKey);
+    if (!value) return null;
+    try {
+      return navigation.parse(JSON.parse(value));
+    } catch {
+      return null;
+    }
+  });
 }
-export function rememberTripNavigation(memberId: string, value: Navigation) {
-  const started = generation;
-  return enqueue(memberId, () =>
-    allowedMember === memberId && started === generation
-      ? AsyncStorage.setItem(key(memberId), JSON.stringify(value))
-      : Promise.resolve(),
-  );
+export function rememberTripNavigation(
+  memberId: string,
+  sessionId: string,
+  value: TripNavigation,
+) {
+  const expectedRevision = revision;
+  return enqueue(async () => {
+    const target = key(memberId, sessionId);
+    if (activeKey !== target || revision !== expectedRevision) return;
+    await AsyncStorage.setItem(target, JSON.stringify(navigation.parse(value)));
+  });
 }
-export function clearTripNavigation(memberId: string) {
-  return enqueue(memberId, () => AsyncStorage.removeItem(key(memberId)));
+export function clearTripNavigation(memberId: string, preserveScope = false) {
+  revision++;
+  return enqueue(async () => {
+    if (!preserveScope && activeKey?.startsWith(prefix(memberId)))
+      activeKey = null;
+    const keys = (await AsyncStorage.getAllKeys()).filter(
+      (k) => k.startsWith(prefix(memberId)) && k.endsWith(".navigation"),
+    );
+    if (keys.length) await AsyncStorage.multiRemove(keys);
+  });
 }
 export async function clearAllTripNavigation() {
-  allowedMember = null;
-  ++generation;
-  await Promise.allSettled([...writes.values()]);
-  const keys = (await AsyncStorage.getAllKeys()).filter((name) =>
-    /^nmt\.member\.[a-f0-9-]+\.navigation$/.test(name),
+  // Close the current session before draining writes, including both legacy and
+  // #17's session-scoped overview/search/completion navigation keys.
+  activeKey = null;
+  revision++;
+  await writes;
+  const keys = await AsyncStorage.getAllKeys();
+  const members = new Set(
+    keys.flatMap((name) => {
+      const match = /^nmt\.member\.([a-f0-9-]{36})\..*navigation$/.exec(name);
+      return match ? [match[1]] : [];
+    }),
   );
   await Promise.all(
-    keys.map((name) =>
-      clearTripNavigation(
-        name.slice("nmt.member.".length, -".navigation".length),
-      ),
-    ),
+    [...members].map((memberId) => clearTripNavigation(memberId)),
   );
 }

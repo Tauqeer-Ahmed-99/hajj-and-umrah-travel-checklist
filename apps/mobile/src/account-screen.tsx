@@ -48,6 +48,7 @@ import {
 } from "./account-lifecycle";
 import { AccountRemovalForm } from "./account-removal-screen";
 import { accountRemovalRequest } from "./account-removal-api";
+import { clearAllTripNavigation, clearTripNavigation } from "./trip-navigation";
 
 export function AccountScreen() {
   const copies = useGuideCopies();
@@ -95,6 +96,12 @@ export function AccountScreen() {
           setAccount((previous) => (previous?.profile ? null : previous));
           setShowOffline(false);
           setShowCached(false);
+          void clearAllTripNavigation().catch(() => {
+            setCleanupBlocked(true);
+            setError(
+              "Private navigation cleanup failed. Retry cleanup before opening private data.",
+            );
+          });
           void clearNotifications().catch(() => {
             setCleanupBlocked(true);
             setError(
@@ -108,6 +115,11 @@ export function AccountScreen() {
 
   const load = useCallback(async () => {
     if (signedOut.current) return;
+    if (copies.controller.signal.aborted) {
+      setCleanupBlocked(true);
+      return;
+    }
+    const previousMemberId = restoreCopyProfile(copies)?.id;
     request.current?.abort();
     const controller = new AbortController();
     request.current = controller;
@@ -185,6 +197,7 @@ export function AccountScreen() {
           if (current === generation.current && !controller.signal.aborted)
             acceptedTravelChange();
         } else {
+          if (previousMemberId) await clearTripNavigation(previousMemberId);
           clearSessionGuideCopies(copies);
           setOfflineProfile(null);
           setShowOffline(false);
@@ -204,6 +217,7 @@ export function AccountScreen() {
       ) {
         try {
           clearSessionGuideCopies(copies);
+          if (previousMemberId) await clearTripNavigation(previousMemberId);
         } catch {
           setCleanupBlocked(true);
         }

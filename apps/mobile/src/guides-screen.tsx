@@ -52,14 +52,24 @@ export function GuidesScreen({
   onSwitch,
   onAccount,
   footer,
+  initialId,
+  onRemember,
 }: {
   tripId: string;
   onBack(): void;
   onSwitch(): void;
   onAccount(): void;
   footer: ReactNode;
+  initialId?: string;
+  onRemember?: (guideId?: string) => void;
 }) {
-  const [route, setRoute] = useState<Route>({ mode: "list" });
+  const [route, setRoute] = useState<Route>(
+    initialId ? { mode: "read", id: initialId } : { mode: "list" },
+  );
+  useEffect(() => {
+    if (route.mode === "list" || route.mode === "read")
+      onRemember?.(route.mode === "read" ? route.id : undefined);
+  }, [route, onRemember]);
   const [saved, setSaved] = useState(false);
   const form = [
     "new",
@@ -222,7 +232,6 @@ function GuideLibrary({
     count: number;
   } | null>(null);
   const load = useCallback(async () => {
-    setData(null);
     const result = await api.run(async (token, signal) => {
       await refreshSavedGuideAccess(copies, token, signal);
       const [library, detail] = await Promise.all([
@@ -237,6 +246,9 @@ function GuideLibrary({
     });
     if (result) setData(result);
   }, [api.run, tripId, query, copies]);
+  useEffect(() => {
+    if (api.error && [401, 403, 404].includes(api.error.status)) setData(null);
+  }, [api.error]);
   useRefresh(load);
   return (
     <Screen footer={footer}>
