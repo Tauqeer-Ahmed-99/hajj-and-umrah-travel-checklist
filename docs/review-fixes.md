@@ -314,8 +314,8 @@ choices/preview/share completions; coalesced checks wait for current work, and
 unmount/session cleanup invalidates them. Transient check failures retain the
 last successful view; later metadata checks retry without replaying writes.
 Manual work completion explicitly wakes any queued check rather than relying on
-render timing. That pending-overlap branch remains among the unrun held-response
-cases; the native journeys below cover mounted-view revocation and scope continuity.
+render timing. The later controlled choices-overlap journey below exercised this
+branch on the exact committed `b523dad` source.
 
 Executed through the actual development client, real providers and external
 loopback network controls:
@@ -333,10 +333,33 @@ loopback network controls:
   task stayed selected through trip sharing. Preparing its next preview required
   no reselection and exposed only the generic `Shared with trip` label, with the
   former private family name absent.
+- **Held old choices / queued current choices: passed on `b523dad`.** After
+  Overview was cached, a new task was shared without opening Shared or refreshing
+  Overview. Its successful initial Summary response was held outside the app.
+  During disconnection, authenticated HTTP made that task private and confirmed
+  it was absent from current shared/Summary projections. Reconnect then released
+  the older success before its timeout while holding the queued fresh response.
+  The old choices never reappeared, no request error invalidated the control
+  case, and releasing the fresh response restored authorized choices without
+  the revoked title. No preview/write POST was replayed. The fresh response was
+  observed 2.052 seconds after the old response was released. The external
+  controls and actual native XML/HTTP evidence are retained as
+  `review/summary-held-{result.json,network.jsonl}` outside Git. Exact fixture
+  marker `nmtr_54b84280` was cleaned through the API/provider afterward.
 
 The prepared Maestro reconnect journey now includes the explicit-removal step
-and both cache-denial and Summary-only setup variants. Maestro itself, held
-responses, physical-device and signed-follow-up journeys remain unrun. The API
+and both cache-denial and Summary-only setup variants. Maestro itself, other held
+preview/share response variants, physical-device and signed-follow-up journeys
+remain unrun. The API
 wire contract, server behavior, dependencies, native configuration and environment
 requirements are unchanged; fixture-helper actions only mutate inventoried
 disposable records through authenticated HTTP.
+
+Both fresh final Standards and Spec rechecks cleared the application source at
+`b523dadead0ce11eafb1e2610d8c62bb5f3a04c0`: no actionable findings or scope creep.
+[CI on that commit](https://github.com/Tauqeer-Ahmed-99/hajj-and-umrah-travel-checklist/actions/runs/43568467282)
+passed 126/126 HTTP/PostgreSQL tests with no failures, skips or cancellations,
+workspace types, production API build, Android export and formatting. Source,
+integration history and the local Android JS export passed known-server-secret
+scans. The integration branch is pushed; this evidence does not establish
+production deployment, current signed-update or physical-device acceptance.

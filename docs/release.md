@@ -230,8 +230,8 @@ node --env-file=<restricted-clerkdev.env> --import tsx apps/api/scripts/check-re
 
 | Gate                                              | Observed result                                                                                                                                                                                                                                                |
 | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Combined HTTP/PostgreSQL suite                    | **PASS 125/125**, final run 492967.2746 ms, no skips/cancellations/todo/fail; direct Node sequential runner, PG18 Windows synchronous I/O and deterministic reminder overlap preserved                                                                         |
-| Workspace types / Next production build / format  | **PASS** after final code/native configuration changes; only evidence documentation changed afterward                                                                                                                                                          |
+| Combined HTTP/PostgreSQL suite                    | **PASS 126/126** in CI on reviewed application source `b523dad`, no failures/skips/cancellations; earlier 125/125 Windows release baseline and its provider evidence remain historical results                                                                 |
+| Workspace types / Next production build / format  | **PASS** in CI on `b523dad`; subsequent changes record evidence/status only                                                                                                                                                                                    |
 | Selected real Neon migrations                     | **PASS**, all 17 files applied; repeat passed; initially 0 members/trips                                                                                                                                                                                       |
 | Real private R2 provider                          | **PASS** signed PUT/GET 120s, copy survives staging overwrite, anonymous 400/tampered 403 denial, object backup-copy/delete/restore; four explicit task keys cleaned                                                                                           |
 | Real development Clerk + Neon + R2 HTTP           | **PASS** two-family privacy/invitations, receipt idempotency, stock/packing limit, separate return reconciliation, private PDF/finalization/read/revocation, last-admin block, owned trip deletion and real Clerk removal                                      |
@@ -243,13 +243,20 @@ node --env-file=<restricted-clerkdev.env> --import tsx apps/api/scripts/check-re
 | Server backup and restored authorized reads/files | **PASS** isolated same-provider Neon branch recovery after source deletion, including real authorized R2 bytes and restored access isolation; no off-provider backup claim                                                                                     |
 | Main journeys / offline / reminders / sharing     | HTTP/PostgreSQL suite and real-provider scope/quantity/packing/return/guide/removal checks passed; emulator standalone offline PDF/cache and upgrade passed. Physical native end-to-end and actual reminder delivery **UNRUN**                                 |
 | Appearance / accessibility / Arabic / lifecycle   | Light/dark/device appearance, largest fonts, TalkBack, reduced motion, Arabic, Android Back/SAF and physical lifecycle acceptance **UNRUN**                                                                                                                    |
-| Parent final Standards + Spec review/fixes        | **PENDING**, required before public production publication                                                                                                                                                                                                     |
+| Parent final Standards + Spec review/fixes        | **PASS** on `b523dad`, both final rechecks found no actionable issues; production and current signed/physical acceptance remain separate gates                                                                                                                 |
 
 The real HTTP check used the locally hosted **production Next build** on
-loopback 31022 with real providers. A temporary Cloudflare HTTPS tunnel
-`https://completely-lake-exotic-symbols.trycloudflare.com` is available only for
-isolated preview checks. It is not Vercel, a durable API origin or production
-availability evidence; it stops with its operator process.
+loopback 31022 with real providers. The temporary Cloudflare HTTPS tunnel
+`https://completely-lake-exotic-symbols.trycloudflare.com` was used for isolated
+preview checks and is now stopped. It does not provide a durable API origin or
+production availability. Later Summary checks used a development client with
+loopback API/proxy/Metro and ADB reverse; those owned helpers are also stopped.
+
+[CI on the reviewed source](https://github.com/Tauqeer-Ahmed-99/hajj-and-umrah-travel-checklist/actions/runs/43568467282)
+passed all checks. The subsequent Summary privacy/selection corrections and five
+real-provider development-client journeys, including controlled old/fresh
+response overlap, are recorded in [review-fixes.md](review-fixes.md). They do not
+update the signed Preview B artifact or establish a production/physical pass.
 
 The successful live run is `nmt22_7394af58785b`. Its retained private immutable
 object is recorded in its evidence file. Three earlier operator runs stopped on
