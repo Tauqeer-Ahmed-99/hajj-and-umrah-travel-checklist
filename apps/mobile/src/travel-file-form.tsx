@@ -16,6 +16,8 @@ import { Action, Copy, Heading, Notice, Screen } from "./ui";
 import { GuideChoices, GuideSection } from "./guide-ui";
 import { useTripRequest } from "./use-trip-request";
 import { travelFileApi } from "./travel-file-api";
+import { completeFileUpload } from "./file-upload";
+import { useSessionAuth } from "./session-auth";
 
 export type TravelFileTarget =
   | { kind: "bag_photo"; bagId: string; familyId: string }
@@ -36,6 +38,11 @@ export function TravelFileForm({
   onCancel(): void;
 }) {
   const api = useTripRequest(180_000);
+  const { getToken } = useSessionAuth();
+  const transfer = {
+    authorize: travelFileApi.authorize.bind(null, tripId),
+    finish: travelFileApi.finish.bind(null, tripId),
+  };
   const [familyId, setFamilyId] = useState(
     target.kind === "bag_photo" ? target.familyId : (families[0]?.id ?? ""),
   );
@@ -115,14 +122,14 @@ export function TravelFileForm({
     }
   };
   const finish = async (selected: { id: string; upload: GuideUpload }) => {
-    const result = await api.run((token, signal) =>
-      travelFileApi.finish(
-        tripId,
-        selected.id,
-        selected.upload.id,
-        token,
+    const result = await api.run((_, signal) =>
+      completeFileUpload(transfer, {
+        session: selected,
+        getToken,
         signal,
-      ),
+        prepared: setSession,
+        phase: setPhase,
+      }),
     );
     if (result) onSaved();
   };
@@ -169,48 +176,38 @@ export function TravelFileForm({
     setBody(parsed.data);
     setValidation("");
     const file = picked.current;
-    const result = await api.run(async (token, signal) => {
-      let selected = session;
-      if (!selected) {
-        setPhase("Preparing upload…");
-        const created = initial
-          ? await travelFileApi.replace(
-              tripId,
-              initial.id,
-              parsed.data,
-              token,
-              signal,
-            )
-          : await travelFileApi.begin(
-              tripId,
-              parsed.data as TravelFileInput,
-              token,
-              signal,
-            );
-        selected = { id: created.record.id, upload: created.upload };
-        if (signal.aborted) throw Error("interrupted");
-        setSession(selected);
-      }
-      if (selected.upload.status !== "ready") {
-        setPhase("Uploading file…");
-        await travelFileApi.put(
-          tripId,
-          selected.id,
-          selected.upload.id,
+    const result = await api.run((_, signal) =>
+      completeFileUpload(
+        {
+          ...transfer,
+          prepare: async (token, requestSignal) => {
+            const created = initial
+              ? await travelFileApi.replace(
+                  tripId,
+                  initial.id,
+                  parsed.data,
+                  token,
+                  requestSignal,
+                )
+              : await travelFileApi.begin(
+                  tripId,
+                  parsed.data as TravelFileInput,
+                  token,
+                  requestSignal,
+                );
+            return { id: created.record.id, upload: created.upload };
+          },
+        },
+        {
+          session,
           file,
-          token,
+          getToken,
           signal,
-        );
-      }
-      setPhase("Checking file…");
-      return travelFileApi.finish(
-        tripId,
-        selected.id,
-        selected.upload.id,
-        token,
-        signal,
-      );
-    });
+          prepared: setSession,
+          phase: setPhase,
+        },
+      ),
+    );
     if (result) onSaved();
   };
   return (

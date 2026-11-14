@@ -755,6 +755,14 @@ test("cross-family shared assignments and deadlines use current item access, inc
     { responsibleMemberId: target.id },
     "PATCH",
   );
+  const sharedBeforeRemoval = await create();
+  await visibility(sharedBeforeRemoval, "trip");
+  await fixture.request(
+    sharedBeforeRemoval,
+    owner.token,
+    { responsibleMemberId: target.id },
+    "PATCH",
+  );
   await fixture.request(
     `${journey.path}/families/${journey.familyId}/members/${target.id}`,
     owner.token,
@@ -772,8 +780,8 @@ test("cross-family shared assignments and deadlines use current item access, inc
   await drain();
   assert.equal(
     fixture.pushes.length,
-    start + 3,
-    "Grant removal suppresses private content but retains shared access",
+    start + 4,
+    "Grant removal suppresses the private assignment but retains the already queued shared assignment and shared deadline",
   );
 
   await register(false);
@@ -793,8 +801,28 @@ test("cross-family shared assignments and deadlines use current item access, inc
   await drain();
   assert.equal(
     fixture.pushes.length,
-    start + 3,
+    start + 4,
     "Current preferences suppress a queued deadline",
+  );
+  await register(false);
+  const deleted = await create();
+  await visibility(deleted, "trip");
+  await fixture.request(
+    deleted,
+    owner.token,
+    { responsibleMemberId: target.id },
+    "PATCH",
+  );
+  assert.equal(
+    (await fixture.request(deleted, owner.token, undefined, "DELETE")).status,
+    200,
+  );
+  await register(true);
+  await drain();
+  assert.equal(
+    fixture.pushes.length,
+    start + 4,
+    "Deleting a shared item suppresses its queued assignment",
   );
 });
 

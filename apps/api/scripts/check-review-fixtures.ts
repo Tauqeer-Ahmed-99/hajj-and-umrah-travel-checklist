@@ -325,6 +325,38 @@ if (command === "seed" || command === "resume") {
       "Disposable B other record",
     );
     await record();
+  } else if (command === "verify-draft") {
+    const checklist = await request(native, `${e.refs.bf}/checklist`);
+    assert.equal(
+      checklist.entries.find(
+        (entry: any) => entry.id === e.refs.editB.split("/").at(-1),
+      ).title,
+      "Keep B draft",
+    );
+    console.log("PASS: reconnect did not submit the native draft");
+  } else if (command === "capture-red-upload") {
+    const events = (await readFile(resolve(directory, "network.jsonl"), "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    const authorized = events.findLast(
+      (event) =>
+        event.path?.includes("/guides/") && event.path.endsWith("/authorize"),
+    );
+    assert.ok(authorized?.path.startsWith(e.refs.b));
+    e.refs.redGuide = authorized.path.split("/uploads/")[0];
+    const current = await request(native, e.refs.redGuide);
+    assert.equal(current.guide.version, 2);
+    assert.ok(current.guide.file);
+    await record();
+    console.log(
+      JSON.stringify({
+        guide: current.guide.id,
+        version: current.guide.version,
+        file: current.guide.file.id,
+        accepted: true,
+      }),
+    );
   } else if (command === "cleanup") {
     for (const id of e.trips) {
       const t = await request(native, `/api/trips/${id}`);

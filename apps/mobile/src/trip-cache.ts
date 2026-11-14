@@ -757,6 +757,7 @@ export async function refreshTripCache(
     if (signal.aborted) read.abort();
     const timeout = setTimeout(abort, 15_000);
     try {
+      current(attempt, read.signal);
       const response = await Promise.race([
         (async () => {
           // A refresh may span many scopes and outlive a short-lived bearer.

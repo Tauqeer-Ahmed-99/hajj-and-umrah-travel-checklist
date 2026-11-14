@@ -7,10 +7,7 @@ import {
   type FileGuideInput,
   type UploadDetails,
 } from "@nmt/contracts";
-import { fetch as fileFetch } from "expo/fetch";
-import { File } from "expo-file-system";
 import { guideRequest } from "./guide-api";
-import { TripError } from "./trip-api";
 export const guideFileApi = {
   begin: (
     tripId: string,
@@ -77,15 +74,14 @@ export const guideFileApi = {
       "POST",
       version ? { version } : {},
     ),
-  put: async (
+  authorize: (
     tripId: string,
     id: string,
     uploadId: string,
-    file: File,
     token: string,
     signal: AbortSignal,
-  ) => {
-    const authorization = await guideRequest(
+  ) =>
+    guideRequest(
       tripId,
       `/${id}/uploads/${uploadId}/authorize`,
       token,
@@ -93,20 +89,5 @@ export const guideFileApi = {
       fileAuthorization,
       "POST",
       {},
-    );
-    // Only the exact signed R2 operation receives file bytes; never the Clerk token.
-    const response = await fileFetch(authorization.url, {
-      method: "PUT",
-      headers: authorization.headers,
-      body: file,
-      signal,
-      redirect: "error",
-      credentials: "omit",
-    });
-    if (!response.ok)
-      throw new TripError(
-        "The file upload did not finish. Reconnect and retry this upload.",
-        response.status,
-      );
-  },
+    ),
 };

@@ -10,23 +10,10 @@ import {
   type UploadDetails,
 } from "@nmt/contracts";
 import { z } from "zod";
-import { fetch as fileFetch } from "expo/fetch";
-import { File } from "expo-file-system";
 import { apiOrigin } from "./api";
 import { travelFetch } from "./trip-cache";
 import { TripError } from "./trip-api";
 import { acceptedTravelChange } from "./accepted-travel-change";
-
-class FileRequestError extends TripError {
-  constructor(
-    message: string,
-    status: number,
-    fields: Record<string, string> | undefined,
-    public code: string | undefined,
-  ) {
-    super(message, status, fields);
-  }
-}
 
 async function request<T>(
   tripId: string,
@@ -53,7 +40,7 @@ async function request<T>(
   );
   if (!response.ok) {
     const error = await response.json().catch(() => null);
-    throw new FileRequestError(
+    throw new TripError(
       error?.error?.message ??
         "Could not confirm this file request. Reconnect and explicitly retry.",
       response.status,
@@ -169,45 +156,19 @@ export const travelFileApi = {
       travelFileResponse,
       body,
     ),
-  put: async (
+  authorize: (
     tripId: string,
     id: string,
     uploadId: string,
-    file: File,
     token: string,
     signal: AbortSignal,
-  ) => {
-    const auth = await request(
+  ) =>
+    request(
       tripId,
       `/${id}/uploads/${uploadId}/authorize`,
       token,
       signal,
       fileAuthorization,
       {},
-    ).catch((error: unknown) => {
-      // This explicit retry may follow an accepted finalize whose response was
-      // lost. Skip rewriting staging and let the same action confirm its receipt.
-      if (
-        error instanceof FileRequestError &&
-        error.status === 409 &&
-        error.code === "upload_ready"
-      )
-        return null;
-      throw error;
-    });
-    if (!auth) return;
-    const response = await fileFetch(auth.url, {
-      method: "PUT",
-      headers: auth.headers,
-      body: file,
-      signal,
-      redirect: "error",
-      credentials: "omit",
-    });
-    if (!response.ok)
-      throw new TripError(
-        "The file upload did not finish. Reconnect and retry the same upload.",
-        response.status,
-      );
-  },
+    ),
 };

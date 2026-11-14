@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { createServer, request } from "node:http";
 import { readFileSync, writeFileSync, appendFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { gunzipSync, brotliDecompressSync, inflateSync } from "node:zlib";
 
 const directory = resolve(".local/review-native");
 const inventory = JSON.parse(
@@ -73,7 +74,16 @@ const server = createServer((incoming, outgoing) => {
         ) {
           writeFileSync(controlPath, "{}");
           // Capture only the accepted receipt identity/version; never tokens/URLs.
-          const result = JSON.parse(bytes);
+          const encoding = response.headers["content-encoding"];
+          const json =
+            encoding === "gzip"
+              ? gunzipSync(bytes)
+              : encoding === "br"
+                ? brotliDecompressSync(bytes)
+                : encoding === "deflate"
+                  ? inflateSync(bytes)
+                  : bytes;
+          const result = JSON.parse(json);
           const record = result.guide ?? result.record;
           evidence({
             path,
