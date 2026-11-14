@@ -1,0 +1,50 @@
+appId: in.nmtsolutions.travel
+---
+# Start on Overview; this fixture has many available items and one missing essential.
+- scrollUntilVisible:
+    element: "Find belongings and responsibilities"
+- tapOn: "Find belongings and responsibilities"
+- assertVisible: "Unresolved essentials: 1"
+- tapOn: "Unresolved essentials: 1"
+- scrollUntilVisible:
+    element: "${OVERVIEW_ESSENTIAL}"
+- assertVisible: ${OVERVIEW_ESSENTIAL}
+- scrollUntilVisible:
+    element: "Show all records"
+    direction: UP
+- tapOn: "Show all records"
+- scrollUntilVisible:
+    element: "My items"
+    direction: UP
+- tapOn: "My items"
+- scrollUntilVisible:
+    element: "${OVERVIEW_MINE}"
+- assertVisible: ${OVERVIEW_MINE}
+- assertNotVisible: ${OVERVIEW_OTHER}
+- scrollUntilVisible:
+    element: "My family"
+    direction: UP
+- tapOn: "My family"
+- scrollUntilVisible:
+    element: "${OVERVIEW_MINE}"
+- assertVisible: ${OVERVIEW_MINE}
+- scrollUntilVisible:
+    element: "Shared with trip"
+    direction: UP
+- tapOn: "Shared with trip"
+- scrollUntilVisible:
+    element: "${OVERVIEW_SHARED}"
+- assertVisible: ${OVERVIEW_SHARED}
+- assertNotVisible: ${OVERVIEW_PRIVATE}
+- stopApp
+- launchApp
+- assertVisible: "Find belongings and responsibilities"
+- scrollUntilVisible:
+    element: "${OVERVIEW_SHARED}"
+- assertVisible: ${OVERVIEW_SHARED}
+- back
+- tapOn:
+    id: tab-checklist
+- stopApp
+- launchApp
+- assertVisible: "Family checklists"

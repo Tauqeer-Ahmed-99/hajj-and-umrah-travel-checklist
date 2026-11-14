@@ -93,6 +93,7 @@ export function AccountScreen() {
 
   const load = useCallback(async () => {
     if (signedOut.current) return;
+    const previousMemberId = restoreCopyProfile(copies)?.id;
     request.current?.abort();
     const controller = new AbortController();
     request.current = controller;
@@ -163,6 +164,8 @@ export function AccountScreen() {
           if (current === generation.current && !controller.signal.aborted)
             acceptedTravelChange();
         } else {
+          if (previousMemberId)
+            void clearTripNavigation(previousMemberId).catch(() => {});
           clearSessionGuideCopies(copies);
           setOfflineProfile(null);
           setShowOffline(false);
@@ -180,6 +183,8 @@ export function AccountScreen() {
         error instanceof AccountError &&
         [401, 403, 404].includes(error.status)
       ) {
+        if (previousMemberId)
+          void clearTripNavigation(previousMemberId).catch(() => {});
         clearSessionGuideCopies(copies);
         setOfflineProfile(null);
         setShowOffline(false);

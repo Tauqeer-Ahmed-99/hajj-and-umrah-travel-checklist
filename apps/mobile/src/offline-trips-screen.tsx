@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { BackHandler } from "react-native";
+import { useAuth } from "@clerk/expo";
 import {
   tripResponse,
   itineraryResponse,
@@ -13,6 +14,9 @@ import {
   bagStatusLabels,
   completionResponse,
   type TravelReferences,
+  overviewResponse,
+  overviewQuery,
+  type OverviewQuery,
 } from "@nmt/contracts";
 import { Action, Copy, Heading, Notice, Screen } from "./ui";
 import { ChecklistChoices, ChecklistSection } from "./checklist-ui";
@@ -24,6 +28,15 @@ import {
   type TripSnapshot,
 } from "./trip-cache";
 import { subscribeTripCache, useTripConnection } from "./trip-cache-state";
+import { CachedOverview } from "./overview-cached";
+import { useGuideCopies } from "./guide-copy-context";
+import { restoreCopyProfile } from "./guide-copies";
+import {
+  restoreTripNavigation,
+  rememberTripNavigation,
+  clearTripNavigation,
+} from "./trip-navigation";
+import { onTripCacheRevoked } from "./trip-cache";
 import { CompletionRead } from "./completion-screen";
 
 type Route = {
@@ -34,10 +47,12 @@ type Route = {
     | "checklist"
     | "packing"
     | "shared"
+    | "overview"
     | "return"
     | "completion";
   familyId?: string;
   leg?: "outbound" | "return";
+  query?: OverviewQuery;
 };
 function Freshness({ record }: { record?: TripSnapshot }) {
   return (
@@ -77,6 +92,59 @@ export function OfflineTripsScreen({
   onRefresh(): void;
 }) {
   const [route, setRoute] = useState<Route | null>(null);
+  const { sessionId } = useAuth();
+  const copies = useGuideCopies();
+  let memberId: string | undefined;
+  try {
+    memberId = restoreCopyProfile(copies)?.id;
+  } catch {
+    /* Account cleanup can invalidate the owner before this reader unmounts. */
+  }
+  useEffect(() => {
+    let active = true;
+    if (memberId && sessionId)
+      void restoreTripNavigation(memberId, sessionId)
+        .then((saved) => {
+          if (
+            !active ||
+            !saved ||
+            !listTripSnapshots().some(
+              (r) => r.path === `/api/trips/${saved.tripId}`,
+            )
+          )
+            return;
+          setRoute({
+            tripId: saved.tripId,
+            screen:
+              saved.view === "completion"
+                ? "completion"
+                : saved.view === "overview-search"
+                  ? "overview"
+                  : saved.familyId && saved.destination === "Checklist"
+                    ? "checklist"
+                    : saved.familyId && saved.destination === "Bags"
+                      ? "packing"
+                      : "trip",
+            familyId: saved.familyId,
+            leg: saved.leg ?? saved.overview?.leg,
+            query: saved.overview
+              ? overviewQuery.parse(saved.overview)
+              : undefined,
+          });
+        })
+        .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [memberId, sessionId]);
+  useEffect(
+    () =>
+      onTripCacheRevoked(() => {
+        setRoute(null);
+        if (memberId) void clearTripNavigation(memberId, true).catch(() => {});
+      }),
+    [memberId],
+  );
   const [, update] = useState(0);
   const [error, setError] = useState("");
   const connection = useTripConnection();
@@ -132,6 +200,13 @@ export function OfflineTripsScreen({
   );
   const shared = sharedRecord
     ? sharedContentResponse.parse(sharedRecord.data)
+    : null;
+  const overviewRecord = records.find(
+    (r) =>
+      r.path === `${path}/overview${route?.leg === "return" ? "/return" : ""}`,
+  );
+  const overview = overviewRecord
+    ? overviewResponse.parse(overviewRecord.data)
     : null;
   const returnRecord = records.find(
     (r) => r.path === `${familyPath}/return-preparation`,
@@ -224,6 +299,13 @@ export function OfflineTripsScreen({
                 <Copy key={index}>{destination}</Copy>
               ))}
               <Action
+                title="Cached overview and belongings"
+                secondary
+                onPress={() =>
+                  setRoute({ ...route, screen: "overview", leg: "outbound" })
+                }
+              />
+              <Action
                 title="Cached completion and archive"
                 secondary
                 onPress={() => setRoute({ ...route, screen: "completion" })}
@@ -277,6 +359,45 @@ export function OfflineTripsScreen({
                 </ChecklistSection>
               ))}
             </>
+          )}
+        </>
+      )}
+      {route?.screen === "overview" && (
+        <>
+          <Heading>Cached overview and belongings</Heading>
+          <Freshness record={overviewRecord} />
+          <Action
+            title={
+              route.leg === "return"
+                ? "Show saved outbound overview"
+                : "Show saved return overview"
+            }
+            secondary
+            onPress={() =>
+              setRoute({
+                ...route,
+                leg: route.leg === "return" ? "outbound" : "return",
+                query: undefined,
+              })
+            }
+          />
+          {overview && (
+            <CachedOverview
+              key={`${route.tripId}:${route.leg ?? "outbound"}`}
+              data={overview}
+              initial={route.query}
+              onRemember={(query) => {
+                if (memberId && sessionId) {
+                  const { q, ...filters } = query;
+                  void rememberTripNavigation(memberId, sessionId, {
+                    tripId: route.tripId,
+                    destination: "Overview",
+                    view: "overview-search",
+                    overview: filters,
+                  }).catch(() => {});
+                }
+              }}
+            />
           )}
         </>
       )}

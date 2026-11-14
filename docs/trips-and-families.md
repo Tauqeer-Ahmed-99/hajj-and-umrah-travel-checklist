@@ -106,12 +106,14 @@ Checklist, Bags, and Guides explicitly say their feature is unavailable in this
 build. They show no invented items, files, totals, packing status, or readiness.
 The overview likewise avoids claiming readiness or automatic phase progress.
 
-Only `{ tripId, destination }` is stored in member-keyed AsyncStorage. Writes and
-logout removal are serialized; no trip names, rosters, profile, or drafts are
+Navigation is extended by [overview and search #17](overview-and-search.md).
+Resource IDs, destination, family/guide/record selection, leg and useful filter/view
+choices are stored in member-and-session-keyed AsyncStorage. Writes and logout
+removal are serialized; no trip names, search text, rosters, profile, or drafts are
 persisted there. Restart restores this navigation hint after profile completion,
 then reauthorizes/refetches over HTTP. An inaccessible saved trip offers Retry or
 Your trips; another account cannot inherit the former account's selection.
-Explicit logout clears the current member's navigation preference as well as
+Observed access changes and explicit logout clear the navigation preference as well as
 unmounting trip state. Appearance remains a device preference.
 
 Creation forms validate before sending, disable repeated taps while saving, and

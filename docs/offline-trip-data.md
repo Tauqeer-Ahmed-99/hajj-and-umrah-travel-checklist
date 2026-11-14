@@ -1,5 +1,12 @@
 # Cached trip data (#15)
 
+[Overview and search #17](overview-and-search.md) adds separate complete outbound
+and return overview snapshots, saved permitted-record search and account/session
+view restoration. Family/shared access loss invalidates combined overviews using
+the same tombstone/generation lifecycle; unrelated authorized snapshots remain.
+Filtered searches and item activity are never persisted. The reader can now open
+the last useful trip/view directly; return to its trip list before older native
+flows that assume an initial list.
 [#20 completion and archive](completion-and-archive.md) adds separately validated
 trip-only completion/lesson metadata and a cached read-only archive view. Its
 mixed-permission arrival review is deliberately excluded from the cache.
