@@ -224,12 +224,11 @@ events. A trip-level Summary route stayed mounted when a family grant was
 withdrawn, retaining private checklist labels and outgoing preview text even
 after reconnect received authoritative family denials.
 
-Summary now removes affected family/record choices and selections, discards a
-preview containing those selections, and advances its request generation before
-handling the event. Earlier pending choices/preview responses cannot restore
-the removed text. Other trips, remaining selections, and previews containing
-only unaffected selections are retained. Refreshing choices remains explicit;
-no share or write is replayed.
+The initial `2c4b27c` handler removed affected family/record choices and previews
+and rejected earlier pending responses. Subsequent independent rechecks found
+that it also discarded selection IDs, treated shared withdrawal as total access
+loss, and missed records first seen only through Summary. The final correction
+below supersedes that initial selection handling. No share or write is replayed.
 
 The regression was executed on the task-owned Android emulator through the real
 development client and Metro, with actual Clerk, Neon and R2 fixtures and the
@@ -242,10 +241,12 @@ signed update or production artifact was published for this follow-up.
   grant while retaining trip membership, and reconnect. Actual traveler/checklist
   HTTP `404`s completed; the assertion failed because the private preview stayed
   visible.
-- Green with the scoped Summary handler: the same reconnect journey removed the
+- Initial green with the scoped Summary handler: the same reconnect journey removed the
   preview after a real family `404`. An independently authorized selected task,
   `Disposable A record`, remained selected and produced a new preview without
   reselection. Its outgoing text excluded the revoked task.
+  That initial result did not enforce the required explicit removal of the
+  unavailable selection; the final correction restores that gate.
 - A separate scoped-refresh check cached the complete overview, previewed only
   the authorized task, then revoked a different shared record while disconnected.
   After the refreshed overview completed, the exact authorized preview remained
@@ -284,3 +285,58 @@ to the hash-verified signed Preview B APK, then shut down. Shared T3 helpers wer
 left untouched. Implementation checkouts were unregistered after clean-tree and
 merged-ancestry checks; Windows denied removal of some generated-file residue,
 which remains in those former checkout directories without ACL/security changes.
+
+## Final Summary access reconciliation
+
+The next Standards/Spec rechecks identified one remaining P1 and two P2 issues.
+Native Android reproduced the P1: cache Overview, create/share a new task, then
+select it only through Summary. After disconnect/unshare/reconnect, the old
+Overview never contained that task and emitted no removal for it; `2c4b27c`
+continued displaying the revoked text. Native Android also reproduced the P2
+where unsharing a selected task discarded a preview still authorized by a
+retained family grant; authenticated HTTP independently confirmed that grant.
+
+Mounted Summary now checks its own current choice metadata on reconnect,
+foreground, scoped cache removals, and every 15 seconds while active. These are
+authenticated GETs, not cached permissions or automatic preview/share requests.
+The API's existing union of family and trip-shared access decides which records
+remain available. A shared-projection withdrawal no longer discards an authorized
+preview before this check. Family-scope denials still clear protected labels and
+affected previews immediately; the fresh union can restore permitted shared
+choices under the generic group label.
+
+Selected IDs and flags survive permission changes. Missing records keep the
+existing unavailable-selection count and disabled Preview action until the user
+explicitly removes them. Unchanged authorized previews retain their text and
+screen identity. A selected family's label change also clears an older preview
+that could expose its former private name. Read generations reject older
+choices/preview/share completions; coalesced checks wait for current work, and
+unmount/session cleanup invalidates them. Transient check failures retain the
+last successful view; later metadata checks retry without replaying writes.
+Manual work completion explicitly wakes any queued check rather than relying on
+render timing. That pending-overlap branch remains among the unrun held-response
+cases; the native journeys below cover mounted-view revocation and scope continuity.
+
+Executed through the actual development client, real providers and external
+loopback network controls:
+
+- **Summary-only revocation: passed red/green.** The new task was created after
+  the last cached Overview. Reconnect issued a fresh Summary GET and removed its
+  revoked choice/preview without relying on a cache-removal event.
+- **Explicit removal: passed.** The unavailable ID remained selected, Preview
+  stayed disabled, and explicit removal preserved the independently authorized
+  selected task and produced its correct new preview.
+- **Retained family grant: passed red/green.** Withdrawing trip sharing preserved
+  the exact selected preview after permission refresh; real HTTP confirmed the
+  same task remained available through family access.
+- **Retained shared access: passed.** After family access was removed, the same
+  task stayed selected through trip sharing. Preparing its next preview required
+  no reselection and exposed only the generic `Shared with trip` label, with the
+  former private family name absent.
+
+The prepared Maestro reconnect journey now includes the explicit-removal step
+and both cache-denial and Summary-only setup variants. Maestro itself, held
+responses, physical-device and signed-follow-up journeys remain unrun. The API
+wire contract, server behavior, dependencies, native configuration and environment
+requirements are unchanged; fixture-helper actions only mutate inventoried
+disposable records through authenticated HTTP.

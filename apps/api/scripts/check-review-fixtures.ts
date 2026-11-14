@@ -326,6 +326,32 @@ if (command === "seed" || command === "resume") {
     );
   } else if (command === "restore-retained") {
     await visibility(owner, e.refs.retained, "trip");
+  } else if (command === "create-summary-only") {
+    e.refs.summaryOnly = await entry(
+      owner,
+      e.refs.otherFamily,
+      "Summary-only shared task",
+    );
+    await visibility(owner, e.refs.summaryOnly, "trip");
+    await record();
+  } else if (command === "revoke-summary-only") {
+    await visibility(owner, e.refs.summaryOnly, "family");
+    const shared = await request(native, `${e.refs.a}/shared`);
+    assert.equal(
+      shared.items.some(
+        (item: any) => item.entry.id === e.refs.summaryOnly.split("/").at(-1),
+      ),
+      false,
+    );
+    const choices = await request(native, `${e.refs.a}/summary`);
+    assert.equal(
+      choices.families.some((family: any) =>
+        family.entries.some(
+          (entry: any) => entry.id === e.refs.summaryOnly.split("/").at(-1),
+        ),
+      ),
+      false,
+    );
   } else if (command === "restore-shared") {
     await visibility(owner, e.refs.shared, "trip");
     await visibility(owner, e.refs.bag, "trip");

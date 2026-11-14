@@ -22,6 +22,8 @@ import { useTripRequest } from "./use-trip-request";
 import { useTheme } from "./theme";
 import { summaryApi } from "./summary-api";
 import { onTripCacheRevoked } from "./trip-cache";
+import { TripError } from "./trip-api";
+import { deviceNetworkAvailable, subscribeTripCache } from "./trip-cache-state";
 
 const blankSelection = (): SummarySelection => ({
   tripDetails: false,
@@ -36,6 +38,29 @@ function toggle<T>(values: T[], value: T): T[] {
     ? values.filter((entry) => entry !== value)
     : [...values, value];
 }
+function unavailableSelectionCount(
+  choices: SummaryChoices,
+  selection: SummarySelection,
+) {
+  return (
+    selection.itineraryEntryIds.filter(
+      (id) => !choices.itineraryEntries.some((entry) => entry.id === id),
+    ).length +
+    selection.checklist.reduce(
+      (count, family) =>
+        count +
+        family.entryIds.filter(
+          (id) =>
+            !choices.families.some(
+              (choice) =>
+                choice.id === family.familyId &&
+                choice.entries.some((entry) => entry.id === id),
+            ),
+        ).length,
+      0,
+    )
+  );
+}
 
 export function SummaryScreen({
   tripId,
@@ -45,6 +70,7 @@ export function SummaryScreen({
   onBack: () => void;
 }) {
   const api = useTripRequest();
+  const accessApi = useTripRequest();
   const { colors } = useTheme();
   const [choices, setChoices] = useState<SummaryChoices | null>(null);
   const [selection, setSelection] = useState(blankSelection);
@@ -55,37 +81,142 @@ export function SummaryScreen({
   const working = useRef(false);
   const alive = useRef(true);
   const generation = useRef(0);
+  const latest = useRef({ choices, selection, preview });
+  latest.current = { choices, selection, preview };
+  const accessRequested = useRef(0);
+  const accessChecked = useRef(0);
+  const accessChecking = useRef(false);
+  const [accessWake, setAccessWake] = useState(0);
   const locked = api.busy || sharing;
+  const awaitingAccess =
+    accessApi.busy || accessRequested.current > accessChecked.current;
+  const finishWork = useCallback(() => {
+    working.current = false;
+    if (alive.current && accessRequested.current > accessChecked.current)
+      setAccessWake((value) => value + 1);
+  }, []);
 
   const load = useCallback(async () => {
-    if (working.current) return;
+    if (
+      working.current ||
+      accessChecking.current ||
+      accessRequested.current > accessChecked.current
+    )
+      return;
     working.current = true;
-    const current = generation.current;
+    const current = ++generation.current;
     setChoices(null);
     setPreview(null);
     setLocalError("");
     const result = await api.run((token, signal) =>
       summaryApi.choices(tripId, token, signal),
     );
-    working.current = false;
+    finishWork();
     if (alive.current && current === generation.current && result) {
       setChoices(result);
       setNotice("");
     }
-  }, [api.run, tripId]);
+  }, [api.run, tripId, finishWork]);
   useEffect(() => {
     void load();
   }, [load]);
+  const requestAccessCheck = useCallback(() => {
+    if (!alive.current) return;
+    // Invalidate older choices, previews and pending share attempts immediately.
+    generation.current++;
+    accessRequested.current++;
+    setAccessWake((value) => value + 1);
+  }, []);
+  useEffect(() => {
+    if (
+      accessChecking.current ||
+      working.current ||
+      api.busy ||
+      sharing ||
+      accessRequested.current === accessChecked.current ||
+      deviceNetworkAvailable() === false ||
+      AppState.currentState !== "active"
+    )
+      return;
+    accessChecked.current = accessRequested.current;
+    accessChecking.current = true;
+    const current = generation.current;
+    void (async () => {
+      try {
+        const result = await accessApi.run(async (token, signal) => {
+          try {
+            // This read checks the union of current family and shared access,
+            // including records first encountered only through Summary.
+            return await summaryApi.choices(tripId, token, signal);
+          } catch (error) {
+            if (
+              alive.current &&
+              current === generation.current &&
+              error instanceof TripError &&
+              [401, 403, 404].includes(error.status)
+            ) {
+              setChoices(null);
+              setPreview(null);
+            }
+            throw error;
+          }
+        });
+        if (
+          !alive.current ||
+          current !== generation.current ||
+          AppState.currentState !== "active" ||
+          !result
+        )
+          return;
+        const content = latest.current;
+        const unavailable = unavailableSelectionCount(
+          result,
+          content.selection,
+        );
+        const familyLabelChanged = content.selection.checklist.some(
+          (family) => {
+            const previous = content.choices?.families.find(
+              (choice) => choice.id === family.familyId,
+            );
+            const next = result.families.find(
+              (choice) => choice.id === family.familyId,
+            );
+            return previous && next && previous.name !== next.name;
+          },
+        );
+        setChoices(result);
+        if (unavailable || familyLabelChanged) {
+          setPreview(null);
+          setNotice(
+            "Current access changed. Protected text was removed. Your selection is kept. Review unavailable selections or prepare a new preview before sharing.",
+          );
+        }
+      } finally {
+        accessChecking.current = false;
+        // A reconnect/removal during a pending request requires another fresh
+        // read. Never replay a preview POST or open Share from this queue.
+        if (alive.current && accessRequested.current > accessChecked.current)
+          setAccessWake((value) => value + 1);
+      }
+    })();
+  }, [accessWake, api.busy, sharing, accessApi.run, tripId]);
   useEffect(
     () =>
       onTripCacheRevoked((removal) => {
         if (removal.tripId !== tripId) return;
-        // A pending choices/preview response may predate this access change,
-        // including scopes whose choices have not arrived yet.
-        generation.current++;
+        if (removal.scope === "trip") {
+          generation.current++;
+          setChoices(null);
+          setPreview(null);
+          return;
+        }
+        requestAccessCheck();
+        // Losing the shared projection does not deny an independent family
+        // grant. Reconcile effective access before discarding protected text.
+        if (removal.scope === "records" && removal.projection === "shared")
+          return;
         const removesFamily = (familyId: string) =>
-          removal.scope === "trip" ||
-          (removal.scope === "family" && removal.familyId === familyId);
+          removal.scope === "family" && removal.familyId === familyId;
         const removesEntry = (entryId: string) =>
           removal.scope === "records" && removal.recordIds.includes(entryId);
         const selected = selection.checklist.some(
@@ -99,7 +230,7 @@ export function SummaryScreen({
             family.entries.some((entry) => removesEntry(entry.id)),
         );
         setChoices((value) =>
-          removal.scope === "trip" || !value
+          !value
             ? null
             : {
                 ...value,
@@ -116,27 +247,15 @@ export function SummaryScreen({
                 }),
               },
         );
-        setSelection((value) =>
-          removal.scope === "trip"
-            ? blankSelection()
-            : {
-                ...value,
-                checklist: value.checklist.flatMap((family) => {
-                  if (removesFamily(family.familyId)) return [];
-                  const entryIds = family.entryIds.filter(
-                    (id) => !removesEntry(id),
-                  );
-                  return entryIds.length ? [{ ...family, entryIds }] : [];
-                }),
-              },
-        );
-        if (removal.scope === "trip" || selected) setPreview(null);
-        if (removal.scope === "trip" || selected || affected || working.current)
+        // IDs are not protected labels. Keep them behind the existing explicit
+        // unavailable-selection removal gate instead of silently reducing a share.
+        if (selected) setPreview(null);
+        if (selected || affected || working.current)
           setNotice(
-            "Access or available records changed. Affected checklist choices and previews were removed. Other selections are kept. Refresh summary choices to check what is currently available.",
+            "Access or available records changed. Protected text was removed. Your selection is kept. Review unavailable selections or refresh summary choices before continuing.",
           );
       }),
-    [choices, selection, tripId],
+    [choices, selection, tripId, requestAccessCheck],
   );
   useEffect(() => {
     alive.current = true;
@@ -145,17 +264,38 @@ export function SummaryScreen({
       // the in-memory draft, including when Android returns from its chooser.
       // The next explicit preview/share always checks current permissions.
       generation.current++;
-      if (state === "active")
+      if (state === "active") {
+        requestAccessCheck();
         setNotice(
-          "Your preview and selection are kept. Current access and contents must be checked online before sharing. Recipient delivery is not confirmed.",
+          "Your selection is kept. Checking current access before sharing. Recipient delivery is not confirmed.",
         );
+      }
     });
+    let available = deviceNetworkAvailable();
+    const reconnect = subscribeTripCache(() => {
+      const next = deviceNetworkAvailable();
+      if (next === available) return;
+      available = next;
+      if (next === true) requestAccessCheck();
+      else generation.current++;
+    });
+    const timer = setInterval(() => {
+      if (
+        !working.current &&
+        !accessChecking.current &&
+        deviceNetworkAvailable() !== false &&
+        AppState.currentState === "active"
+      )
+        requestAccessCheck();
+    }, 15_000);
     return () => {
       alive.current = false;
       generation.current++;
       listener.remove();
+      reconnect();
+      clearInterval(timer);
     };
-  }, []);
+  }, [requestAccessCheck]);
 
   const change = (patch: Partial<SummarySelection>) => {
     if (working.current) return;
@@ -205,7 +345,13 @@ export function SummaryScreen({
   }, [api.error]);
 
   const prepare = async (openShare: boolean) => {
-    if (working.current || !choices || AppState.currentState !== "active")
+    if (
+      working.current ||
+      accessChecking.current ||
+      accessRequested.current > accessChecked.current ||
+      !choices ||
+      AppState.currentState !== "active"
+    )
       return;
     const parsed = summarySelection.safeParse(selection);
     if (!parsed.success) {
@@ -224,11 +370,11 @@ export function SummaryScreen({
       current !== generation.current ||
       AppState.currentState !== "active"
     ) {
-      working.current = false;
+      finishWork();
       return;
     }
     if (!result) {
-      working.current = false;
+      finishWork();
       return;
     }
     if (
@@ -244,7 +390,7 @@ export function SummaryScreen({
             ? "The selected contents changed. Review this updated preview, then tap Share this text again."
             : "The selected contents are now empty. Go back and review your selection.",
         );
-      working.current = false;
+      finishWork();
       return;
     }
     setSharing(true);
@@ -265,28 +411,13 @@ export function SummaryScreen({
           "The share sheet could not be opened or completed. Your preview and selection are kept. Retry when ready.",
         );
     } finally {
-      working.current = false;
+      finishWork();
       if (alive.current) setSharing(false);
     }
   };
 
   const unavailableEntries = choices
-    ? selection.itineraryEntryIds.filter(
-        (id) => !choices.itineraryEntries.some((entry) => entry.id === id),
-      ).length +
-      selection.checklist.reduce(
-        (count, family) =>
-          count +
-          family.entryIds.filter(
-            (id) =>
-              !choices.families.some(
-                (choice) =>
-                  choice.id === family.familyId &&
-                  choice.entries.some((entry) => entry.id === id),
-              ),
-          ).length,
-        0,
-      )
+    ? unavailableSelectionCount(choices, selection)
     : 0;
   const removeUnavailable = () => {
     if (!choices) return;
@@ -347,7 +478,7 @@ export function SummaryScreen({
           </Copy>
           <Action
             title="Refresh summary choices"
-            disabled={locked}
+            disabled={locked || awaitingAccess}
             onPress={() => void load()}
           />
         </>
@@ -387,7 +518,7 @@ export function SummaryScreen({
           </Copy>
           <Action
             title="Share this text"
-            disabled={locked || !preview.text || !choices}
+            disabled={locked || awaitingAccess || !preview.text || !choices}
             onPress={() => void prepare(true)}
           />
         </>
@@ -539,6 +670,7 @@ export function SummaryScreen({
               title="Preview selected text"
               disabled={
                 locked ||
+                awaitingAccess ||
                 unavailableEntries > 0 ||
                 !summarySelection.safeParse(selection).success
               }
@@ -553,7 +685,7 @@ export function SummaryScreen({
             <Action
               title="Refresh summary choices"
               secondary
-              disabled={locked}
+              disabled={locked || awaitingAccess}
               onPress={() => void load()}
             />
             <Action

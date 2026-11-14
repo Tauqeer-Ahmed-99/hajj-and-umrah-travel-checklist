@@ -3,16 +3,22 @@ appId: in.nmtsolutions.travel
 # Prepared Maestro translation of the executed ADB reconnect regression.
 # Maestro itself remains unrun. Use only disposable fixture accounts.
 # Start on a preview containing SUMMARY_PRIVATE_TITLE and SUMMARY_KEPT_TITLE.
-# First cache the private family's checklist. Disconnect without backgrounding,
+# Cache-denial case: first cache the private family's checklist.
+# Summary-only case: use a member without that family's grant, cache Overview
+# BEFORE a new task is shared, and select that task only through Summary.
+# Disconnect without backgrounding,
 # then have its coordinator revoke this account's family grant while retaining
 # trip membership. Confirm that grant removal through authenticated HTTP.
 - assertVisible: "Summary preview"
 - assertVisible: "(?s).*${SUMMARY_PRIVATE_TITLE}.*"
 - setAirplaneMode: disabled
 - extendedWaitUntil:
-    visible: "Access or available records changed.*"
+    visible: "(Access or available records|Current access) changed.*"
     timeout: 45000
 - assertNotVisible: "Summary preview"
+- scrollUntilVisible:
+    element: "Remove unavailable selections"
+- tapOn: "Remove unavailable selections"
 - scrollUntilVisible:
     element: "Preview selected text"
 - tapOn: "Preview selected text"

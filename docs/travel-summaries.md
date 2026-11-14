@@ -26,6 +26,15 @@ Definitive authorization failures clear protected preview/choice text while
 keeping selection IDs. Sign-out/unmount clears this screen's state. No summary
 draft or permission is persisted, and no action is queued offline.
 
+While mounted, Summary rechecks its choice metadata on reconnect, foreground,
+scoped access changes, and every 15 seconds while active. These authenticated
+GETs cover records first seen through Summary and reconcile current family and
+trip-shared access independently. Unavailable selections retain their IDs until
+explicit removal; protected labels and affected previews are cleared. A record
+still authorized through another grant keeps its selection and unchanged
+preview. Background checks never prepare a preview, open sharing or replay a
+write. Older pending completions cannot restore revoked text or open a chooser.
+
 ## API contract and fixed allowlists
 
 Both operations use `/api/trips/:tripId/summary`, the existing active verified
