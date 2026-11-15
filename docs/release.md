@@ -229,6 +229,38 @@ uses B's preview environment and must pass the guard with B's inspected runtime
 before publishing to preview. Actual review-fix updates and native results are
 recorded separately in [review-fixes.md](review-fixes.md).
 
+## Preview C built with the supplied environment
+
+Requested on November 15, 2026. Android EAS build
+[`9acb70ea-6c12-4b4f-a534-c1342041663d`](https://expo.dev/accounts/tauqeerahmed/projects/nmt-travel/builds/9acb70ea-6c12-4b4f-a534-c1342041663d)
+finished from source `2bd1a736d0f29b34315f6ecb33d4293b63dcd331` using the
+internal `preview` profile/channel and versionCode **3**.
+
+- [Actual APK](https://expo.dev/artifacts/eas/a0ZHUBhcwkNC7fUvs3fBhz7-UrNrhceWkrwGFlfZxhY.apk),
+  SHA256 `670790e79926a3764d72dc24484ae2f9f81d439b14d4a68d1f3874e81c1f716e`.
+- Runtime `7030a563186c138a162568b6d3b7683c7e2cce70`, matching EAS's fingerprint;
+  embedded update `234aa8d1-4431-4c3c-bf84-bfd9ede495c6`.
+- Package/label, non-debuggable release signing, existing A/B certificate,
+  preview channel, native update metadata and embedded Hermes passed inspection.
+  All 94,162,069 uncompressed bytes were checked against ten known server-secret
+  values/encodings plus credential patterns; none was found.
+- Mobile types, Expo Doctor **20/20**, native input validation and source archive
+  exclusion of the API `.env` passed.
+
+The supplied file was `apps/api/.env`, containing server configuration. Only its
+public Clerk publishable key was selected for the Android app and synchronized
+to EAS Preview, alongside `https://nmt-travel-api.vercel.app`; the previous EAS API
+origin was unavailable. Existing public Google configuration and the managed
+Firebase Android file were retained. API secrets were not copied to EAS mobile
+variables or the APK. This build did not redeploy the API or apply its `.env` to
+Vercel. Runtime signup/profile/Google/push, physical installation/upgrade and OTA
+journeys for C remain unrun; artifact checks do not close the release gates.
+
+The downloaded APK, inspection report and build/cloud logs are retained under
+the ignored `.local/` directory as `nmt-travel-preview-v3.apk`,
+`preview-v3-inspection.json` and `eas-preview-v3-*`. The runtime is compatible
+with B, but no new preview or production OTA was published for this request.
+
 ## Server recovery evidence
 
 The retained real-provider run `nmt22_91b4436c0a56` created trip
