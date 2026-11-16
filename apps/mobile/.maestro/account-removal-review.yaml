@@ -11,4 +11,4 @@ appId: in.nmtsolutions.travel
 - tapOn: "Cancel"
 - assertVisible: "Leave this form?"
 - tapOn: "Leave form"
-- assertVisible: "Profile saved"
+- assertVisible: "Your account"

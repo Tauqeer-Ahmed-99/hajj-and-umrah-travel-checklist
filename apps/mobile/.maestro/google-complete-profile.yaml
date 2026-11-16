@@ -3,7 +3,7 @@ appId: in.nmtsolutions.travel
 # Run after choosing a NEW Google account in the actual native chooser.
 # Use an account with these known names to verify that prefilling works.
 - extendedWaitUntil:
-    visible: "Let’s get to know you"
+    visible: "What’s your name?"
     timeout: 30000
 - assertVisible:
     id: first-name-input
@@ -14,22 +14,24 @@ appId: in.nmtsolutions.travel
 - assertVisible:
     id: last-name-input
     text: ${MAESTRO_LAST_NAME}
-- scrollUntilVisible:
-    element:
-      id: username-input
+- hideKeyboard
+- tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "Choose your username"
+    timeout: 30000
 - tapOn:
     id: username-input
 - inputText: ${MAESTRO_USERNAME}
 - hideKeyboard
 - scrollUntilVisible:
-    element: "Save profile"
-- tapOn: "Save profile"
+    element: "Start planning"
+- tapOn: "Start planning"
 - extendedWaitUntil:
     visible: "Account"
     timeout: 30000
 - tapOn: "Account"
 - extendedWaitUntil:
-    visible: "Profile saved"
+    visible: "Your account"
     timeout: 30000
 - stopApp
 - launchApp
@@ -38,7 +40,7 @@ appId: in.nmtsolutions.travel
     timeout: 30000
 - tapOn: "Account"
 - extendedWaitUntil:
-    visible: "Profile saved"
+    visible: "Your account"
     timeout: 30000
 - assertVisible: ${MAESTRO_EMAIL}
 - assertVisible: "@${MAESTRO_USERNAME}"

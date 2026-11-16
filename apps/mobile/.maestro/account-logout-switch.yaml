@@ -5,12 +5,12 @@ appId: in.nmtsolutions.travel
     element: "Sign out"
 - tapOn: "Sign out"
 - extendedWaitUntil:
-    visible: "Send email code"
+    visible: "Get started"
     timeout: 30000
 - stopApp
 - launchApp
 - extendedWaitUntil:
-    visible: "Send email code"
+    visible: "Get started"
     timeout: 30000
 - assertNotVisible: "@${ACCOUNT_OLD_USERNAME}"
 # Sign in as B with the existing real email/Google flow. Inspect actual app-only

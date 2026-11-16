@@ -1,0 +1,13 @@
+appId: in.nmtsolutions.travel
+---
+# Start signed out; the welcome screen is replaced by the sign-in choice.
+- runFlow:
+    when:
+      visible: "Get started"
+    commands:
+      - tapOn: "Get started"
+- extendedWaitUntil:
+    visible: "Continue with Google"
+    timeout: 30000
+- assertVisible: "Continue with email"
+- assertNotVisible: "Appearance"

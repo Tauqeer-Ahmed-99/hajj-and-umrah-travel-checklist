@@ -6,7 +6,7 @@ appId: in.nmtsolutions.travel
     timeout: 30000
 - tapOn: "Account"
 - extendedWaitUntil:
-    visible: "Profile saved"
+    visible: "Your account"
     timeout: 30000
 - assertNotVisible:
     id: username-input
@@ -19,6 +19,6 @@ appId: in.nmtsolutions.travel
     timeout: 30000
 - tapOn: "Account"
 - extendedWaitUntil:
-    visible: "Profile saved"
+    visible: "Your account"
     timeout: 30000
 - assertVisible: "@${MAESTRO_USERNAME}"

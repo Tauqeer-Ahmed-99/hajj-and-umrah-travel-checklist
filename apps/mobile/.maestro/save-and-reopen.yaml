@@ -5,9 +5,9 @@ appId: in.nmtsolutions.travel
     id: code-input
 - inputText: ${MAESTRO_EMAIL_CODE}
 - hideKeyboard
-- tapOn: "Verify email"
+- tapOn: "Verify and continue"
 - extendedWaitUntil:
-    visible: "Let’s get to know you"
+    visible: "What’s your name?"
     timeout: 30000
 - tapOn:
     id: first-name-input
@@ -20,22 +20,24 @@ appId: in.nmtsolutions.travel
     id: last-name-input
 - inputText: "Ahmed"
 - hideKeyboard
-- scrollUntilVisible:
-    element:
-      id: username-input
+- hideKeyboard
+- tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "Choose your username"
+    timeout: 30000
 - tapOn:
     id: username-input
 - inputText: ${MAESTRO_USERNAME}
 - hideKeyboard
 - scrollUntilVisible:
-    element: "Save profile"
-- tapOn: "Save profile"
+    element: "Start planning"
+- tapOn: "Start planning"
 - extendedWaitUntil:
     visible: "Your trips"
     timeout: 30000
 - tapOn: "Account"
 - extendedWaitUntil:
-    visible: "Profile saved"
+    visible: "Your account"
     timeout: 30000
 - stopApp
 - launchApp
@@ -44,7 +46,7 @@ appId: in.nmtsolutions.travel
     timeout: 30000
 - tapOn: "Account"
 - extendedWaitUntil:
-    visible: "Profile saved"
+    visible: "Your account"
     timeout: 30000
 - assertVisible: ${MAESTRO_EMAIL}
 - assertVisible: "@${MAESTRO_USERNAME}"
@@ -52,12 +54,12 @@ appId: in.nmtsolutions.travel
     element: "Sign out"
 - tapOn: "Sign out"
 - extendedWaitUntil:
-    visible: "Send email code"
+    visible: "Get started"
     timeout: 30000
 - stopApp
 - launchApp
 - extendedWaitUntil:
-    visible: "Send email code"
+    visible: "Get started"
     timeout: 30000
 - assertNotVisible: ${MAESTRO_EMAIL}
 - assertNotVisible: "@${MAESTRO_USERNAME}"

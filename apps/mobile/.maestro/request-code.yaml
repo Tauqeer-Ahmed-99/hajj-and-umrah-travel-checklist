@@ -1,12 +1,13 @@
 appId: in.nmtsolutions.travel
 ---
 - launchApp
-- assertVisible: "Send email code"
+- runFlow: _open-signin.yaml
+- tapOn: "Continue with email"
 - tapOn:
     id: email-input
 - inputText: ${MAESTRO_EMAIL}
 - hideKeyboard
-- tapOn: "Send email code"
+- tapOn: "Continue"
 - extendedWaitUntil:
-    visible: "Verify email"
+    visible: "Verify and continue"
     timeout: 30000
