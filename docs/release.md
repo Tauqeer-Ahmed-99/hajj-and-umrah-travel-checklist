@@ -388,8 +388,8 @@ Verified in this repair:
   build, mobile types after the layout changes, formatting and diff checks.
 - [Final code CI](https://github.com/Tauqeer-Ahmed-99/hajj-and-umrah-travel-checklist/actions/runs/43891126998)
   passed; Expo Doctor **20/20**; Android JavaScript export passed with bytecode
-  disabled, and a new x86_64 debug native build passed. This is not a cloud
-  Hermes/signing acceptance claim.
+  disabled, and a new x86_64 debug native build passed. The subsequent signed
+  EAS artifact and limited standalone checks are recorded below.
 - Android development client with real Clerk and the supplied Neon database:
   email-code verification, profile save, restart, Light persistence, Dark/System
   selection, trip navigation and Arabic text rendering. The initial hosted API
@@ -412,9 +412,34 @@ Vercel MFA. The default API therefore must not be reported as repaired yet.
 
 Final signed Preview v4 request (versionCode **4**):
 [EAS build 64872742](https://expo.dev/accounts/tauqeerahmed/projects/nmt-travel/builds/64872742-dd81-4284-97ca-602b46b8625c).
-It is **queued**, with no APK/hash/signature/runtime or install result available
-yet. Earlier queued requests `840792fb` and `26f051fe` were canceled before final
-source submission. Reanimated/worklets/SVG introduce native changes: require the
-new signed binary and inspect its new runtime; do not send this code to v3's
-`7030a563186c138a162568b6d3b7683c7e2cce70` runtime. No production OTA, public
-binary release, PR or issue closure is claimed.
+It **finished** on November 16 at 15:54:33 UTC. Download the
+[signed Preview v4 APK](https://expo.dev/artifacts/eas/oqpcc4u4TDd2X3qIY7euJUTD2hLVW3kTXX5aUlYagWA.apk).
+
+- APK SHA256: `fd9f8a37546591c48260b56075cc7950558b56280bb1a0ca62f88fa690bf9571`.
+- Runtime: `3718241b65b2fa9afda0349f3f68f71668407791`.
+- Embedded update: `d79e3fbd-2fc5-4b48-a2bf-1cb8dfd2957b`.
+- APK size: **112,419,969 bytes**. Actual artifact inspection passed the original
+  release certificate/SHA-1, package, versionCode, preview channel, native update
+  configuration, permissions, and Hermes checks. All **116,266,435** uncompressed
+  bytes were scanned against **10** supplied server-secret values and credential
+  patterns, with no matches. Expected public API/Clerk values are present.
+- On the owned emulator, a fresh signed v3 baseline was primed with Dark
+  appearance and a pending email sign-in. Installing v4 using `adb install -r`
+  succeeded with the same package UID. The standalone embedded v4 UI loaded
+  without Metro, retained Dark, and omitted appearance controls on auth.
+- Google native UI launched and canceled cleanly. Email-code verification then
+  reached the account gate; Clerk independently confirmed a verified email and
+  active native session in the selected NMT Travel instance. The synthetic test
+  identity was deleted after checking it. Actual Google identity login and real
+  mailbox delivery remain unverified.
+- The signed app's valid session still receives **503** from the public API.
+  The fresh secure Vercel MFA request timed out, so activating the database
+  setting and hosted profile completion remain **blocked**. No successful hosted
+  login/profile or physical-device acceptance is claimed.
+
+Earlier queued requests `840792fb` and `26f051fe` were canceled before final
+source submission. The new native runtime differs from v3's
+`7030a563186c138a162568b6d3b7683c7e2cce70`; no incompatible OTA was published.
+The signed upgrade check covers appearance and recovery from a pending sign-in,
+not preservation of signed-in trip/packing/offline-file data. No production OTA,
+public binary release, PR or issue closure is claimed.
