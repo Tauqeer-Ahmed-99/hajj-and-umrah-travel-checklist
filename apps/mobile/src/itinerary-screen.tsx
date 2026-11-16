@@ -1,3 +1,4 @@
+import { useScreenBackEffect } from "./screen-back";
 import { Text } from "./typography";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { AppState, BackHandler, StyleSheet, View } from "react-native";
@@ -158,7 +159,7 @@ export function ItineraryScreen({
     });
     return () => listener.remove();
   }, [load, editor]);
-  useEffect(() => {
+  useScreenBackEffect(() => {
     if (editor) return; // The active form owns its unsaved-change confirmation.
     const listener = BackHandler.addEventListener("hardwareBackPress", () => {
       onBack();
@@ -218,7 +219,7 @@ export function ItineraryScreen({
           <Action
             title="Retry loading itinerary"
             busy={api.busy}
-            onPress={() => void load()}
+            onPress={() => load()}
           />
         </>
       )}
@@ -351,7 +352,7 @@ export function ItineraryScreen({
             title="Refresh itinerary"
             secondary
             busy={api.busy}
-            onPress={() => void load()}
+            onPress={() => load()}
           />
           <Copy muted>
             Travel details require a connection in this build. Refresh to check

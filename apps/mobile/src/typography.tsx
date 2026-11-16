@@ -7,12 +7,12 @@ export function Text({ style, ...props }: TextProps) {
   const weight = Number(resolved?.fontWeight ?? 400);
   const face =
     weight >= 700
-      ? "Geist_700Bold"
+      ? "Urbanist_700Bold"
       : weight >= 600
-        ? "Geist_600SemiBold"
+        ? "Urbanist_600SemiBold"
         : weight >= 500
-          ? "Geist_500Medium"
-          : "Geist_400Regular";
+          ? "Urbanist_500Medium"
+          : "Urbanist_400Regular";
   return (
     <NativeText
       {...props}

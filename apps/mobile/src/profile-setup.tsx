@@ -284,8 +284,7 @@ export function ProfileRecovery({
           </>
         ) : (
           <>
-            <Loading message="Opening your account…" />
-            <AuthBody centered>Getting everything ready for you.</AuthBody>
+            <Loading kind="profile" message="Opening your account" />
           </>
         )}
       </View>

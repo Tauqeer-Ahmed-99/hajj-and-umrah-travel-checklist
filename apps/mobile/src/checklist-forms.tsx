@@ -1,3 +1,5 @@
+import { DateField } from "./date-field";
+import { useScreenBackEffect } from "./screen-back";
 import { useEffect, useState } from "react";
 import { Alert, BackHandler } from "react-native";
 import { randomUUID } from "expo-crypto";
@@ -93,7 +95,7 @@ export function useSave<T>(
       ],
     );
   };
-  useEffect(() => {
+  useScreenBackEffect(() => {
     const listener = BackHandler.addEventListener("hardwareBackPress", () => {
       cancel();
       return true;
@@ -471,14 +473,13 @@ export function ChecklistEntryForm(
       />
       {details && (
         <>
-          <Field
-            label="Due date (YYYY-MM-DD)"
-            hint="Optional calendar date; no reminder is scheduled."
+          <DateField
+            label="Due date"
             value={value.dueDate ?? ""}
             onChangeText={(next) => update("dueDate", next || null)}
             editable={!save.locked}
             error={save.fields.dueDate}
-            autoCapitalize="none"
+            optional
           />
           <Field
             label="Notes"
@@ -497,13 +498,13 @@ export function ChecklistEntryForm(
             error={save.fields.source}
             maxLength={800}
           />
-          <Field
-            label="Last reviewed (YYYY-MM-DD)"
+          <DateField
+            label="Last reviewed"
             value={value.lastReviewedOn ?? ""}
             onChangeText={(next) => update("lastReviewedOn", next || null)}
             editable={!save.locked}
             error={save.fields.lastReviewedOn}
-            autoCapitalize="none"
+            optional
           />
         </>
       )}

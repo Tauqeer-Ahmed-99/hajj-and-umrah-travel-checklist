@@ -1,3 +1,5 @@
+import { DateTimeField } from "./date-field";
+import { useScreenBackEffect } from "./screen-back";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, AppState, BackHandler, Linking } from "react-native";
 import { useSessionAuth } from "./session-auth";
@@ -85,7 +87,7 @@ export function RemindersScreen({
     });
     return () => listener.remove();
   }, [load, form, deviceBusy]);
-  useEffect(() => {
+  useScreenBackEffect(() => {
     if (form) return;
     const listener = BackHandler.addEventListener("hardwareBackPress", () => {
       if (!api.busy) onBack();
@@ -237,7 +239,7 @@ export function RemindersScreen({
                       secondary
                       disabled={api.busy || deviceBusy}
                       onPress={() =>
-                        void change(r.id, { reviewedVersion: r.version })
+                        change(r.id, { reviewedVersion: r.version })
                       }
                     />
                   )}
@@ -247,7 +249,7 @@ export function RemindersScreen({
                       title={`Dismiss ${r.title}`}
                       secondary
                       disabled={api.busy || deviceBusy}
-                      onPress={() => void change(r.id, { dismissed: true })}
+                      onPress={() => change(r.id, { dismissed: true })}
                     />
                   )}
                 </>
@@ -272,26 +274,26 @@ export function RemindersScreen({
                 title={`${label}: ${data.preferences[key] ? "On" : "Off"}`}
                 secondary
                 disabled={api.busy || deviceBusy}
-                onPress={() => void preference(key)}
+                onPress={() => preference(key)}
               />
             ))}
             <Action
               title="Enable notifications on this device"
               busy={deviceBusy}
               disabled={api.busy}
-              onPress={() => void refreshDevice(true)}
+              onPress={() => refreshDevice(true)}
             />
             <Action
               title="Android notification settings"
               secondary
-              onPress={() => void Linking.openSettings()}
+              onPress={() => Linking.openSettings()}
             />
             <Action
               title="Refresh notifications"
               secondary
               busy={deviceBusy}
               disabled={api.busy}
-              onPress={() => void refreshDevice()}
+              onPress={() => refreshDevice()}
             />
             {data.uncertainDelivery && (
               <Notice>
@@ -308,7 +310,7 @@ export function RemindersScreen({
         secondary
         busy={api.busy}
         disabled={deviceBusy}
-        onPress={() => void load()}
+        onPress={() => load()}
       />
     </Screen>
   );
@@ -398,7 +400,7 @@ function ReminderForm({
         ],
       );
   }, [api.busy, uncertain, onCancel]);
-  useEffect(() => {
+  useScreenBackEffect(() => {
     const listener = BackHandler.addEventListener("hardwareBackPress", () => {
       cancel();
       return true;
@@ -538,15 +540,14 @@ function ReminderForm({
           )}
         </>
       )}
-      <Field
-        label="Reminder date and time with UTC offset"
+      <DateTimeField
+        label="Reminder date and time"
         testID="reminder-time"
-        hint="For example 2026-11-20T09:00:00+03:00. Use the offset for the named zone on that date."
         value={dateTime}
         onChangeText={setDateTime}
-        autoCapitalize="none"
         editable={!locked}
         error={validation.dueAt ?? api.error?.fields?.dueAt}
+        timeZone={timeZone}
       />
       <Field
         label="Named time zone"
@@ -570,7 +571,7 @@ function ReminderForm({
         title={uncertain ? "Retry same reminder save" : "Save reminder"}
         busy={api.busy}
         disabled={references.busy}
-        onPress={() => void save()}
+        onPress={() => save()}
       />
       <Action title="Cancel" secondary disabled={api.busy} onPress={cancel} />
     </Screen>

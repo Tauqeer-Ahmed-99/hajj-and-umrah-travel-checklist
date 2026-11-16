@@ -12,10 +12,17 @@ let connection: Connection = {
 };
 const listeners = new Set<() => void>();
 let networkAvailable: boolean | null = null;
+export function transportHint(state: {
+  isConnected?: boolean;
+  isInternetReachable?: boolean;
+}): boolean | null {
+  return typeof state.isConnected === "boolean" ? state.isConnected : null;
+}
 export function deviceNetworkAvailable() {
   return networkAvailable;
 }
 export function setDeviceNetworkAvailable(value: boolean) {
+  if (networkAvailable === value) return;
   networkAvailable = value;
   if (!value)
     setConnection({
@@ -24,13 +31,19 @@ export function setDeviceNetworkAvailable(value: boolean) {
       message:
         "Offline · trip data is read only. Open cached trips or saved guides. Reconnect to refresh access and resume editing.",
     });
-  else
+  else if (connection.status !== "online")
     setConnection({
       status: "checking",
       refreshing: false,
       message:
         "Connection restored. Checking current access before enabling changes…",
     });
+}
+// An HTTP reply is stronger evidence than an Android connectivity hint. It
+// proves transport availability, never trip/family authorization.
+export function serviceReachable() {
+  networkAvailable = true;
+  setConnection({ ...connection, status: "online", message: "" });
 }
 export function subscribeTripCache(listener: () => void) {
   listeners.add(listener);
@@ -45,6 +58,12 @@ export function connectionState() {
   return connection;
 }
 export function setConnection(value: Connection) {
+  if (
+    connection.status === value.status &&
+    connection.refreshing === value.refreshing &&
+    connection.message === value.message
+  )
+    return;
   connection = value;
   tripCacheChanged();
 }

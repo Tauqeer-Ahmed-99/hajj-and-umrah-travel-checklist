@@ -1,3 +1,4 @@
+import { useScreenBackEffect } from "./screen-back";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AppState,
@@ -99,7 +100,7 @@ export function GuideFileViewer({
     },
     [travelFile, tripId, id],
   );
-  useEffect(() => {
+  useScreenBackEffect(() => {
     const listener = AppState.addEventListener("change", (state) => {
       if (state !== "active" && !savedCopy) {
         current.current?.abort();
@@ -339,10 +340,9 @@ export function GuideFileViewer({
           This file could not be rendered. Close it and retry Open.
         </Notice>
       )}
-      {!view && !api.error && <Loading message="Opening file…" />}
+      {!view && !api.error && <Loading kind="reader" message="Opening file…" />}
       {view && !renderError && (
         <>
-          {!loaded && <Loading message="Rendering file…" />}
           {loaded && (
             <Copy>
               {view.type === "application/pdf"
@@ -376,11 +376,31 @@ export function GuideFileViewer({
               travelFile ? "In-app travel file viewer" : "In-app guide viewer"
             }
           >
+            {!loaded && (
+              <View
+                pointerEvents="none"
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  overflow: "hidden",
+                }}
+              >
+                <Loading kind="reader" message="Rendering file" />
+              </View>
+            )}
             {view.type === "application/pdf" ? (
               <Pdf
                 source={{ uri: view.uri, cache: false }}
                 trustAllCerts={false}
-                style={{ flex: 1, backgroundColor: colors.surface }}
+                renderActivityIndicator={() => <View />}
+                style={{
+                  flex: 1,
+                  opacity: loaded ? 1 : 0,
+                  backgroundColor: colors.surface,
+                }}
                 onLoadComplete={(total) => {
                   setLoaded(true);
                   setPage({ current: 1, total });
@@ -390,7 +410,10 @@ export function GuideFileViewer({
                 onPressLink={() => {}}
               />
             ) : (
-              <ScrollView nestedScrollEnabled>
+              <ScrollView
+                nestedScrollEnabled
+                style={{ opacity: loaded ? 1 : 0 }}
+              >
                 <ScrollView horizontal nestedScrollEnabled>
                   <Image
                     source={{ uri: view.uri }}

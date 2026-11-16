@@ -1,3 +1,5 @@
+import { DateField } from "./date-field";
+import { useScreenBackEffect } from "./screen-back";
 import { Text } from "./typography";
 import { useEffect, useState } from "react";
 import { Alert, BackHandler, Pressable, StyleSheet, View } from "react-native";
@@ -7,6 +9,7 @@ import { Action, Copy, Field, Heading, Notice, Screen } from "./ui";
 import { useTheme } from "./theme";
 import { tripApi } from "./trip-api";
 import { useTripRequest } from "./use-trip-request";
+import { acceptedTravelChange } from "./accepted-travel-change";
 
 type Validator<T> = {
   safeParse: (value: unknown) =>
@@ -48,7 +51,10 @@ function useCreate<T, R>(
     const result = await api.run((token, signal) =>
       create(parsed.data, token, signal),
     );
-    if (result) onSaved(result);
+    if (result) {
+      acceptedTravelChange();
+      onSaved(result);
+    }
   };
   return {
     busy: api.busy,
@@ -77,7 +83,7 @@ function useDiscard(onCancel: () => void, busy: boolean, uncertain: boolean) {
       ],
     );
   };
-  useEffect(() => {
+  useScreenBackEffect(() => {
     const listener = BackHandler.addEventListener("hardwareBackPress", () => {
       cancel();
       return true;
@@ -123,7 +129,6 @@ function SaveActions({
         secondary
         onPress={onCancel}
       />
-      <Copy muted>Changes need a connection. Nothing is queued for later.</Copy>
     </>
   );
 }
@@ -150,10 +155,7 @@ export function TripForm({
   return (
     <Screen>
       <Heading>Create a private trip</Heading>
-      <Copy>
-        You’ll organize this trip and coordinate its first family group. Other
-        families stay private unless they grant you access.
-      </Copy>
+      <Copy>A private space for your journey and family.</Copy>
       <Field
         label="Trip name"
         testID="trip-name-input"
@@ -192,29 +194,22 @@ export function TripForm({
           </Pressable>
         ))}
       </View>
-      <Field
+      <DateField
         label="Departure date"
         testID="trip-start-input"
         value={startDate}
         onChangeText={setStartDate}
-        hint="YYYY-MM-DD, for example 2026-11-20"
-        autoCapitalize="none"
-        autoCorrect={false}
-        maxLength={10}
         editable={!save.locked}
         error={save.fields.startDate}
       />
-      <Field
+      <DateField
         label="Return date"
         testID="trip-end-input"
         value={endDate}
         onChangeText={setEndDate}
-        hint="YYYY-MM-DD"
-        autoCapitalize="none"
-        autoCorrect={false}
-        maxLength={10}
         editable={!save.locked}
         error={save.fields.endDate}
+        minimumDate={startDate || undefined}
       />
       <Field
         label="Destinations"
@@ -233,7 +228,7 @@ export function TripForm({
         testID="trip-family-input"
         value={familyName}
         onChangeText={setFamilyName}
-        hint="For example, Ahmed family. You can add more family groups later."
+        placeholder="e.g. Ahmed family"
         maxLength={120}
         editable={!save.locked}
         error={save.fields.familyName}
@@ -368,12 +363,12 @@ export function TravelerForm({
 const styles = StyleSheet.create({
   choices: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
   choice: {
-    minHeight: 56,
+    minHeight: 48,
     paddingHorizontal: 24,
     paddingVertical: 14,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 24,
   },
-  choiceText: { fontSize: 18, lineHeight: 26, fontWeight: "600" },
+  choiceText: { fontSize: 14, lineHeight: 21, fontWeight: "600" },
   multiline: { minHeight: 112, textAlignVertical: "top" },
 });

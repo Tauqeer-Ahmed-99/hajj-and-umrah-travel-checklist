@@ -1,3 +1,4 @@
+import { useScreenBackEffect } from "./screen-back";
 import { useEffect, useRef, useState } from "react";
 import { Alert, BackHandler } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
@@ -12,7 +13,7 @@ import {
   type FileGuideInput,
   type UploadDetails,
 } from "@nmt/contracts";
-import { Action, Copy, Field, Heading, Notice, Screen } from "./ui";
+import { Action, Copy, Field, Heading, Loading, Notice, Screen } from "./ui";
 import { GuideChoices, GuideSection } from "./guide-ui";
 import { guideFileApi } from "./guide-file-api";
 import { useTripRequest } from "./use-trip-request";
@@ -94,7 +95,7 @@ export function GuideFileForm({
       ],
     );
   };
-  useEffect(() => {
+  useScreenBackEffect(() => {
     const back = BackHandler.addEventListener("hardwareBackPress", () => {
       cancel();
       return true;
@@ -121,7 +122,10 @@ export function GuideFileForm({
       setValidation("The file could not be selected. Choose it again.");
     }
   };
+  const [operation, setOperation] = useState<"upload" | "finish" | null>(null);
   const finish = async (selected: { id: string; upload: GuideUpload }) => {
+    if (api.busy) return;
+    setOperation("finish");
     const result = await api.run((_, signal) =>
       completeFileUpload(transfer, {
         session: selected,
@@ -131,6 +135,7 @@ export function GuideFileForm({
         phase: setPhase,
       }),
     );
+    setOperation(null);
     if (result) onSaved(result.guide);
   };
   const upload = async () => {
@@ -182,6 +187,8 @@ export function GuideFileForm({
     setBody(parsed.data);
     setValidation("");
     const file = picked.current;
+    if (api.busy) return;
+    setOperation("upload");
     const result = await api.run((_, signal) =>
       completeFileUpload(
         {
@@ -217,6 +224,7 @@ export function GuideFileForm({
         },
       ),
     );
+    setOperation(null);
     if (result) onSaved(result.guide);
   };
   return (
@@ -284,7 +292,7 @@ export function GuideFileForm({
             title={`Finish uploaded ${item.fileName}`}
             secondary
             disabled={api.busy}
-            onPress={() => void finish({ id: initial!.id, upload: item })}
+            onPress={() => finish({ id: initial!.id, upload: item })}
           />
           <Action
             requiresConnection
@@ -293,7 +301,7 @@ export function GuideFileForm({
             disabled={api.busy || body !== null}
             onPress={() => {
               setSession({ id: initial!.id, upload: item });
-              void choose();
+              return choose();
             }}
           />
         </GuideSection>
@@ -309,24 +317,31 @@ export function GuideFileForm({
         title={asset ? "Choose file again" : "Choose file"}
         secondary
         disabled={api.busy}
-        onPress={() => void choose()}
+        onPress={() => choose()}
       />
       {!!validation && <Notice error>{validation}</Notice>}
       {api.error && <Notice error>{api.error.message}</Notice>}
-      {api.busy && <Notice>{phase || "Checking incomplete uploads…"}</Notice>}
+      {api.busy && (
+        <Loading
+          kind="inline"
+          message={phase || "Checking incomplete uploads"}
+        />
+      )}
       <Action
         requiresConnection
         title={body ? "Retry same upload" : "Upload and finish"}
-        busy={api.busy}
-        onPress={() => void upload()}
+        busy={api.busy && operation === "upload"}
+        disabled={api.busy && operation !== "upload"}
+        onPress={() => upload()}
       />
       {session && (
         <Action
           requiresConnection
           title="Finish uploaded file"
           secondary
-          disabled={api.busy}
-          onPress={() => void finish(session)}
+          busy={api.busy && operation === "finish"}
+          disabled={api.busy && operation !== "finish"}
+          onPress={() => finish(session)}
         />
       )}
       {guideId && body && (

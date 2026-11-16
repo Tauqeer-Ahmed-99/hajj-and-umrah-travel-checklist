@@ -199,7 +199,7 @@ export function InvitationForm({
               : "Create invitation"
         }
         busy={api.busy}
-        onPress={() => void save()}
+        onPress={() => save()}
       />
       <Action
         title={uncertain ? "Check invitations" : "Cancel invitation"}

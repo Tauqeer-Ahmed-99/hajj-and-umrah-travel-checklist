@@ -1,3 +1,4 @@
+import { useScreenBackEffect } from "./screen-back";
 import { useCallback, useEffect, useState } from "react";
 import { AppState, BackHandler } from "react-native";
 import {
@@ -118,7 +119,7 @@ export function SharedScreen({
     });
     return () => listener.remove();
   }, [load, editor]);
-  useEffect(() => {
+  useScreenBackEffect(() => {
     if (editor) return;
     const listener = BackHandler.addEventListener("hardwareBackPress", () => {
       onBack();
@@ -502,7 +503,7 @@ export function SharedScreen({
         title="Refresh shared content"
         secondary
         busy={api.busy}
-        onPress={() => void load()}
+        onPress={() => load()}
       />
     </Screen>
   );

@@ -82,7 +82,7 @@ export function GuideCopyProvider({
   if (!session)
     return (
       <Screen>
-        <Loading message="Preparing private guide storage…" />
+        <Loading kind="screen" message="Preparing private guide storage…" />
       </Screen>
     );
   return <Context.Provider value={session}>{children}</Context.Provider>;

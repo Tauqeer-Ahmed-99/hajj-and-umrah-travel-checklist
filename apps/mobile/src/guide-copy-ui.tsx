@@ -1,3 +1,4 @@
+import { useScreenBackEffect } from "./screen-back";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BackHandler, Pressable, View } from "react-native";
 import type { Guide, GuideRecord } from "@nmt/contracts";
@@ -25,11 +26,32 @@ import { TripError } from "./trip-api";
 export const copySize = (bytes: number) =>
   `${bytes.toLocaleString()} bytes (${(bytes / 1_000_000).toFixed(2)} MB)`;
 function Progress({ value }: { value: CopyProgress | null }) {
-  return value ? (
-    <Notice>
-      {value.phase} · {copySize(value.bytes)} of {copySize(value.total)}
-    </Notice>
-  ) : null;
+  const { colors } = useTheme();
+  if (!value) return null;
+  return value.total > 0 ? (
+    <View
+      accessibilityRole="progressbar"
+      accessibilityLabel={value.phase}
+      accessibilityValue={{ min: 0, max: value.total, now: value.bytes }}
+      style={{
+        height: 5,
+        borderRadius: 3,
+        backgroundColor: colors.border,
+        overflow: "hidden",
+      }}
+    >
+      <View
+        style={{
+          height: "100%",
+          width: `${Math.max(0, Math.min(100, (value.bytes / value.total) * 100))}%`,
+          backgroundColor: colors.action,
+          borderRadius: 3,
+        }}
+      />
+    </View>
+  ) : (
+    <Loading kind="inline" message={value.phase} />
+  );
 }
 function useCopies(tripId?: string) {
   const session = useGuideCopies(),
@@ -78,6 +100,7 @@ export function GuideCopyActions({
   const copy = copies.find((c) => c.guide.id === guide.id);
   const [progress, setProgress] = useState<CopyProgress | null>(null),
     [result, setResult] = useState("");
+  const [operation, setOperation] = useState<"save" | "export" | null>(null);
   const controller = useRef<AbortController | null>(null);
   useEffect(() => () => controller.current?.abort(), []);
   if (guide.kind === "link" || (guide.kind === "file" && !guide.file))
@@ -87,6 +110,7 @@ export function GuideCopyActions({
   async function run(action: "save" | "export") {
     if (api.busy || controller.current) return;
     setProgress(null);
+    setOperation(action);
     setResult("");
     const current = new AbortController();
     controller.current = current;
@@ -133,6 +157,7 @@ export function GuideCopyActions({
       );
     else setProgress(null);
     controller.current = null;
+    setOperation(null);
   }
   return (
     <GuideSection>
@@ -165,14 +190,16 @@ export function GuideCopyActions({
       <Action
         title={copy ? "Replace saved copy" : "Save offline in app"}
         secondary
-        busy={api.busy}
-        onPress={() => void run("save")}
+        busy={api.busy && operation === "save"}
+        disabled={api.busy && operation !== "save"}
+        onPress={() => run("save")}
       />
       <Action
         title="Download to device"
         secondary
-        disabled={api.busy}
-        onPress={() => void run("export")}
+        busy={api.busy && operation === "export"}
+        disabled={api.busy && operation !== "export"}
+        onPress={() => run("export")}
       />
       {api.busy && (
         <Action
@@ -225,7 +252,7 @@ export function OfflineGuidesScreen({
       };
     }
   }, [session, tripId, initialId]);
-  useEffect(() => {
+  useScreenBackEffect(() => {
     const back = BackHandler.addEventListener("hardwareBackPress", () => {
       if (selected) setSelected(null);
       else onBack();
@@ -296,7 +323,7 @@ export function OfflineGuidesScreen({
         secondary
         busy={api.busy}
         onPress={() =>
-          void api.run(async (token, signal) => {
+          api.run(async (token, signal) => {
             const failed = await refreshSavedGuideAccess(
               session,
               token,
@@ -335,7 +362,7 @@ export function OfflineGuidesScreen({
           )}
           <Action
             title={`Open saved ${copy.guide.title}`}
-            onPress={() => void open(copy)}
+            onPress={() => open(copy)}
           />
           <Action
             title={`Remove saved ${copy.guide.title}`}
@@ -380,7 +407,7 @@ export function PrepareGuidesScreen({
   useEffect(() => {
     void load();
   }, [load]);
-  useEffect(() => {
+  useScreenBackEffect(() => {
     const back = BackHandler.addEventListener("hardwareBackPress", () => {
       controller.current?.abort();
       onBack();
@@ -512,7 +539,7 @@ export function PrepareGuidesScreen({
         title={`Save selected guides (${selected.size})`}
         disabled={!selected.size}
         busy={api.busy}
-        onPress={() => void prepare()}
+        onPress={() => prepare()}
       />
       {api.busy && (
         <Action

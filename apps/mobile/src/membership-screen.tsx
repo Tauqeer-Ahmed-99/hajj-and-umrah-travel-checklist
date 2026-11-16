@@ -270,7 +270,7 @@ export function MembershipScreen({
                 disabled={pending || !canManage}
                 busy={api.busy}
                 onPress={() =>
-                  void perform({
+                  perform({
                     path: `${memberPath}/${editing.id}`,
                     method: "PUT",
                     body: { role },
@@ -376,7 +376,7 @@ export function MembershipScreen({
                               title={`Approve trip admission for ${i.recipient}`}
                               disabled={pending || api.busy}
                               onPress={() =>
-                                void perform(
+                                perform(
                                   {
                                     path: `/trips/${tripId}/invitations/${i.id}/approve`,
                                     method: "POST",
@@ -396,7 +396,7 @@ export function MembershipScreen({
                               title={`Approve family access for ${i.recipient}`}
                               disabled={pending || api.busy}
                               onPress={() =>
-                                void perform(
+                                perform(
                                   {
                                     path: `/trips/${tripId}/invitations/${i.id}/approve`,
                                     method: "POST",
@@ -448,7 +448,7 @@ export function MembershipScreen({
         title="Refresh members and permissions"
         secondary
         busy={api.busy}
-        onPress={() => void load()}
+        onPress={() => load()}
       />
       <Copy muted>Changes need a connection. Nothing is queued for later.</Copy>
     </Screen>

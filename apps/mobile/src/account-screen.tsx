@@ -1,3 +1,4 @@
+import { useScreenBackEffect } from "./screen-back";
 import { Text } from "./typography";
 import { BookOpen, Download } from "lucide-react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -16,13 +17,16 @@ import {
   AppearancePicker,
   Copy,
   Heading,
+  Loading,
   Notice,
   Screen,
   Shortcut,
   Shortcuts,
 } from "./ui";
 import { useTheme } from "./theme";
-import { TripsScreen } from "./trips-screen";
+import { TravelWorkspace } from "./workspace";
+import { ListRow, PageHeader, Surface } from "./design-system";
+import { LogOut, RefreshCw, ShieldAlert } from "lucide-react-native";
 import { useNotificationSession } from "./notification-session";
 import { clearNotifications } from "./native-notifications";
 import { useGuideCopies } from "./guide-copy-context";
@@ -39,8 +43,10 @@ import { OfflineTripsScreen } from "./offline-trips-screen";
 import { refreshTripCache } from "./trip-cache";
 import {
   connectionState,
+  deviceNetworkAvailable,
   setConnection,
   setDeviceNetworkAvailable,
+  transportHint,
   useTripConnection,
 } from "./trip-cache-state";
 import { acceptedTravelChange } from "./accepted-travel-change";
@@ -78,7 +84,6 @@ export function AccountScreen() {
     username: "",
   });
   const [saveUncertain, setSaveUncertain] = useState(false);
-  const [showAccount, setShowAccount] = useState(false);
   const [showOffline, setShowOffline] = useState(false);
   const [showCached, setShowCached] = useState(false);
   const [showRemoval, setShowRemoval] = useState(false);
@@ -138,7 +143,7 @@ export function AccountScreen() {
     setError("");
     if (connectionState().status === "online")
       setConnection({
-        status: "checking",
+        status: "online",
         refreshing: true,
         message:
           "Checking current account and trip access before enabling changes…",
@@ -148,7 +153,9 @@ export function AccountScreen() {
       if (request.current === controller) request.current = null;
       if (current === generation.current) {
         setLoading(false);
-        setLoadFailure("offline");
+        setLoadFailure(
+          deviceNetworkAvailable() === false ? "offline" : "server",
+        );
         setError(
           "Loading took too long. Check your connection, then try again.",
         );
@@ -258,7 +265,9 @@ export function AccountScreen() {
             ? "session"
             : error instanceof AccountError && error.status >= 500
               ? "server"
-              : "offline",
+              : connectionState().status === "offline"
+                ? "offline"
+                : "server",
         );
         setError(
           error instanceof AccountError
@@ -267,15 +276,10 @@ export function AccountScreen() {
         );
       }
       if (copies.controller.signal.aborted) setCleanupBlocked(true);
-      if (
-        current === generation.current &&
-        connectionState().status !== "online"
-      )
+      if (current === generation.current)
         setConnection({
-          status: "offline",
+          ...connectionState(),
           refreshing: false,
-          message:
-            "Current access could not be refreshed. Cached trips are read only; reconnect and retry.",
         });
     } finally {
       clearTimeout(timeout);
@@ -307,9 +311,11 @@ export function AccountScreen() {
     let active = true;
     let previous: boolean | null = null;
     const changed = (state: NetworkState) => {
-      if (!active || hidden || state.isConnected === undefined) return;
-      const available =
-        state.isConnected && state.isInternetReachable !== false;
+      const available = transportHint(state);
+      if (!active || hidden || available === null) return;
+      // Android's internet-validation probe can be false on a working cellular
+      // connection. Only absence of a network is a disconnected-device hint;
+      // the authenticated HTTP boundary confirms service reachability.
       if (previous === available) return;
       previous = available;
       setDeviceNetworkAvailable(available);
@@ -365,7 +371,7 @@ export function AccountScreen() {
       setLeaving(false);
     }
   }
-  useEffect(() => {
+  useScreenBackEffect(() => {
     if (!account || account.profile || hidden) return;
     const listener = BackHandler.addEventListener("hardwareBackPress", () => {
       if (!saving)
@@ -381,14 +387,6 @@ export function AccountScreen() {
     });
     return () => listener.remove();
   }, [account?.profile, hidden, saving]);
-  useEffect(() => {
-    if (!account?.profile || !showAccount || hidden || showRemoval) return;
-    const listener = BackHandler.addEventListener("hardwareBackPress", () => {
-      setShowAccount(false);
-      return true;
-    });
-    return () => listener.remove();
-  }, [account?.profile, showAccount, hidden, showRemoval]);
   async function save() {
     if (saving || hidden) return;
     const parsed = profileInput.safeParse(draft);
@@ -471,22 +469,22 @@ export function AccountScreen() {
         <Action
           title="Retry cleanup and sign out"
           busy={leaving}
-          onPress={() => void logout()}
+          onPress={() => logout()}
         />
       </Screen>
     );
   if (hidden)
     return (
       <Screen>
-        <Heading>Signing out</Heading>
-        <Copy>
-          Private data is closed while local cleanup and sign-out finish.
-        </Copy>
+        <Loading
+          kind="profile"
+          message="Signing out and closing private data"
+        />
         {error && <Notice error>{error}</Notice>}
         <Action
           title="Retry sign out"
           busy={leaving}
-          onPress={() => void logout()}
+          onPress={() => logout()}
         />
       </Screen>
     );
@@ -563,15 +561,6 @@ export function AccountScreen() {
   // A completed server profile remains the gate for every protected trip view.
   // Keep the workspace mounted during foreground profile refreshes so a native
   // background/foreground transition does not discard an in-progress form.
-  if (profile && !showAccount)
-    return (
-      <TripsScreen
-        profile={profile}
-        onAccount={() => setShowAccount(true)}
-        onOffline={() => setShowOffline(true)}
-        onCached={() => setShowCached(true)}
-      />
-    );
   if (!profile)
     return (
       <ProfileSetup
@@ -598,69 +587,99 @@ export function AccountScreen() {
       />
     );
   return (
-    <Screen>
-      <Heading>{profile ? "Your account" : "Let’s get to know you"}</Heading>
-      <Copy>
-        {profile
-          ? "Your profile, saved travel plans, and appearance preferences."
-          : "Add the name your family knows and a username they can use to invite you."}
-      </Copy>
-      <View style={[styles.email, { backgroundColor: colors.tint }]}>
-        <View style={styles.details}>
-          <Text style={[styles.name, { color: colors.ink }]}>
-            {profile.firstName} {profile.lastName}
-          </Text>
-          <Copy>@{profile.username}</Copy>
-        </View>
-        <Text style={[styles.label, { color: colors.ink }]}>
-          Verified email (private)
-        </Text>
-        <Copy>{account.email}</Copy>
-      </View>
-
-      <AppearancePicker />
-      <Action title="Open trips" onPress={() => setShowAccount(false)} />
-      <Shortcuts>
-        <Shortcut
-          title="Open cached trips"
-          icon={<Download size={20} color={colors.brand} accessible={false} />}
-          onPress={() => setShowCached(true)}
-        />
-        <Shortcut
-          title="Open saved guides"
-          icon={<BookOpen size={20} color={colors.brand} accessible={false} />}
-          onPress={() => setShowOffline(true)}
-        />
-      </Shortcuts>
-      <Copy muted>
-        Your email stays private. Your name and username identify you to people
-        on your trips.
-      </Copy>
-      {error && <Notice error>{error}</Notice>}
-      <Action title="Refresh profile" secondary onPress={() => void load()} />
-      <Action
-        title="Review account removal"
-        secondary
-        requiresConnection
-        onPress={() => setShowRemoval(true)}
-      />
-      <Action
-        title="Sign out"
-        secondary
-        disabled={saving}
-        busy={leaving}
-        onPress={() => void logout()}
-      />
-    </Screen>
+    <TravelWorkspace
+      profile={profile}
+      onOffline={() => setShowOffline(true)}
+      onCached={() => setShowCached(true)}
+      renderProfile={() => (
+        <Screen>
+          <PageHeader
+            title="Your profile"
+            subtitle="Your details, your preferences."
+          />
+          <Surface>
+            <View style={{ alignItems: "center", gap: 8, paddingVertical: 16 }}>
+              <View
+                style={{
+                  width: 72,
+                  height: 72,
+                  borderRadius: 36,
+                  backgroundColor: colors.tint,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Text
+                  style={{
+                    color: colors.brand,
+                    fontSize: 26,
+                    fontWeight: "600",
+                  }}
+                >
+                  {profile.firstName.slice(0, 1)}
+                  {profile.lastName.slice(0, 1)}
+                </Text>
+              </View>
+              <Text style={[styles.name, { color: colors.ink }]}>
+                {profile.firstName} {profile.lastName}
+              </Text>
+              <Copy muted>@{profile.username}</Copy>
+              <Copy muted>{account.email}</Copy>
+            </View>
+          </Surface>
+          <Surface>
+            <AppearancePicker />
+          </Surface>
+          <Surface>
+            <ListRow
+              title="Cached trips"
+              subtitle="Read saved travel plans offline"
+              icon={Download}
+              onPress={() => setShowCached(true)}
+            />
+            <ListRow
+              title="Saved guides"
+              subtitle="Copies stored on this device"
+              icon={BookOpen}
+              onPress={() => setShowOffline(true)}
+            />
+            <ListRow
+              title="Refresh profile"
+              busy={loading}
+              icon={RefreshCw}
+              onPress={() => load()}
+            />
+            <ListRow
+              title="Account & privacy"
+              subtitle="Responsibility transfer and removal"
+              icon={ShieldAlert}
+              onPress={() => setShowRemoval(true)}
+            />
+          </Surface>
+          <Surface>
+            <ListRow
+              title="Sign out"
+              busy={leaving}
+              icon={LogOut}
+              danger
+              onPress={() => {
+                if (!saving && !leaving) void logout();
+              }}
+            />
+          </Surface>
+          {error && <Notice error>{error}</Notice>}
+          <Copy muted>
+            Your email is private. Trip members see your name and username.
+          </Copy>
+        </Screen>
+      )}
+    />
   );
 }
 const styles = StyleSheet.create({
-  email: { padding: 20, borderRadius: 18, gap: 8 },
-  label: { fontSize: 14, lineHeight: 22, fontWeight: "600" },
-  details: { gap: 6, paddingVertical: 12 },
   name: {
-    fontSize: 24,
-    lineHeight: 32,
+    fontSize: 23,
+    lineHeight: 30,
     fontWeight: "600",
     writingDirection: "auto",
   },

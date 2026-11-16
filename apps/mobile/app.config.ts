@@ -18,7 +18,7 @@ const config: ExpoConfig = {
   userInterfaceStyle: "automatic",
   android: {
     package: "in.nmtsolutions.travel",
-    versionCode: 5,
+    versionCode: 6,
     softwareKeyboardLayoutMode: "resize",
     ...(process.env.GOOGLE_SERVICES_JSON
       ? { googleServicesFile: process.env.GOOGLE_SERVICES_JSON }

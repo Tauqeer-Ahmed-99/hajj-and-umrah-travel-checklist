@@ -1,5 +1,30 @@
+import { useScreenBackEffect } from "./screen-back";
+import {
+  ArrowLeft,
+  BookOpen,
+  Download,
+  FileText,
+  Link2,
+  Plus,
+  Upload,
+  WifiOff,
+} from "lucide-react-native";
+import {
+  DocumentCard,
+  IconButton,
+  JourneyCard,
+  ListRow,
+  PageHeader,
+  Surface,
+} from "./design-system";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { AppState, BackHandler, Linking } from "react-native";
+import {
+  AppState,
+  BackHandler,
+  Linking,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import {
   type Family,
   type Guide,
@@ -113,7 +138,7 @@ export function GuidesScreen({
       setRoute({ mode: route.version ? "history" : "read", id: route.id });
     else setRoute({ mode: "list" });
   };
-  useEffect(() => {
+  useScreenBackEffect(() => {
     if (form) return;
     const listener = BackHandler.addEventListener("hardwareBackPress", () => {
       back();
@@ -244,6 +269,7 @@ function GuideLibrary({
   onOffline(): void;
   onPrepare(): void;
 }) {
+  const { width, fontScale } = useWindowDimensions();
   const copies = useGuideCopies();
   const api = useTripRequest();
   const [q, setQ] = useState("");
@@ -275,25 +301,37 @@ function GuideLibrary({
   }, [api.error]);
   useRefresh(load);
   return (
-    <Screen footer={footer}>
-      <Action title="Switch trip" secondary onPress={onSwitch} />
-      <Action title="Account" secondary onPress={onAccount} />
-      {data && <Copy>{data.name}</Copy>}
-      <Heading>Guide library</Heading>
-      <Action title="Open saved guides" secondary onPress={onOffline} />
-      <Action title="Prepare for offline use" secondary onPress={onPrepare} />
-      <Copy muted>
-        Documents, images, text notes and links for your journey. Family-only
-        guides appear only with a current family grant.
-      </Copy>
+    <Screen>
+      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+        <IconButton
+          label="Back to Overview"
+          icon={ArrowLeft}
+          onPress={onBack}
+        />
+        <IconButton label="Saved guides" icon={Download} onPress={onOffline} />
+      </View>
+      <PageHeader
+        title="Guide library"
+        subtitle={data?.name ?? "Your journey’s reading room"}
+      />
+      {footer}
+      {data && (
+        <JourneyCard
+          eyebrow="PRIVATE TRAVEL LIBRARY"
+          title={String(data.count).padStart(2, "0") + " guides"}
+          subtitle="Notes, links and documents you’re allowed to access."
+          onPress={onPrepare}
+          label="Prepare selected guides for offline use"
+        />
+      )}
       <Field
-        label="Search guide titles and metadata"
+        label="Search guides"
         testID="guide-search"
         value={q}
         onChangeText={setQ}
         maxLength={120}
         editable={!api.busy}
-        hint="Search titles, categories, descriptions, sources or contributors. Note bodies are not searched."
+        placeholder="Find notes, documents or links"
       />
       <GuideChoices
         label="Show guides"
@@ -301,7 +339,7 @@ function GuideLibrary({
         onChange={setPinned}
         locked={api.busy}
         options={[
-          { value: "all", label: "All accessible guides" },
+          { value: "all", label: "All guides" },
           { value: "pinned", label: "Pinned only" },
         ]}
       />
@@ -315,7 +353,9 @@ function GuideLibrary({
           })
         }
       />
-      {!data && !api.error && <Loading message="Loading permitted guides…" />}
+      {!data && !api.error && (
+        <Loading kind="cards" message="Loading permitted guides…" />
+      )}
       {api.error && <Notice error>{api.error.message}</Notice>}
       {data && (
         <>
@@ -328,65 +368,66 @@ function GuideLibrary({
               your family.
             </Copy>
           )}
-          {data.guides.map((guide) => (
-            <GuideSection key={guide.id}>
-              <Heading>{guide.title}</Heading>
-              <Copy>
-                {guide.category} ·{" "}
-                {guide.audience === "family"
-                  ? "Family only"
-                  : "Shared with trip"}
-                {guide.pinned ? " · Pinned" : ""}
-              </Copy>
-              {!!guide.description && <Copy>{guide.description}</Copy>}
-              {guide.kind === "file" && (
-                <Notice>
-                  {guide.file
-                    ? "File ready · Open inside the app"
-                    : "Upload incomplete · Cannot open yet"}
-                </Notice>
-              )}
-              <Copy muted>
-                Version {guide.version} · Updated by @{guide.updatedBy.username}
-              </Copy>
-              <Action
-                title={`Read ${guide.title}`}
-                secondary
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+            {data.guides.map((guide) => (
+              <DocumentCard
+                wide={width < 340 || fontScale > 1.4}
+                key={guide.id}
+                title={guide.title}
+                subtitle={
+                  guide.category +
+                  " · " +
+                  (guide.audience === "family"
+                    ? "Family only"
+                    : "Shared with trip") +
+                  (guide.pinned ? " · Pinned" : "") +
+                  (guide.kind === "file" && !guide.file
+                    ? " · Upload incomplete"
+                    : "")
+                }
+                icon={
+                  guide.kind === "file"
+                    ? FileText
+                    : guide.kind === "link"
+                      ? Link2
+                      : BookOpen
+                }
                 onPress={() => onOpen(guide.id)}
               />
-            </GuideSection>
-          ))}
+            ))}
+          </View>
           {data.families.length > 0 ? (
-            <>
-              <Action
-                title="Add guide"
+            <Surface>
+              <ListRow
+                title="Add a note or link"
+                icon={Plus}
                 onPress={() => onCreate(data.families)}
               />
-              <Action
+              <ListRow
                 title="Upload document or image"
-                secondary
+                icon={Upload}
                 onPress={() => onUpload(data.families)}
               />
-            </>
+            </Surface>
           ) : (
             <Copy muted>
-              Read-only library. A family editor or coordinator can contribute
-              guides.
+              Read-only library. A family editor can contribute guides.
             </Copy>
           )}
         </>
       )}
-      <Action
-        title="Refresh guides"
-        secondary
-        busy={api.busy}
-        onPress={() => void load()}
-      />
-      <Action title="Back to Overview" secondary onPress={onBack} />
-      <Copy muted>
-        Open reads in the app. Save offline in app and Download to device are
-        explicit actions. Links need a connection.
-      </Copy>
+      <Surface>
+        <ListRow
+          title="Prepare for offline use"
+          icon={WifiOff}
+          onPress={onPrepare}
+        />
+        <ListRow
+          title="Refresh guides"
+          icon={BookOpen}
+          onPress={() => load()}
+        />
+      </Surface>
     </Screen>
   );
 }
@@ -461,7 +502,9 @@ function GuideReader({
     <Screen>
       <Action title="Back to guides" secondary onPress={onBack} />
       {saved && <Notice>Saved</Notice>}
-      {!guide && !api.error && <Loading message="Opening guide…" />}
+      {!guide && !api.error && (
+        <Loading kind="reader" message="Opening guide…" />
+      )}
       {api.error && <Notice error>{api.error.message}</Notice>}
       {guide && (
         <>
@@ -509,7 +552,7 @@ function GuideReader({
               <Action
                 title="Open external link"
                 busy={api.busy}
-                onPress={() => void openLink()}
+                onPress={() => openLink()}
               />
             </>
           )}
@@ -543,7 +586,7 @@ function GuideReader({
         title="Refresh guide"
         secondary
         busy={api.busy}
-        onPress={() => void load()}
+        onPress={() => load()}
       />
     </Screen>
   );
@@ -613,7 +656,7 @@ function GuideHistory({
         title="Refresh history"
         secondary
         busy={api.busy}
-        onPress={() => void load()}
+        onPress={() => load()}
       />
     </Screen>
   );

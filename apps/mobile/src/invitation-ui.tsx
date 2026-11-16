@@ -1,3 +1,4 @@
+import { useScreenBackEffect } from "./screen-back";
 import { Text } from "./typography";
 import { useEffect, type ReactNode } from "react";
 import {
@@ -21,7 +22,7 @@ export function useAccessRefresh(load: () => Promise<void>) {
   }, [load]);
 }
 export function useAccessBack(back: () => void, busy: boolean, enabled = true) {
-  useEffect(() => {
+  useScreenBackEffect(() => {
     if (!enabled) return;
     const listener = BackHandler.addEventListener("hardwareBackPress", () => {
       if (!busy) back();

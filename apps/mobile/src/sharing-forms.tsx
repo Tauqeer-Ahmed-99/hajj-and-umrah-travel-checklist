@@ -1,3 +1,4 @@
+import { DateField } from "./date-field";
 import { useState } from "react";
 import { randomUUID } from "expo-crypto";
 import {
@@ -145,12 +146,13 @@ export function SharedItemForm(
           label: value[0].toUpperCase() + value.slice(1),
         }))}
       />
-      <Field
-        label="Due date (YYYY-MM-DD)"
+      <DateField
+        label="Due date"
         value={due}
         onChangeText={setDue}
         editable={!save.locked}
         error={save.fields.dueDate}
+        optional
       />
       <ChecklistChoices
         label="Responsible member"

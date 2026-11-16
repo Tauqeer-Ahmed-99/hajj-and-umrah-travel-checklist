@@ -8,7 +8,12 @@ import { Copy } from "./ui";
 export function GuideSection({ children }: { children: ReactNode }) {
   const { colors } = useTheme();
   return (
-    <View style={[styles.section, { borderColor: colors.border }]}>
+    <View
+      style={[
+        styles.section,
+        { borderColor: colors.border, backgroundColor: colors.surface },
+      ]}
+    >
       {children}
     </View>
   );
@@ -34,31 +39,34 @@ export function GuideChoices<T extends string>({
       style={styles.choices}
     >
       <Copy>{label}</Copy>
-      {options.map((option) => (
-        <Pressable
-          key={option.value}
-          accessibilityRole="radio"
-          accessibilityLabel={`${label}: ${option.label}`}
-          accessibilityState={{
-            checked: value === option.value,
-            disabled: locked,
-          }}
-          disabled={locked}
-          onPress={() => onChange(option.value)}
-          style={[
-            styles.choice,
-            {
-              borderColor: colors.brand,
-              backgroundColor:
-                value === option.value ? colors.tint : colors.surface,
-            },
-          ]}
-        >
-          <Text style={{ color: colors.ink, fontSize: 17 }}>
-            {option.label}
-          </Text>
-        </Pressable>
-      ))}
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+        {options.map((option) => (
+          <Pressable
+            key={option.value}
+            accessibilityRole="radio"
+            accessibilityLabel={`${label}: ${option.label}`}
+            accessibilityState={{
+              checked: value === option.value,
+              disabled: locked,
+            }}
+            disabled={locked}
+            onPress={() => onChange(option.value)}
+            style={[
+              styles.choice,
+              {
+                borderColor:
+                  value === option.value ? colors.brand : colors.border,
+                backgroundColor:
+                  value === option.value ? colors.tint : colors.surface,
+              },
+            ]}
+          >
+            <Text style={{ color: colors.ink, fontSize: 14 }}>
+              {option.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
     </View>
   );
 }
@@ -133,9 +141,14 @@ export function GuideMetadata({ guide }: { guide: GuideRecord }) {
   );
 }
 const styles = StyleSheet.create({
-  section: { gap: 14, borderTopWidth: 1, paddingTop: 20 },
+  section: {
+    gap: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 16,
+    borderRadius: 22,
+  },
   choices: { gap: 8 },
-  choice: { minHeight: 52, padding: 14, borderWidth: 1, borderRadius: 8 },
+  choice: { minHeight: 48, padding: 14, borderWidth: 1, borderRadius: 26 },
   reading: { gap: 8, paddingVertical: 12 },
   paragraph: { fontSize: 19, lineHeight: 32 },
 });

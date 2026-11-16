@@ -66,6 +66,7 @@ export function AuthScreen() {
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
+  const [resending, setResending] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [cooldown, setCooldown] = useState(0);
@@ -152,6 +153,7 @@ export function AuthScreen() {
       return;
     }
     setBusy(true);
+    setResending(resend);
     try {
       if (!resend) {
         await resetAttempts();
@@ -172,6 +174,7 @@ export function AuthScreen() {
     } catch (error) {
       setError(providerMessage(error));
     } finally {
+      setResending(false);
       setBusy(false);
     }
   }
@@ -241,6 +244,7 @@ export function AuthScreen() {
         code,
         setCode,
         busy,
+        resending,
         googleBusy,
         error,
         status,
@@ -284,6 +288,7 @@ type Flow = {
   code: string;
   setCode: (value: string) => void;
   busy: boolean;
+  resending: boolean;
   googleBusy: boolean;
   error: string;
   status: string;
@@ -345,10 +350,9 @@ function Welcome({ navigation }: NativeStackScreenProps<Routes, "Welcome">) {
       <View style={styles.welcomeContent}>
         <JourneyIllustration />
         <View style={styles.welcomeText}>
-          <AuthTitle centered>Your journey, together.</AuthTitle>
+          <AuthTitle centered>Your journey.{`\n`}In your hands.</AuthTitle>
           <AuthBody centered>
-            Plan your Hajj &amp; Umrah, pack with your family, and keep what
-            matters close.
+            Your family. Your plans. Your peace of mind.
           </AuthBody>
         </View>
       </View>
@@ -373,7 +377,7 @@ function SignIn({ navigation }: NativeStackScreenProps<Routes, "SignIn">) {
       }
     >
       <View style={styles.signInContent}>
-        <AuthTitle>Welcome to{`\n`}NMT Travel</AuthTitle>
+        <AuthTitle>A meaningful journey{`\n`}starts here.</AuthTitle>
         <AuthBody>
           Sign in or create an account. No password to remember.
         </AuthBody>
@@ -381,10 +385,11 @@ function SignIn({ navigation }: NativeStackScreenProps<Routes, "SignIn">) {
           <Action
             title={flow.googleBusy ? "Opening Google…" : "Continue with Google"}
             secondary
+            fullWidth
             icon={<GoogleMark />}
             busy={flow.googleBusy}
             disabled={!flow.ready || flow.busy}
-            onPress={() => void flow.google()}
+            onPress={() => flow.google()}
           />
           <Action
             title="Continue with email"
@@ -421,7 +426,7 @@ function Email({ navigation }: NativeStackScreenProps<Routes, "Email">) {
           busy={flow.busy}
           disabled={!flow.ready || !flow.email.trim()}
           icon={<ContinueArrow />}
-          onPress={() => void submit()}
+          onPress={() => submit()}
         />
       }
     >
@@ -471,7 +476,7 @@ function Code({ navigation }: NativeStackScreenProps<Routes, "Code">) {
           title={flow.busy ? "Verifying…" : "Verify and continue"}
           busy={flow.busy}
           disabled={flow.code.length !== 6}
-          onPress={() => void flow.verify()}
+          onPress={() => flow.verify()}
         />
       }
     >
@@ -499,7 +504,8 @@ function Code({ navigation }: NativeStackScreenProps<Routes, "Code">) {
             flow.cooldown ? `Resend code in ${flow.cooldown}s` : "Resend code"
           }
           disabled={flow.busy || flow.cooldown > 0}
-          onPress={() => void flow.requestCode(true)}
+          busy={flow.resending}
+          onPress={() => flow.requestCode(true)}
         />
       </View>
     </AuthPage>

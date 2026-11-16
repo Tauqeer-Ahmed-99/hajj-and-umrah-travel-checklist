@@ -1,3 +1,5 @@
+import { DateTimeField } from "./date-field";
+import { useScreenBackEffect } from "./screen-back";
 import { Text } from "./typography";
 import { useEffect, useState } from "react";
 import { Alert, BackHandler, Pressable, StyleSheet, View } from "react-native";
@@ -78,7 +80,7 @@ function useSave<T>(
       ],
     );
   };
-  useEffect(() => {
+  useScreenBackEffect(() => {
     const listener = BackHandler.addEventListener("hardwareBackPress", () => {
       cancel();
       return true;
@@ -483,20 +485,18 @@ export function EntryForm({
         error={save.fields.title}
       />
       <Copy muted>
-        Dates are optional. When adding a time, include its UTC offset and named
-        time zone. For example, 2026-11-20T21:30:00+03:00 in Asia/Riyadh. Use
-        the offset for that date, including daylight saving time.
+        Choose dates and times in the named destination time zone. The UTC
+        offset is calculated for that date.
       </Copy>
-      <Field
+      <DateTimeField
         label="Start date and time (optional)"
         testID="itinerary-start"
         value={start}
         onChangeText={setStart}
         editable={!save.locked}
-        autoCapitalize="none"
-        autoCorrect={false}
-        maxLength={40}
         error={save.fields.startsAt}
+        optional
+        timeZone={startZone}
       />
       <Field
         label="Start time zone"
@@ -509,16 +509,15 @@ export function EntryForm({
         maxLength={100}
         hint="For example Asia/Riyadh or Asia/Kolkata"
       />
-      <Field
+      <DateTimeField
         label="End date and time (optional)"
         testID="itinerary-end"
         value={end}
         onChangeText={setEnd}
         editable={!save.locked}
-        autoCapitalize="none"
-        autoCorrect={false}
-        maxLength={40}
         error={save.fields.endsAt}
+        optional
+        timeZone={endZone}
       />
       <Field
         label="End time zone"

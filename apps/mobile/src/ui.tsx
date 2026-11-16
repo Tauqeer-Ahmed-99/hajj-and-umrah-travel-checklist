@@ -1,4 +1,6 @@
-﻿import { useState, type ReactNode } from "react";
+import { useButtonAction } from "./use-button-action";
+import { Skeleton, type SkeletonKind } from "./skeleton";
+import { useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -13,11 +15,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import Animated, { useReducedMotion } from "react-native-reanimated";
-import { Check, ChevronRight, Monitor, Moon, Sun } from "lucide-react-native";
+import { ChevronRight, Monitor, Moon, Sun } from "lucide-react-native";
 import { useTheme, type Appearance } from "./theme";
-import { useTripConnection } from "./trip-cache-state";
+import { deviceNetworkAvailable, useTripConnection } from "./trip-cache-state";
 import { Text } from "./typography";
-import { Brand } from "./brand";
 
 export function Copy({
   children,
@@ -70,6 +71,7 @@ export function Action({
   secondary = false,
   requiresConnection = false,
   icon,
+  fullWidth = false,
 }: {
   title: string;
   onPress: () => void;
@@ -78,19 +80,26 @@ export function Action({
   secondary?: boolean;
   requiresConnection?: boolean;
   icon?: ReactNode;
+  fullWidth?: boolean;
 }) {
   const { colors } = useTheme();
+  const action = useButtonAction(onPress, busy);
+  busy = action.busy;
+  onPress = action.press;
   const connection = useTripConnection();
   const [pressed, setPressed] = useState(false);
   const reducedMotion = useReducedMotion();
   disabled = disabled || (requiresConnection && connection.status !== "online");
-  if (busy && requiresConnection) title = "Saving…";
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={title}
       accessibilityState={{ disabled: disabled || busy, busy }}
       disabled={disabled || busy}
+      style={{
+        alignSelf: secondary && !fullWidth ? "flex-start" : "stretch",
+        maxWidth: "100%",
+      }}
       onPress={onPress}
       onPressIn={() => setPressed(true)}
       onPressOut={() => setPressed(false)}
@@ -99,9 +108,9 @@ export function Action({
         style={[
           styles.button,
           {
-            backgroundColor: secondary ? colors.surface : colors.brand,
-            borderColor: secondary ? colors.border : colors.brand,
-            opacity: disabled || busy ? 0.55 : pressed ? 0.86 : 1,
+            backgroundColor: secondary ? colors.surface : colors.action,
+            borderColor: secondary ? colors.border : colors.action,
+            opacity: disabled && !busy ? 0.55 : pressed ? 0.86 : 1,
             transform: [{ scale: pressed && !reducedMotion ? 0.985 : 1 }],
             transitionProperty: ["transform", "opacity"],
             transitionDuration: reducedMotion ? 0 : 120,
@@ -171,7 +180,7 @@ export function Field({
               ? colors.error
               : focused
                 ? colors.brand
-                : colors.border,
+                : colors.inputBorder,
           },
           props.style,
         ]}
@@ -255,9 +264,6 @@ export function AppearancePicker() {
                 accessible={false}
               />
               <Text style={[styles.label, { color: colors.ink }]}>{label}</Text>
-              {selected && (
-                <Check size={15} color={colors.brand} accessible={false} />
-              )}
             </Pressable>
           );
         })}
@@ -280,11 +286,14 @@ export function Screen({
   const { colors, dark } = useTheme();
   const connection = useTripConnection();
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: colors.canvas }]}>
+    <SafeAreaView
+      edges={["top", "left", "right"]}
+      style={[styles.safe, { backgroundColor: colors.canvas }]}
+    >
       <StatusBar style={dark ? "light" : "dark"} />
       <KeyboardAvoidingView
         style={styles.safe}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <ScrollView
           key={contentKey}
@@ -293,12 +302,21 @@ export function Screen({
           keyboardDismissMode="on-drag"
         >
           <View style={styles.content}>
-            <View style={[styles.brand, { borderColor: colors.border }]}>
-              <Brand />
-            </View>
             <View style={styles.body}>
-              {!auth && connection.status !== "online" && (
-                <Notice>{connection.message}</Notice>
+              {!auth && connection.status === "offline" && (
+                <View
+                  style={{
+                    backgroundColor: colors.tint,
+                    borderRadius: 14,
+                    padding: 12,
+                  }}
+                >
+                  <Notice>
+                    {deviceNetworkAvailable() === false
+                      ? "You’re offline. Saved copies are in Profile."
+                      : "NMT Travel is unreachable. Reconnecting… Saved copies are in Profile."}
+                  </Notice>
+                </View>
               )}
               {children}
             </View>
@@ -316,60 +334,60 @@ export function Screen({
     </SafeAreaView>
   );
 }
-export function Loading({ message }: { message: string }) {
-  const { colors } = useTheme();
-  return (
-    <View style={styles.loading}>
-      <ActivityIndicator color={colors.brand} />
-      <Notice>{message}</Notice>
-    </View>
-  );
+export function Loading({
+  message,
+  kind = "list",
+}: {
+  message: string;
+  kind?: SkeletonKind;
+}) {
+  return <Skeleton kind={kind} label={message} />;
 }
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   scroll: {
     flexGrow: 1,
-    paddingHorizontal: 22,
-    paddingTop: 12,
-    paddingBottom: 28,
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 24,
   },
   content: {
     width: "100%",
     maxWidth: 600,
     alignSelf: "center",
     flex: 1,
-    gap: 28,
+    gap: 16,
   },
   brand: {
     paddingTop: 8,
     paddingBottom: 20,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  body: { gap: 18 },
+  body: { gap: 16 },
   heading: {
-    fontSize: 29,
-    lineHeight: 37,
+    fontSize: 26,
+    lineHeight: 33,
     fontWeight: "600",
     letterSpacing: -0.8,
   },
-  copy: { fontSize: 16, lineHeight: 25 },
-  label: { fontSize: 14, lineHeight: 22, fontWeight: "500" },
+  copy: { fontSize: 14, lineHeight: 22 },
+  label: { fontSize: 13, lineHeight: 20, fontWeight: "500" },
   field: { gap: 8 },
   input: {
-    minHeight: 56,
+    minHeight: 52,
     borderWidth: 1,
-    borderRadius: 13,
+    borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    fontSize: 17,
-    fontFamily: "Geist_400Regular",
+    fontSize: 16,
+    fontFamily: "Urbanist_400Regular",
     textAlignVertical: "center",
   },
   button: {
-    minHeight: 54,
+    minHeight: 50,
     paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderRadius: 13,
+    paddingVertical: 12,
+    borderRadius: 26,
     borderWidth: 1,
     flexDirection: "row",
     flexWrap: "wrap",
@@ -378,8 +396,8 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   buttonText: {
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 14,
+    lineHeight: 22,
     fontWeight: "600",
     textAlign: "center",
     flexShrink: 1,
@@ -387,8 +405,10 @@ const styles = StyleSheet.create({
   appearance: { paddingVertical: 20, gap: 12 },
   options: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   option: {
+    flexGrow: 1,
+    minWidth: 85,
     minHeight: 48,
-    paddingHorizontal: 14,
+    paddingHorizontal: 10,
     paddingVertical: 12,
     borderWidth: 1,
     borderRadius: 11,

@@ -17,7 +17,7 @@ export function Brand() {
           <Path d="M16 1.414l1.683 1.683L16 4.779l-1.683-1.683L16 1.414M16 0l-3.097 3.097L16 6.194l3.097-3.097L16 0zM16 27.221l1.683 1.683L16 30.586l-1.683-1.683L16 27.221m0-1.415l-3.097 3.097L16 32l3.097-3.097L16 25.806zM3.097 14.317L4.779 16l-1.683 1.683L1.414 16l1.683-1.683m0-1.414L0 16l3.097 3.097L6.194 16l-3.097-3.097zM28.903 14.317L30.586 16l-1.683 1.683L27.221 16l1.682-1.683m0-1.414L25.806 16l3.097 3.097L32 16l-3.097-3.097z" />
         </G>
       </Svg>
-      <View style={[styles.badge, { backgroundColor: colors.brand }]}>
+      <View style={[styles.badge, { backgroundColor: colors.action }]}>
         <Text style={[styles.nmt, { color: colors.onBrand }]}>NMT</Text>
       </View>
       <Text style={[styles.travel, { color: colors.ink }]}>Travel</Text>

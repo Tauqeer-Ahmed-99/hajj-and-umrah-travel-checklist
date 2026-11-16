@@ -1,5 +1,21 @@
+import {
+  ArrowLeft,
+  ListChecks,
+  Plus,
+  FolderPlus,
+  Copy as CopyIcon,
+} from "lucide-react-native";
+import {
+  DetailRow,
+  IconButton,
+  ListRow,
+  PageHeader,
+  QuickTile,
+  Surface,
+} from "./design-system";
+import { useScreenBackEffect } from "./screen-back";
 import { useCallback, useEffect, useState } from "react";
-import { AppState, BackHandler } from "react-native";
+import { AppState, BackHandler, View } from "react-native";
 import {
   checklistTaskLabels,
   type Checklist,
@@ -45,10 +61,11 @@ export function ChecklistDestination({
         <Notice>Ask a family coordinator for access to its checklist.</Notice>
       )}
       {families.map((family) => (
-        <Action
+        <ListRow
           key={family.id}
-          title={`Checklist for ${family.name}`}
-          secondary
+          title={family.name}
+          subtitle="Private checklist and tasks"
+          icon={ListChecks}
           onPress={() => onOpen(family.id)}
         />
       ))}
@@ -252,7 +269,7 @@ export function ChecklistScreen({
     });
     return () => listener.remove();
   }, [load, editor]);
-  useEffect(() => {
+  useScreenBackEffect(() => {
     if (editor && editor.mode !== "history") return;
     const listener = BackHandler.addEventListener("hardwareBackPress", () => {
       if (editor) setEditor(null);
@@ -333,7 +350,7 @@ export function ChecklistScreen({
         {api.error && (
           <>
             <Notice error>{api.error.message}</Notice>
-            <Action title="Retry loading history" onPress={() => void load()} />
+            <Action title="Retry loading history" onPress={() => load()} />
           </>
         )}
         {data && (
@@ -408,10 +425,15 @@ export function ChecklistScreen({
   ).filter((entry) => !selectedId || entry.id === selectedId);
   return (
     <Screen>
-      <Action title="Back to family checklists" secondary onPress={onBack} />
-      <Heading>
-        {data ? `${data.family.name} checklist` : "Family checklist"}
-      </Heading>
+      <IconButton
+        label="Back to family checklists"
+        icon={ArrowLeft}
+        onPress={onBack}
+      />
+      <PageHeader
+        title="Checklist"
+        subtitle={data?.family.name ?? "Family essentials and tasks"}
+      />
       {saved && <Notice>Saved</Notice>}
       {selectedId && (
         <>
@@ -439,7 +461,7 @@ export function ChecklistScreen({
           <Action
             title="Retry loading checklist"
             busy={api.busy}
-            onPress={() => void load()}
+            onPress={() => load()}
           />
         </>
       )}
@@ -478,35 +500,36 @@ export function ChecklistScreen({
             </Notice>
           )}
           {data.checklist.canEdit && (
-            <>
-              <Action
-                title="Add category"
-                secondary
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <QuickTile
+                title="Category"
+                icon={FolderPlus}
                 onPress={() => edit({ mode: "category", initial: null })}
               />
-              <Action
-                title="Copy starter suggestions"
-                secondary
+              <QuickTile
+                title="Starters"
+                icon={CopyIcon}
                 onPress={() => edit({ mode: "starter" })}
               />
               {data.checklist.categories.length > 0 && (
                 <>
-                  <Action
+                  <QuickTile
                     title="Add item"
+                    icon={Plus}
                     onPress={() =>
                       edit({ mode: "entry", initial: null, kind: "item" })
                     }
                   />
-                  <Action
-                    title="Add non-packing task"
-                    secondary
+                  <QuickTile
+                    title="Add task"
+                    icon={ListChecks}
                     onPress={() =>
                       edit({ mode: "entry", initial: null, kind: "task" })
                     }
                   />
                 </>
               )}
-            </>
+            </View>
           )}
           {data.checklist.categories.length === 0 && (
             <Copy>
@@ -523,7 +546,10 @@ export function ChecklistScreen({
             .map((group) => (
               <ChecklistSection key={group.id} title={group.name}>
                 {data.checklist.canEdit && view === "all" && (
-                  <>
+                  <DetailRow
+                    title="Manage category"
+                    subtitle="Edit or remove this category"
+                  >
                     <Action
                       title={`Edit category ${group.name}`}
                       secondary
@@ -541,7 +567,7 @@ export function ChecklistScreen({
                         })
                       }
                     />
-                  </>
+                  </DetailRow>
                 )}
                 {entries.filter((entry) => entry.categoryId === group.id)
                   .length === 0 && (
@@ -555,7 +581,16 @@ export function ChecklistScreen({
                       (member) => member.id === entry.responsibleMemberId,
                     );
                     return (
-                      <ChecklistSection key={entry.id} title={entry.title}>
+                      <DetailRow
+                        key={entry.id}
+                        title={entry.title}
+                        initiallyOpen={selectedId === entry.id}
+                        subtitle={
+                          entry.kind === "task"
+                            ? checklistTaskLabels[entry.taskStatus!]
+                            : `${entry.acquisition?.available ?? 0} / ${entry.requiredQuantity} ${entry.unit} available · ${entry.priority}`
+                        }
+                      >
                         <Copy>
                           {entry.priority[0].toUpperCase() +
                             entry.priority.slice(1)}{" "}
@@ -639,16 +674,12 @@ export function ChecklistScreen({
                           secondary
                           onPress={() => edit({ mode: "history", entry })}
                         />
-                      </ChecklistSection>
+                      </DetailRow>
                     );
                   })}
               </ChecklistSection>
             ))}
-          <Action
-            title="Refresh checklist"
-            secondary
-            onPress={() => void load()}
-          />
+          <Action title="Refresh checklist" secondary onPress={() => load()} />
           <Action
             title="Recent checklist changes"
             secondary

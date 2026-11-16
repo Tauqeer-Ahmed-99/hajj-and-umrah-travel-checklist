@@ -1,3 +1,4 @@
+import { useScreenBackEffect } from "./screen-back";
 import { Text } from "./typography";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -329,7 +330,7 @@ export function SummaryScreen({
       );
     } else onBack();
   };
-  useEffect(() => {
+  useScreenBackEffect(() => {
     const listener = BackHandler.addEventListener("hardwareBackPress", () => {
       back();
       return true;
@@ -479,7 +480,7 @@ export function SummaryScreen({
           <Action
             title="Refresh summary choices"
             disabled={locked || awaitingAccess}
-            onPress={() => void load()}
+            onPress={() => load()}
           />
         </>
       )}
@@ -519,7 +520,7 @@ export function SummaryScreen({
           <Action
             title="Share this text"
             disabled={locked || awaitingAccess || !preview.text || !choices}
-            onPress={() => void prepare(true)}
+            onPress={() => prepare(true)}
           />
         </>
       ) : (
@@ -674,7 +675,7 @@ export function SummaryScreen({
                 unavailableEntries > 0 ||
                 !summarySelection.safeParse(selection).success
               }
-              onPress={() => void prepare(false)}
+              onPress={() => prepare(false)}
             />
             {!summarySelection.safeParse(selection).success && (
               <Copy muted>
@@ -686,7 +687,7 @@ export function SummaryScreen({
               title="Refresh summary choices"
               secondary
               disabled={locked || awaitingAccess}
-              onPress={() => void load()}
+              onPress={() => load()}
             />
             <Action
               title="Clear selection"

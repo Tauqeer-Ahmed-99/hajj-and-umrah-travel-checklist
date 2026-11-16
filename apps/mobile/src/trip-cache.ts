@@ -15,6 +15,7 @@ import {
   connectionState,
   deviceNetworkAvailable,
   setConnection,
+  serviceReachable,
   tripCacheChanged,
 } from "./trip-cache-state";
 
@@ -644,7 +645,13 @@ export async function travelFetch(
   try {
     response = await fetch(url, init);
   } catch (error) {
-    if (value) {
+    // Navigation, a superseded refresh and an explicit timeout all cancel reads.
+    // None proves the network went away; do not poison every subsequent write.
+    if (
+      value &&
+      !init.signal?.aborted &&
+      !(error instanceof Error && error.name === "AbortError")
+    ) {
       current(value);
       setConnection({
         status: "offline",
@@ -657,6 +664,7 @@ export async function travelFetch(
   }
   if (!value) return response;
   current(value, init.signal ?? undefined, method === "GET");
+  serviceReachable();
   if (readNumber !== null && value.cache.reads.get(path) !== readNumber)
     throw new TripError(
       "A newer refresh replaced this read. Open the view again.",
@@ -738,9 +746,8 @@ export async function refreshTripCache(
   current(value, signal);
   setConnection({
     ...connectionState(),
-    status: "checking",
     refreshing: true,
-    message: "Refreshing cached data and current permissions…",
+    message: "Refreshing saved views…",
   });
   let unavailable = 0;
   // Retry a discard cleanup before any new publication.
@@ -820,11 +827,14 @@ export async function refreshTripCache(
   if (signal.aborted)
     throw new TripError("Refresh interrupted. Cached trips remain read only.");
   setConnection({
-    status:
-      unavailable || deviceNetworkAvailable() === false ? "offline" : "online",
+    ...connectionState(),
     refreshing: false,
     message: unavailable
-      ? "Some access checks are unavailable. Good cached data was retained; reconnect and retry."
-      : "Current trip access checked. Cached views remain read only.",
+      ? connectionState().status === "offline"
+        ? "No connection. Saved trips remain available to read."
+        : "Some saved views could not refresh. Your current connection is available."
+      : connectionState().status === "offline"
+        ? "No connection. Saved trips remain available to read."
+        : "",
   });
 }

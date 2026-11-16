@@ -18,11 +18,11 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useReducedMotion } from "react-native-reanimated";
 import {
   useFonts,
-  Geist_400Regular,
-  Geist_500Medium,
-  Geist_600SemiBold,
-  Geist_700Bold,
-} from "@expo-google-fonts/geist";
+  Urbanist_400Regular,
+  Urbanist_500Medium,
+  Urbanist_600SemiBold,
+  Urbanist_700Bold,
+} from "@expo-google-fonts/urbanist";
 import { ThemeProvider, useTheme } from "./src/theme";
 import { Action, Copy, Heading, Loading, Notice, Screen } from "./src/ui";
 import { AuthScreen } from "./src/auth-screen";
@@ -160,7 +160,7 @@ function Session() {
   if (!intentReady)
     return (
       <Screen auth>
-        <Loading message="Checking protected account state…" />
+        <Loading kind="screen" message="Checking protected account state…" />
       </Screen>
     );
   if (intent)
@@ -168,7 +168,7 @@ function Session() {
   if (!isLoaded)
     return (
       <Screen auth>
-        <Loading message="Restoring your session…" />
+        <Loading kind="screen" message="Restoring your session…" />
         {slow && (
           <>
             <Notice>
@@ -197,7 +197,10 @@ function Session() {
             />
           </>
         ) : (
-          <Loading message="Clearing private trip and notification state…" />
+          <Loading
+            kind="screen"
+            message="Clearing private trip and notification state…"
+          />
         )}
       </Screen>
     );
@@ -243,10 +246,10 @@ function Session() {
 }
 export default function App() {
   const [fontsLoaded, fontError] = useFonts({
-    Geist_400Regular,
-    Geist_500Medium,
-    Geist_600SemiBold,
-    Geist_700Bold,
+    Urbanist_400Regular,
+    Urbanist_500Medium,
+    Urbanist_600SemiBold,
+    Urbanist_700Bold,
   });
   const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
   return (
@@ -254,7 +257,7 @@ export default function App() {
       <ThemeProvider>
         {!fontsLoaded && !fontError ? (
           <Screen auth>
-            <Loading message="Opening NMT Travel…" />
+            <Loading kind="screen" message="Opening NMT Travel…" />
           </Screen>
         ) : (
           <AuthBoundary>

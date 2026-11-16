@@ -11,7 +11,7 @@
   "scripts": {
     "dev:api": "npm run dev -w @nmt/api",
     "dev:android": "npm run start -w @nmt/mobile",
-    "test": "npm run test -w @nmt/api",
+    "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "build:api": "npm run build -w @nmt/api",
     "format:check": "prettier --check .",

@@ -285,7 +285,7 @@ export function AccountRemovalRecovery({ intent }: { intent: RemovalIntent }) {
         <Action
           title="Retry private cleanup"
           busy={busy}
-          onPress={() => void cleanup()}
+          onPress={() => cleanup()}
         />
       ) : (
         <>
@@ -293,7 +293,7 @@ export function AccountRemovalRecovery({ intent }: { intent: RemovalIntent }) {
           <Action
             title="Check removal status"
             busy={busy}
-            onPress={() => void check()}
+            onPress={() => check()}
           />
           {!userId && !state && (
             <Action
@@ -309,7 +309,7 @@ export function AccountRemovalRecovery({ intent }: { intent: RemovalIntent }) {
               secondary
               disabled={busy}
               onPress={() => {
-                void accountDeadline(signOut()).catch(() =>
+                return accountDeadline(signOut()).catch(() =>
                   setError(
                     "Sign-out did not finish. Retry before checking the original account.",
                   ),
@@ -322,7 +322,7 @@ export function AccountRemovalRecovery({ intent }: { intent: RemovalIntent }) {
               title="Retry remaining account removal"
               requiresConnection
               busy={busy}
-              onPress={() => void check(true)}
+              onPress={() => check(true)}
             />
           )}
           {state && state.state !== "provider_pending" && (
@@ -333,7 +333,7 @@ export function AccountRemovalRecovery({ intent }: { intent: RemovalIntent }) {
                   : "Return to account"
               }
               busy={busy}
-              onPress={() => void finish()}
+              onPress={() => finish()}
             />
           )}
         </>

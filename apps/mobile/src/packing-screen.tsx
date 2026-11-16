@@ -1,3 +1,6 @@
+import { ArrowLeft, Luggage } from "lucide-react-native";
+import { DetailRow, IconButton, ListRow, PageHeader } from "./design-system";
+import { useScreenBackEffect } from "./screen-back";
 import { useCallback, useEffect, useState } from "react";
 import { AppState, BackHandler } from "react-native";
 import {
@@ -56,10 +59,11 @@ export function BagsDestination({
         <Notice>Ask a family coordinator for access to its bags.</Notice>
       )}
       {families.map((family) => (
-        <Action
+        <ListRow
           key={family.id}
-          title={`Bags for ${family.name}`}
-          secondary
+          title={family.name}
+          subtitle="Bags, belongings and departure checks"
+          icon={Luggage}
           onPress={() => onOpen(family.id)}
         />
       ))}
@@ -275,7 +279,7 @@ export function PackingScreen({
     });
     return () => listener.remove();
   }, [load, editor]);
-  useEffect(() => {
+  useScreenBackEffect(() => {
     if (editor) return;
     const listener = BackHandler.addEventListener("hardwareBackPress", () => {
       onBack();
@@ -358,8 +362,15 @@ export function PackingScreen({
     text.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
   return (
     <Screen contentKey={view}>
-      <Action title="Back to family bags" secondary onPress={onBack} />
-      <Heading>{legLabel} packing</Heading>
+      <IconButton
+        label="Back to family bags"
+        icon={ArrowLeft}
+        onPress={onBack}
+      />
+      <PageHeader
+        title="Bags & packing"
+        subtitle={legLabel + " · Physical confirmations"}
+      />
       <ChecklistChoices
         label="Travel leg"
         locked={api.busy}
@@ -432,7 +443,7 @@ export function PackingScreen({
           <Action
             title="Retry loading bags"
             busy={api.busy}
-            onPress={() => void load()}
+            onPress={() => load()}
           />
         </>
       )}
@@ -604,7 +615,20 @@ export function PackingScreen({
                     confirmedAt: null,
                   };
                   return (
-                    <ChecklistSection key={bag.id} title={bag.name}>
+                    <DetailRow
+                      key={bag.id}
+                      title={bag.name}
+                      initiallyOpen={selectedId === bag.id}
+                      subtitle={
+                        bag.type +
+                        " · " +
+                        travelerName(data.travelers, bag.carrierTravelerId) +
+                        " · " +
+                        (outbound.needsReview
+                          ? "Review needed"
+                          : bagStatusLabels[outbound.status])
+                      }
+                    >
                       <Copy>
                         {bag.type} · Carrier:{" "}
                         {travelerName(data.travelers, bag.carrierTravelerId)}
@@ -680,7 +704,7 @@ export function PackingScreen({
                           />
                         </>
                       )}
-                    </ChecklistSection>
+                    </DetailRow>
                   );
                 })}
             </>
@@ -896,7 +920,7 @@ export function PackingScreen({
                 ))}
             </>
           )}
-          <Action title="Refresh bags" secondary onPress={() => void load()} />
+          <Action title="Refresh bags" secondary onPress={() => load()} />
         </>
       )}
     </Screen>

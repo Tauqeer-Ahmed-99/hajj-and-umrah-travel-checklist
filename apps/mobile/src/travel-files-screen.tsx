@@ -1,3 +1,4 @@
+import { useScreenBackEffect } from "./screen-back";
 import { useCallback, useEffect, useState } from "react";
 import { AppState, BackHandler } from "react-native";
 import { randomUUID } from "expo-crypto";
@@ -61,7 +62,7 @@ export function TravelFilesScreen({
     });
     return () => listener.remove();
   }, [load, editor, opened, visibility]);
-  useEffect(() => {
+  useScreenBackEffect(() => {
     if (editor || opened) return;
     const back = BackHandler.addEventListener("hardwareBackPress", () => {
       onBack();
@@ -143,7 +144,7 @@ export function TravelFilesScreen({
                 : "Confirm file visibility"
             }
             busy={api.busy}
-            onPress={() => void share()}
+            onPress={() => share()}
           />
           <Action
             title="Check file visibility"
@@ -237,7 +238,7 @@ export function TravelFilesScreen({
           title="Refresh files"
           secondary
           busy={api.busy}
-          onPress={() => void load()}
+          onPress={() => load()}
         />
       )}
     </Screen>

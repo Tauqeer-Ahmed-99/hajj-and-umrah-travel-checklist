@@ -1,3 +1,5 @@
+import { useButtonAction } from "./use-button-action";
+import { useScreenBackEffect } from "./screen-back";
 import { Text } from "./typography";
 import {
   Archive,
@@ -7,11 +9,35 @@ import {
   ListChecks,
   Luggage,
   Mail,
+  Plus,
+  ArrowLeft,
+  CalendarDays,
+  Users,
+  Share2,
+  Bell,
 } from "lucide-react-native";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { useIsFocused } from "@react-navigation/native";
+import { useTripCatalog } from "./trip-catalog";
+import {
+  IconButton,
+  JourneyCard,
+  ListRow,
+  PageHeader,
+  QuickTile,
+  SectionLabel,
+  Surface,
+} from "./design-system";
 import { useAuth } from "@clerk/expo";
 import {
   AppState,
+  ActivityIndicator,
   BackHandler,
   Pressable,
   StyleSheet,
@@ -106,17 +132,29 @@ type Route =
   | { screen: "family"; tripId: string; familyId: string }
   | { screen: "new-traveler"; tripId: string; familyId: string };
 
+export type TripOpenRequest = {
+  nonce: number;
+  tripId?: string;
+  destination?: Destination;
+  create?: boolean;
+  screen?: "search" | "itinerary" | "reminders" | "invitations";
+};
 export function TripsScreen({
   profile,
   onAccount,
   onOffline,
   onCached,
+  request,
 }: {
   profile: MemberProfile;
   onAccount: () => void;
   onOffline: () => void;
   onCached: () => void;
+  request?: TripOpenRequest;
 }) {
+  const focused = useIsFocused();
+  const requested = useRef(request);
+  requested.current = request;
   const { sessionId } = useAuth();
   const [route, setRoute] = useState<Route | null>(null);
   const [preferenceError, setPreferenceError] = useState("");
@@ -151,7 +189,7 @@ export function TripsScreen({
     }
     restoreTripNavigation(profile.id, sessionId)
       .then((saved) => {
-        if (active)
+        if (active && !requested.current)
           setRoute(
             !saved
               ? { screen: "list" }
@@ -184,7 +222,7 @@ export function TripsScreen({
           );
       })
       .catch(() => {
-        if (active) {
+        if (active && !requested.current) {
           setPreferenceError(
             "Your last view could not be restored. Choose a trip below.",
           );
@@ -258,6 +296,20 @@ export function TripsScreen({
     });
   };
   useEffect(() => {
+    if (!request) return;
+    if (request.create) setRoute({ screen: "new-trip" });
+    else if (request.screen === "invitations")
+      setRoute({ screen: "invitations" });
+    else if (request.tripId) {
+      if (request.screen === "search")
+        openOverview(request.tripId, overviewQuery.parse({}));
+      else if (request.screen === "itinerary" || request.screen === "reminders")
+        setRoute({ screen: request.screen, tripId: request.tripId });
+      else openTrip(request.tripId, request.destination);
+    } else setRoute({ screen: "list" });
+  }, [request?.nonce]);
+  useScreenBackEffect(() => {
+    if (!focused) return;
     const listener = BackHandler.addEventListener("hardwareBackPress", () => {
       if (route?.screen === "family") {
         openTrip(route.tripId);
@@ -272,7 +324,7 @@ export function TripsScreen({
       return false; // Creation forms own their unsaved-change confirmation.
     });
     return () => listener.remove();
-  }, [route, profile.id]);
+  }, [route, profile.id, focused]);
   if (!route)
     return (
       <Screen>
@@ -591,20 +643,28 @@ export function TripLink({
   title,
   onPress,
   testID,
+  busy = false,
 }: {
   title: string;
   onPress: () => void;
   testID?: string;
+  busy?: boolean;
 }) {
   const { colors } = useTheme();
+  const action = useButtonAction(onPress, busy);
+  busy = action.busy;
+  onPress = action.press;
   return (
     <Pressable
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={title}
+      accessibilityState={{ busy, disabled: busy }}
+      disabled={busy}
       onPress={onPress}
       style={({ pressed }) => [styles.link, { opacity: pressed ? 0.6 : 1 }]}
     >
+      {busy && <ActivityIndicator color={colors.brand} accessible={false} />}
       <Text style={[styles.linkText, { color: colors.brand }]}>{title}</Text>
     </Pressable>
   );
@@ -612,7 +672,12 @@ export function TripLink({
 function Section({ title, children }: { title: string; children: ReactNode }) {
   const { colors } = useTheme();
   return (
-    <View style={[styles.section, { borderColor: colors.border }]}>
+    <View
+      style={[
+        styles.section,
+        { borderColor: colors.border, backgroundColor: colors.surface },
+      ]}
+    >
       <Text
         accessibilityRole="header"
         style={[styles.sectionTitle, { color: colors.ink }]}
@@ -658,7 +723,7 @@ function DestinationNav({
               styles.tab,
               {
                 backgroundColor:
-                  selected === name ? colors.tint : colors.surface,
+                  selected === name ? colors.action : colors.surface,
                 borderColor: selected === name ? colors.brand : colors.surface,
                 opacity: pressed ? 0.65 : 1,
               },
@@ -666,13 +731,13 @@ function DestinationNav({
           >
             <Icon
               size={19}
-              color={selected === name ? colors.brand : colors.muted}
+              color={selected === name ? "#FFFFFF" : colors.muted}
               accessible={false}
             />
             <Text
               style={[
                 styles.linkText,
-                { color: selected === name ? colors.brand : colors.muted },
+                { color: selected === name ? "#FFFFFF" : colors.muted },
               ]}
             >
               {name}
@@ -703,82 +768,69 @@ function TripList({
   onInvitations: () => void;
   onOffline: () => void;
 }) {
-  const api = useTripRequest();
-  const [trips, setTrips] = useState<Trip[] | null>(null);
+  const { trips, busy, error, refresh } = useTripCatalog();
   const { colors } = useTheme();
-  const load = useCallback(async () => {
-    const result = await api.run(tripApi.list);
-    if (result) setTrips(result.trips);
-  }, [api.run]);
-  useEffect(() => {
-    if (api.error && [401, 403, 404].includes(api.error.status)) setTrips(null);
-  }, [api.error]);
-  useForegroundRefresh(load);
   return (
     <Screen>
-      <View style={styles.tools}>
-        <Heading>Your trips</Heading>
-        <TripLink title="Account" onPress={onAccount} />
-      </View>
-      <Copy>Keep each journey and its families together.</Copy>
+      <PageHeader
+        title="Your trips"
+        subtitle="Every journey, in one place."
+        action={
+          <IconButton label="Create trip" icon={Plus} onPress={onCreate} />
+        }
+      />
       {preferenceError && <Notice error>{preferenceError}</Notice>}
-      {!trips && !api.error && <Loading message="Loading your trips…" />}
-      {api.error && (
-        <>
-          <Notice error>{api.error.message}</Notice>
+      {!trips && !error && <Loading message="Loading your trips…" />}
+      {error && (
+        <Surface>
+          <Notice error>{error}</Notice>
           <Action
             title="Retry loading trips"
-            busy={api.busy}
-            onPress={() => void load()}
+            busy={busy}
+            onPress={() => refresh()}
           />
-        </>
+        </Surface>
       )}
       {trips?.length === 0 && (
-        <Section title="No trips yet">
-          <Copy>
-            Create a private Hajj or Umrah trip for your family. An invitation
-            from an organizer is needed to join someone else’s trip.
-          </Copy>
-        </Section>
+        <JourneyCard
+          eyebrow="YOUR FIRST JOURNEY"
+          title={"Let’s make room\nfor the meaningful."}
+          subtitle="Create a private Hajj or Umrah trip, or join with an invitation."
+          label="Create trip"
+          onPress={onCreate}
+        />
       )}
       {trips?.map((trip) => (
-        <Section key={trip.id} title={trip.name}>
-          <Copy>
-            {trip.kind === "hajj" ? "Hajj" : "Umrah"}: {trip.startDate} to{" "}
-            {trip.endDate}
-          </Copy>
-          <Copy muted>{trip.destinations.join(" → ")}</Copy>
-          <Action
-            title={`Open ${trip.name}`}
-            secondary
-            onPress={() => onOpen(trip.id)}
-          />
-        </Section>
+        <JourneyCard
+          key={trip.id}
+          eyebrow={trip.kind.toUpperCase()}
+          title={trip.name}
+          subtitle={
+            trip.startDate +
+            " — " +
+            trip.endDate +
+            "\n" +
+            trip.destinations.join(" → ")
+          }
+          label={"Open " + trip.name}
+          onPress={() => onOpen(trip.id)}
+        />
       ))}
-      <Action title="Create trip" onPress={onCreate} />
-      <Shortcuts>
-        <Shortcut
-          title="Open cached trips"
-          icon={<Download size={20} color={colors.brand} accessible={false} />}
+      <Surface>
+        <ListRow title="Create a trip" icon={Plus} onPress={onCreate} />
+        <ListRow title="Your invitations" icon={Mail} onPress={onInvitations} />
+        <ListRow title="Archived trips" icon={Archive} onPress={onArchives} />
+      </Surface>
+      <Surface>
+        <ListRow
+          title="Cached trips"
+          subtitle="Travel details available offline"
+          icon={Download}
           onPress={onCached}
         />
-        <Shortcut
-          title="Open saved guides"
-          icon={<BookOpen size={20} color={colors.brand} accessible={false} />}
-          onPress={onOffline}
-        />
-        <Shortcut
-          title="Your invitations"
-          icon={<Mail size={20} color={colors.brand} accessible={false} />}
-          onPress={onInvitations}
-        />
-        <Shortcut
-          title="Archived trips"
-          icon={<Archive size={20} color={colors.brand} accessible={false} />}
-          onPress={onArchives}
-        />
-      </Shortcuts>
-      <TripLink title="Refresh trips" onPress={() => void load()} />
+        <ListRow title="Saved guides" icon={BookOpen} onPress={onOffline} />
+      </Surface>
+      <TripLink busy={busy} title="Refresh trips" onPress={() => refresh()} />
     </Screen>
   );
 }
@@ -840,15 +892,10 @@ function TripHome({
     ],
   };
   return (
-    <Screen
-      contentKey={destination}
-      footer={
-        <DestinationNav selected={destination} onSelect={onDestination} />
-      }
-    >
+    <Screen contentKey={destination}>
       <View style={styles.tools}>
-        <TripLink title="Switch trip" onPress={onSwitch} />
-        <TripLink title="Account" onPress={onAccount} />
+        <IconButton label="Switch trip" icon={ArrowLeft} onPress={onSwitch} />
+        <TripLink title="Trip members" onPress={onAccess} />
       </View>
       {preferenceError && <Notice error>{preferenceError}</Notice>}
       {!detail && !api.error && <Loading message="Opening your trip…" />}
@@ -859,73 +906,76 @@ function TripHome({
           <Action
             title="Retry opening trip"
             busy={api.busy}
-            onPress={() => void load()}
+            onPress={() => load()}
           />
           <Action title="Your trips" secondary onPress={onSwitch} />
         </>
       )}
       {detail && (
         <>
-          <Heading>{detail.trip.name}</Heading>
-          <TripLink title="Trip members & invitations" onPress={onAccess} />
-          <TripLink title="Share travel summary" onPress={onSummary} />
-          <TripLink title="Completion and archive" onPress={onCompletion} />
-          <Copy muted>
-            {detail.trip.kind === "hajj" ? "Hajj" : "Umrah"} ·{" "}
-            {detail.trip.role === "organizer"
-              ? "Trip organizer"
-              : detail.trip.role === "viewer"
-                ? "Read-only trip access"
-                : "Trip member"}
-          </Copy>
+          <PageHeader
+            title={detail.trip.name}
+            subtitle={
+              detail.trip.kind === "hajj" ? "Hajj journey" : "Umrah journey"
+            }
+          />
+          <DestinationNav selected={destination} onSelect={onDestination} />
           {destination === "Overview" ? (
             <>
-              <OverviewSummary tripId={tripId} onFind={onFind} />
-              <Action
-                title="Itinerary and travel details"
-                secondary
+              <JourneyCard
+                eyebrow="JOURNEY DETAILS"
+                title={detail.trip.destinations.join(" → ")}
+                subtitle={detail.trip.startDate + " — " + detail.trip.endDate}
                 onPress={onItinerary}
+                label="Itinerary and travel details"
               />
-              <Action
-                title="Reminders and notifications"
-                secondary
-                onPress={onReminders}
-              />
-              <Section title="Journey dates">
-                <Copy>Departure: {detail.trip.startDate}</Copy>
-                <Copy>Return: {detail.trip.endDate}</Copy>
-              </Section>
-              <Section title="Destinations">
-                {detail.trip.destinations.map((name, index) => (
-                  <Copy key={`${index}:${name}`}>{name}</Copy>
-                ))}
-              </Section>
-              <Section title="Your family groups">
-                <Copy muted>
-                  Only families that have granted you access appear here.
-                </Copy>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <QuickTile
+                  title="Itinerary"
+                  icon={CalendarDays}
+                  onPress={onItinerary}
+                />
+                <QuickTile
+                  title="Reminders"
+                  icon={Bell}
+                  onPress={onReminders}
+                />
+                <QuickTile title="Summary" icon={Share2} onPress={onSummary} />
+                <QuickTile title="Members" icon={Users} onPress={onAccess} />
+              </View>
+              <OverviewSummary tripId={tripId} onFind={onFind} />
+              <SectionLabel>Your family groups</SectionLabel>
+              <Surface>
                 {detail.families.length === 0 && (
-                  <Copy>
-                    No family access yet. Ask that family’s coordinator for
+                  <Copy muted>
+                    No family access yet. Ask your family coordinator for
                     access.
                   </Copy>
                 )}
                 {detail.families.map((family) => (
-                  <Action
+                  <ListRow
                     key={family.id}
-                    title={`Open ${family.name}`}
-                    secondary
+                    title={family.name}
+                    subtitle="Travelers and family details"
+                    icon={Users}
                     onPress={() => onFamily(family.id)}
                   />
                 ))}
                 {detail.trip.role === "organizer" && (
-                  <Action title="Add family group" onPress={onAddFamily} />
+                  <ListRow
+                    title="Add family group"
+                    icon={Plus}
+                    onPress={onAddFamily}
+                  />
                 )}
-              </Section>
-              <Notice>
-                Open Checklist to arrange items and Bags to confirm outbound
-                packing.
-              </Notice>
+              </Surface>
+              <Surface>
+                <ListRow
+                  title="Completion and archive"
+                  icon={Archive}
+                  onPress={onCompletion}
+                />
+              </Surface>
             </>
           ) : destination === "Checklist" ? (
             <>
@@ -953,7 +1003,11 @@ function TripHome({
               />
             </Section>
           )}
-          <TripLink title="Refresh trip" onPress={() => void load()} />
+          <TripLink
+            busy={api.busy}
+            title="Refresh trip"
+            onPress={() => load()}
+          />
         </>
       )}
     </Screen>
@@ -1013,7 +1067,7 @@ function FamilyRoster({
           <Action
             title="Retry loading roster"
             busy={api.busy}
-            onPress={() => void load()}
+            onPress={() => load()}
           />
         </>
       )}
@@ -1053,7 +1107,11 @@ function FamilyRoster({
               manages travelers.
             </Notice>
           )}
-          <TripLink title="Refresh roster" onPress={() => void load()} />
+          <TripLink
+            busy={api.busy}
+            title="Refresh roster"
+            onPress={() => load()}
+          />
         </>
       )}
     </Screen>
@@ -1072,6 +1130,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 4,
     justifyContent: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   linkText: {
     fontSize: 14,
@@ -1079,19 +1140,23 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     textAlign: "center",
   },
-  section: { borderTopWidth: 1, paddingTop: 20, gap: 12 },
+  section: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 22,
+    padding: 16,
+    gap: 12,
+  },
   sectionTitle: {
-    fontSize: 22,
-    lineHeight: 30,
+    fontSize: 19,
+    lineHeight: 26,
     fontWeight: "600",
     writingDirection: "auto",
   },
   navigation: {
     flexDirection: "row",
     flexWrap: "wrap",
-    borderTopWidth: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    borderRadius: 26,
+    padding: 4,
     gap: 4,
   },
   tab: {
@@ -1099,7 +1164,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     minHeight: 48,
     borderWidth: 1,
-    borderRadius: 14,
+    borderRadius: 24,
     paddingVertical: 10,
     paddingHorizontal: 8,
     alignItems: "center",

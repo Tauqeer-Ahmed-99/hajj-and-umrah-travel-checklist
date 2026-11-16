@@ -1,3 +1,4 @@
+import { DateField } from "./date-field";
 import { useState } from "react";
 import { randomUUID } from "expo-crypto";
 import {
@@ -221,14 +222,13 @@ export function AcquisitionForm(
         </ChecklistSection>
       )}
       {mode === "delivery" && (
-        <Field
-          label="Expected delivery (YYYY-MM-DD)"
+        <DateField
+          label="Expected delivery"
           value={date}
           onChangeText={setDate}
           editable={!save.locked}
           error={save.fields.fields}
-          autoCapitalize="none"
-          hint="Optional calendar date. Overdue means before the server's current UTC day. No reminder is scheduled."
+          optional
         />
       )}
       {(mode === "move" || mode === "correct") && (

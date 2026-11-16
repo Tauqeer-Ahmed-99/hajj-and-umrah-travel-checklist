@@ -1,3 +1,5 @@
+import { ListRow, Metric } from "./design-system";
+import { useScreenBackEffect } from "./screen-back";
 import {
   useCallback,
   useEffect,
@@ -174,35 +176,36 @@ export function OverviewSummary({
       )}
       {data && (
         <>
-          <Copy>Active phase: {tripPhaseLabels[data.phase]}</Copy>
-          <Departure data={data} />
-          <Copy muted>
-            Only records you may access are included. Preparation and packing
-            confirmations are separate.
-          </Copy>
+          <Copy muted>{tripPhaseLabels[data.phase]}</Copy>
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            <Metric
+              value={
+                data.preparation.availableItems +
+                "/" +
+                data.preparation.activeItems
+              }
+              label="Items physically available"
+            />
+            <Metric
+              value={
+                data.readiness.confirmedBags + "/" + data.readiness.totalBags
+              }
+              label="Bags with saved confirmation"
+            />
+          </View>
           {data.actions
             .filter((a) => a.key === "essentials" || a.count > 0)
             .map((a) => (
-              <Action
+              <ListRow
                 key={a.key}
-                title={`${a.label}: ${a.count}`}
-                secondary={a.key !== "essentials"}
+                title={a.label}
+                subtitle={a.count + " to review"}
                 onPress={() => onFind({ ...data.query, attention: a.key })}
               />
             ))}
-          <Copy>
-            {data.preparation.availableItems} of {data.preparation.activeItems}{" "}
-            active items physically available. {data.preparation.openTasks} open
-            tasks.
-          </Copy>
-          <Copy>
-            {data.readiness.confirmedBags} of {data.readiness.totalBags} bags
-            have a saved confirmation without an outstanding review for this
-            leg.
-          </Copy>
           <Notice>
-            Overall readiness is not verified. Unknown checks, unreviewed
-            changes and remote updates still need attention.
+            Availability and packing are separate. Saved confirmations are not a
+            fresh physical check.
           </Notice>
           <Freshness data={data} />
         </>
@@ -216,7 +219,7 @@ export function OverviewSummary({
           title="Retry overview"
           secondary
           busy={busy}
-          onPress={() => void load()}
+          onPress={() => load()}
         />
       )}
     </ChecklistSection>
@@ -485,7 +488,7 @@ export function OverviewScreen({
     setQuery(next);
     onRemember(next);
   };
-  useEffect(() => {
+  useScreenBackEffect(() => {
     const listener = BackHandler.addEventListener("hardwareBackPress", () => {
       if (activity) setActivity(null);
       else onBack();
@@ -596,7 +599,7 @@ export function OverviewScreen({
         title="Refresh overview"
         secondary
         busy={busy}
-        onPress={() => void load()}
+        onPress={() => load()}
       />
     </Screen>
   );

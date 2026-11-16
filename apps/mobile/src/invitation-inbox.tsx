@@ -94,7 +94,7 @@ export function InvitationInbox({
               disabled={
                 !selected.tripApproved || !selected.familyApproved || uncertain
               }
-              onPress={() => void accept()}
+              onPress={() => accept()}
             />
           )}
           {selected.status === "accepted" && (
@@ -113,7 +113,7 @@ export function InvitationInbox({
             title="Refresh invitation"
             secondary
             busy={api.busy}
-            onPress={() => void preview(selected.id)}
+            onPress={() => preview(selected.id)}
           />
         </>
       ) : (
@@ -136,7 +136,7 @@ export function InvitationInbox({
                 title={`Review invitation for ${i.trip.name}`}
                 secondary
                 disabled={api.busy}
-                onPress={() => void preview(i.id)}
+                onPress={() => preview(i.id)}
               />
             </AccessSection>
           ))}
@@ -153,14 +153,14 @@ export function InvitationInbox({
             <Action
               title="Preview invitation code"
               disabled={api.busy}
-              onPress={() => void preview(code)}
+              onPress={() => preview(code)}
             />
           </AccessSection>
           <Action
             title="Refresh invitations"
             secondary
             busy={api.busy}
-            onPress={() => void load()}
+            onPress={() => load()}
           />
         </>
       )}

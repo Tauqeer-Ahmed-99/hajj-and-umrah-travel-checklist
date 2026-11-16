@@ -1,3 +1,4 @@
+import { useScreenBackEffect } from "./screen-back";
 import { useEffect, useState } from "react";
 import { BackHandler } from "react-native";
 import { useAuth } from "@clerk/expo";
@@ -165,7 +166,7 @@ export function OfflineTripsScreen({
             : { tripId: route.tripId, screen: "trip" },
         )
       : onBack();
-  useEffect(() => {
+  useScreenBackEffect(() => {
     const listener = BackHandler.addEventListener("hardwareBackPress", () => {
       back();
       return true;

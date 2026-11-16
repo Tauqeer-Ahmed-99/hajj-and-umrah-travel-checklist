@@ -12,7 +12,12 @@ export function ChecklistSection({
 }) {
   const { colors } = useTheme();
   return (
-    <View style={[styles.section, { borderColor: colors.border }]}>
+    <View
+      style={[
+        styles.section,
+        { borderColor: colors.border, backgroundColor: colors.surface },
+      ]}
+    >
       <Text
         accessibilityRole="header"
         style={[styles.heading, { color: colors.ink }]}
@@ -66,7 +71,7 @@ export function ChecklistChoices<T extends string>({
               style={[
                 styles.choice,
                 {
-                  borderColor: colors.brand,
+                  borderColor: checked ? colors.brand : colors.border,
                   backgroundColor: checked ? colors.tint : colors.surface,
                 },
               ]}
@@ -83,17 +88,22 @@ export function ChecklistChoices<T extends string>({
   );
 }
 const styles = StyleSheet.create({
-  section: { gap: 12, borderTopWidth: 1, paddingTop: 20 },
-  heading: { fontSize: 21, lineHeight: 29, fontWeight: "700" },
+  section: {
+    gap: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 16,
+    borderRadius: 22,
+  },
+  heading: { fontSize: 19, lineHeight: 26, fontWeight: "600" },
   group: { gap: 8 },
   choices: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   choice: {
-    minHeight: 56,
+    minHeight: 48,
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 14,
+    borderRadius: 24,
+    padding: 12,
     justifyContent: "center",
     flexShrink: 1,
   },
-  label: { fontSize: 17, lineHeight: 25, fontWeight: "600" },
+  label: { fontSize: 13, lineHeight: 21, fontWeight: "600" },
 });

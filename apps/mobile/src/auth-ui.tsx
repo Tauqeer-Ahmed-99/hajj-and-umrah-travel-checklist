@@ -1,3 +1,4 @@
+import { useButtonAction } from "./use-button-action";
 import {
   useCallback,
   useRef,
@@ -7,6 +8,7 @@ import {
 } from "react";
 import {
   KeyboardAvoidingView,
+  ActivityIndicator,
   Platform,
   Pressable,
   ScrollView,
@@ -18,7 +20,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useFocusEffect } from "@react-navigation/native";
 import { ArrowLeft, ArrowRight } from "lucide-react-native";
-import Svg, { Circle, Path, Rect } from "react-native-svg";
+import { JourneyMascot } from "./design-system";
 import { useTheme } from "./theme";
 import { Text } from "./typography";
 import { Brand } from "./brand";
@@ -134,25 +136,31 @@ export function TextAction({
   onPress,
   disabled = false,
   muted = false,
+  busy = false,
 }: {
   title: string;
   onPress: () => void;
   disabled?: boolean;
   muted?: boolean;
+  busy?: boolean;
 }) {
   const { colors } = useTheme();
+  const action = useButtonAction(onPress, busy);
+  busy = action.busy;
+  onPress = action.press;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={title}
-      accessibilityState={{ disabled }}
-      disabled={disabled}
+      accessibilityState={{ disabled: disabled || busy, busy }}
+      disabled={disabled || busy}
       onPress={onPress}
       style={({ pressed }) => [
         styles.textAction,
         { opacity: disabled ? 0.55 : pressed ? 0.6 : 1 },
       ]}
     >
+      {busy && <ActivityIndicator color={colors.brand} accessible={false} />}
       <Text
         style={[styles.link, { color: muted ? colors.muted : colors.brand }]}
       >
@@ -247,85 +255,18 @@ export function JourneyIllustration() {
   const { colors } = useTheme();
   return (
     <View
-      accessible={false}
-      importantForAccessibility="no-hide-descendants"
-      style={styles.illustration}
+      style={{ alignItems: "center", justifyContent: "center", minHeight: 260 }}
     >
-      <Svg width="100%" height="100%" viewBox="0 0 320 280">
-        <Circle cx="160" cy="138" r="112" fill={colors.tint} />
-        <Path
-          d="M49 189C19 117 104 34 197 47c82 12 103 99 66 150"
-          stroke={colors.border}
-          strokeWidth="1.5"
-          strokeDasharray="4 7"
-          fill="none"
-        />
-        <Circle cx="49" cy="189" r="5" fill={colors.brand} />
-        <Path d="m249 184 19 8-9 19-3-12-13-4z" fill={colors.brand} />
-        <Rect
-          x="97"
-          y="96"
-          width="125"
-          height="143"
-          rx="24"
-          fill={colors.brand}
-        />
-        <Path
-          d="M139 95V81c0-14 41-14 41 0v14"
-          stroke={colors.brand}
-          strokeWidth="9"
-          fill="none"
-        />
-        <Path
-          d="M121 119v95M198 119v95"
-          stroke={colors.onBrand}
-          strokeOpacity=".22"
-          strokeWidth="3"
-          strokeLinecap="round"
-        />
-        <Rect
-          x="120"
-          y="235"
-          width="12"
-          height="13"
-          rx="5"
-          fill={colors.brand}
-        />
-        <Rect
-          x="187"
-          y="235"
-          width="12"
-          height="13"
-          rx="5"
-          fill={colors.brand}
-        />
-        <Rect
-          x="175"
-          y="63"
-          width="72"
-          height="103"
-          rx="9"
-          transform="rotate(16 175 63)"
-          fill={colors.surface}
-          stroke={colors.border}
-        />
-        <Circle
-          cx="199"
-          cy="106"
-          r="12"
-          transform="rotate(16 199 106)"
-          stroke={colors.brand}
-          strokeWidth="1.5"
-          fill="none"
-        />
-        <Path
-          d="m187 103 24 7m-9-15-7 23m-10 11 27 8m-30 1 20 6"
-          stroke={colors.brand}
-          strokeWidth="1.5"
-          strokeLinecap="round"
-        />
-        <Path d="m67 80 3-9 3 9 9 3-9 3-3 9-3-9-9-3z" fill={colors.brand} />
-      </Svg>
+      <View
+        style={{
+          position: "absolute",
+          width: 250,
+          height: 250,
+          borderRadius: 125,
+          backgroundColor: colors.tint,
+        }}
+      />
+      <JourneyMascot size={290} />
     </View>
   );
 }
@@ -341,7 +282,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
-  back: { minHeight: 48, width: 40, justifyContent: "center", marginLeft: -8 },
+  back: { minHeight: 48, width: 48, justifyContent: "center", marginLeft: -8 },
   navTitle: { fontSize: 15, fontWeight: "500", lineHeight: 22 },
   help: { marginLeft: "auto" },
   scroll: {
@@ -358,11 +299,13 @@ const styles = StyleSheet.create({
     letterSpacing: -0.9,
     fontWeight: "600",
   },
-  description: { fontSize: 16, lineHeight: 25 },
+  description: { fontSize: 15, lineHeight: 23 },
   textAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
     minHeight: 48,
     justifyContent: "center",
-    alignItems: "center",
     paddingHorizontal: 8,
     paddingVertical: 10,
   },

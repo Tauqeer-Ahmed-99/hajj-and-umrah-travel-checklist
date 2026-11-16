@@ -1,3 +1,4 @@
+import { useScreenBackEffect } from "./screen-back";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, BackHandler, View } from "react-native";
 import { randomUUID } from "expo-crypto";
@@ -300,7 +301,7 @@ export function CompletionScreen({
     });
     return () => listener.remove();
   }, [load]);
-  useEffect(() => {
+  useScreenBackEffect(() => {
     if (editor) return;
     const listener = BackHandler.addEventListener("hardwareBackPress", () => {
       onBack();
@@ -346,7 +347,7 @@ export function CompletionScreen({
         title="Refresh completion"
         secondary
         busy={api.busy}
-        onPress={() => void load()}
+        onPress={() => load()}
       />
       {data && (
         <>
@@ -451,7 +452,7 @@ export function ArchivesScreen({
     });
     return () => listener.remove();
   }, [load]);
-  useEffect(() => {
+  useScreenBackEffect(() => {
     const listener = BackHandler.addEventListener("hardwareBackPress", () => {
       onBack();
       return true;
@@ -472,7 +473,7 @@ export function ArchivesScreen({
         title="Refresh archives"
         secondary
         busy={api.busy}
-        onPress={() => void load()}
+        onPress={() => load()}
       />
       {archives?.length === 0 && (
         <Copy>No archived trips are available to this account.</Copy>

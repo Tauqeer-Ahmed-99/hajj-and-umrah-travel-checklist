@@ -1,3 +1,4 @@
+import { useScreenBackEffect } from "./screen-back";
 import { useEffect, useState } from "react";
 import { Alert, BackHandler } from "react-native";
 import { randomUUID } from "expo-crypto";
@@ -75,7 +76,7 @@ function useGuideSave<T>(
       ],
     );
   };
-  useEffect(() => {
+  useScreenBackEffect(() => {
     const listener = BackHandler.addEventListener("hardwareBackPress", () => {
       cancel();
       return true;
