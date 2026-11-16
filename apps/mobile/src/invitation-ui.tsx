@@ -1,10 +1,10 @@
+import { Text } from "./typography";
 import { useEffect, type ReactNode } from "react";
 import {
   AppState,
   BackHandler,
   Pressable,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
 import type { Invitation } from "@nmt/contracts";

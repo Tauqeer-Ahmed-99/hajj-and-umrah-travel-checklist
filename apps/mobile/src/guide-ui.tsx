@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Text } from "./typography";
+import { Pressable, StyleSheet, View } from "react-native";
 import type { GuideRecord } from "@nmt/contracts";
 import type { ReactNode } from "react";
 import { useTheme } from "./theme";

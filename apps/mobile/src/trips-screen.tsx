@@ -1,3 +1,5 @@
+import { Text } from "./typography";
+import { BookOpen, LayoutGrid, ListChecks, Luggage } from "lucide-react-native";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useAuth } from "@clerk/expo";
 import {
@@ -5,7 +7,6 @@ import {
   BackHandler,
   Pressable,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
 import {
@@ -621,26 +622,47 @@ function DestinationNav({
       ]}
       accessibilityRole="tablist"
     >
-      {destinations.map((name) => (
-        <Pressable
-          key={name}
-          testID={`tab-${name.toLowerCase()}`}
-          accessibilityRole="tab"
-          accessibilityLabel={name}
-          accessibilityState={{ selected: selected === name }}
-          onPress={() => onSelect(name)}
-          style={({ pressed }) => [
-            styles.tab,
-            {
-              backgroundColor: selected === name ? colors.tint : colors.surface,
-              borderColor: selected === name ? colors.brand : colors.surface,
-              opacity: pressed ? 0.65 : 1,
-            },
-          ]}
-        >
-          <Text style={[styles.linkText, { color: colors.brand }]}>{name}</Text>
-        </Pressable>
-      ))}
+      {destinations.map((name) => {
+        const Icon = {
+          Overview: LayoutGrid,
+          Checklist: ListChecks,
+          Bags: Luggage,
+          Guides: BookOpen,
+        }[name];
+        return (
+          <Pressable
+            key={name}
+            testID={`tab-${name.toLowerCase()}`}
+            accessibilityRole="tab"
+            accessibilityLabel={name}
+            accessibilityState={{ selected: selected === name }}
+            onPress={() => onSelect(name)}
+            style={({ pressed }) => [
+              styles.tab,
+              {
+                backgroundColor:
+                  selected === name ? colors.tint : colors.surface,
+                borderColor: selected === name ? colors.brand : colors.surface,
+                opacity: pressed ? 0.65 : 1,
+              },
+            ]}
+          >
+            <Icon
+              size={19}
+              color={selected === name ? colors.brand : colors.muted}
+              accessible={false}
+            />
+            <Text
+              style={[
+                styles.linkText,
+                { color: selected === name ? colors.brand : colors.muted },
+              ]}
+            >
+              {name}
+            </Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
@@ -1014,8 +1036,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   linkText: {
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 14,
+    lineHeight: 22,
     fontWeight: "600",
     textAlign: "center",
   },
@@ -1030,18 +1052,20 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     borderTopWidth: 1,
-    padding: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     gap: 4,
   },
   tab: {
-    flexBasis: "45%",
+    flexBasis: "20%",
     flexGrow: 1,
     minHeight: 48,
     borderWidth: 1,
-    borderRadius: 6,
+    borderRadius: 14,
     paddingVertical: 10,
     paddingHorizontal: 8,
     alignItems: "center",
     justifyContent: "center",
+    gap: 5,
   },
 });

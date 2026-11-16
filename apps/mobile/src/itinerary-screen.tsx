@@ -1,5 +1,6 @@
+import { Text } from "./typography";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { AppState, BackHandler, StyleSheet, Text, View } from "react-native";
+import { AppState, BackHandler, StyleSheet, View } from "react-native";
 import {
   tripPhaseLabels,
   type Itinerary,

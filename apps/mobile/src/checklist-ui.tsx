@@ -1,5 +1,6 @@
+import { Text } from "./typography";
 import type { ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { useTheme } from "./theme";
 
 export function ChecklistSection({

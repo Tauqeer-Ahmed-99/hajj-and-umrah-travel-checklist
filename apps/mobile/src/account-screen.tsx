@@ -1,12 +1,6 @@
+import { Text } from "./typography";
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  Alert,
-  AppState,
-  BackHandler,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Alert, AppState, BackHandler, StyleSheet, View } from "react-native";
 import { useClerk } from "@clerk/expo";
 import { useSessionAuth } from "./session-auth";
 import {
@@ -16,7 +10,16 @@ import {
 } from "expo-network";
 import { profileInput, type Account, type ProfileInput } from "@nmt/contracts";
 import { AccountError, accountRequest, apiOrigin } from "./api";
-import { Action, Copy, Field, Heading, Loading, Notice, Screen } from "./ui";
+import {
+  Action,
+  AppearancePicker,
+  Copy,
+  Field,
+  Heading,
+  Loading,
+  Notice,
+  Screen,
+} from "./ui";
 import { useTheme } from "./theme";
 import { TripsScreen } from "./trips-screen";
 import { useNotificationSession } from "./notification-session";
@@ -608,6 +611,7 @@ export function AccountScreen() {
             <Copy>@{profile.username}</Copy>
           </View>
           <Notice>Profile saved</Notice>
+          <AppearancePicker />
           <Action title="Open trips" onPress={() => setShowAccount(false)} />
           <Action
             title="Open cached trips"

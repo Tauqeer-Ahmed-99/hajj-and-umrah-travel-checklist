@@ -1,3 +1,4 @@
+import { Text } from "./typography";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -5,7 +6,6 @@ import {
   BackHandler,
   Share,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
 import {

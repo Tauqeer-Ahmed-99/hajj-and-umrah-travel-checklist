@@ -1,12 +1,6 @@
+import { Text } from "./typography";
 import { useEffect, useState } from "react";
-import {
-  Alert,
-  BackHandler,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Alert, BackHandler, Pressable, StyleSheet, View } from "react-native";
 import { randomUUID } from "expo-crypto";
 import { familyInput, travelerInput, tripInput } from "@nmt/contracts";
 import { Action, Copy, Field, Heading, Notice, Screen } from "./ui";

@@ -1,5 +1,6 @@
+import { Text } from "./typography";
 import { useCallback, useState } from "react";
-import { Alert, Text } from "react-native";
+import { Alert } from "react-native";
 import type {
   AccessMember,
   FamilyRole,

@@ -9,6 +9,13 @@ import { ClerkProvider, getClerkInstance, useAuth } from "@clerk/expo";
 import { tokenCache } from "@clerk/expo/token-cache";
 import { resourceCache } from "@clerk/expo/resource-cache";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import {
+  useFonts,
+  Geist_400Regular,
+  Geist_500Medium,
+  Geist_600SemiBold,
+  Geist_700Bold,
+} from "@expo-google-fonts/geist";
 import { ThemeProvider } from "./src/theme";
 import { Action, Copy, Heading, Loading, Notice, Screen } from "./src/ui";
 import { AuthScreen } from "./src/auth-screen";
@@ -38,7 +45,7 @@ class AuthBoundary extends Component<
   render() {
     if (this.state.failed)
       return (
-        <Screen>
+        <Screen auth>
           <Heading>Could not start sign-in</Heading>
           <Copy>Check your connection, then try again.</Copy>
           <Action
@@ -130,7 +137,7 @@ function Session() {
   }
   if (intentError)
     return (
-      <Screen>
+      <Screen auth>
         <Heading>Private storage unavailable</Heading>
         <Notice error>{intentError}</Notice>
         <Action
@@ -141,7 +148,7 @@ function Session() {
     );
   if (!intentReady)
     return (
-      <Screen>
+      <Screen auth>
         <Loading message="Checking protected account state…" />
       </Screen>
     );
@@ -149,7 +156,7 @@ function Session() {
     return <AccountRemovalRecovery key={intent.requestId} intent={intent} />;
   if (!isLoaded)
     return (
-      <Screen>
+      <Screen auth>
         <Loading message="Restoring your session…" />
         {slow && (
           <>
@@ -168,7 +175,7 @@ function Session() {
     );
   if (!isSignedIn && !cleanupReady)
     return (
-      <Screen>
+      <Screen auth>
         <Heading>Clearing private data</Heading>
         {cleanupError ? (
           <>
@@ -192,31 +199,43 @@ function Session() {
   );
 }
 export default function App() {
+  const [fontsLoaded, fontError] = useFonts({
+    Geist_400Regular,
+    Geist_500Medium,
+    Geist_600SemiBold,
+    Geist_700Bold,
+  });
   const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <AuthBoundary>
-          {!publishableKey ||
-          !/^pk_(test|live)_/.test(publishableKey) ||
-          !apiOrigin() ? (
-            <Screen>
-              <Heading>This build needs setup</Heading>
-              <Copy>
-                NMT Travel is not ready to sign in on this build. Contact the
-                person who shared it.
-              </Copy>
-            </Screen>
-          ) : (
-            <ClerkProvider
-              publishableKey={publishableKey}
-              tokenCache={tokenCache}
-              __experimental_resourceCache={resourceCache}
-            >
-              <Session />
-            </ClerkProvider>
-          )}
-        </AuthBoundary>
+        {!fontsLoaded && !fontError ? (
+          <Screen auth>
+            <Loading message="Opening NMT Travel…" />
+          </Screen>
+        ) : (
+          <AuthBoundary>
+            {!publishableKey ||
+            !/^pk_(test|live)_/.test(publishableKey) ||
+            !apiOrigin() ? (
+              <Screen auth>
+                <Heading>This build needs setup</Heading>
+                <Copy>
+                  NMT Travel is not ready to sign in on this build. Contact the
+                  person who shared it.
+                </Copy>
+              </Screen>
+            ) : (
+              <ClerkProvider
+                publishableKey={publishableKey}
+                tokenCache={tokenCache}
+                __experimental_resourceCache={resourceCache}
+              >
+                <Session />
+              </ClerkProvider>
+            )}
+          </AuthBoundary>
+        )}
       </ThemeProvider>
     </SafeAreaProvider>
   );

@@ -1,5 +1,6 @@
+import { Text } from "./typography";
 import { useState } from "react";
-import { Alert, Text } from "react-native";
+import { Alert } from "react-native";
 import { randomUUID } from "expo-crypto";
 import {
   invitationInput,
