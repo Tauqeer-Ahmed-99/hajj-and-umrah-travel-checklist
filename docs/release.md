@@ -399,7 +399,7 @@ Verified in this repair:
   mobile files match the pinned source, and its 510 files contain no matches for
   the five populated server credentials checked, including common encodings.
 - Disposable native trip/guide/account fixtures were removed through the
-  application; standalone restart returned to auth without private entry points.
+  application; development-client restart returned to auth without private entry points.
 
 The supplied Neon database was empty. Its **17 existing SQL migrations** were
 applied through the Drizzle transaction runner. The correct Vercel project is
