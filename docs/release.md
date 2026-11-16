@@ -361,3 +361,60 @@ versionCode; install with `adb install -r`, never uninstall to claim preservatio
 Keep both APKs/hashes and verify member/trip/packing/file data before and after.
 Do not route an incompatible update to an old runtime or call an unrun journey a
 pass. Public GitHub release assets and production OTA remain gated above.
+
+## November 16 auth and NMT design repair
+
+Mobile source: `d0b965edb16cc5cc1097d931f90b26d3e1f3da5d` on
+`integration/spec-1-nmt-travel`.
+
+The failing preview used a different Clerk development instance, requiring a
+password after email verification and rejecting `google_one_tap`. At the owner's
+direction, the mobile Preview environment and local API now select the existing
+`nmt-travel` Clerk app. Public preflight rejects the failing instance and accepts
+NMT Travel. Real development-email HTTP verification now reaches `complete`;
+the Google invalid-token probe reaches token validation instead of rejecting the
+strategy. Actual Google account authentication and real mailbox delivery remain
+separate, unrun acceptance checks.
+
+The mobile refresh follows [NMT Solutions](https://www.nmtsolutions.in/): bundled
+Geist, indigo/light and navy/dark palettes, the parent geometric mark, compact
+trip/account shortcuts, accessible fields and tabs, 120 ms press feedback and a
+180 ms verification-state fade that respect reduced motion. Appearance controls
+are confined to Account; auth follows the saved/System preference.
+
+Verified in this repair:
+
+- **128/128** real HTTP/PostgreSQL scenarios; workspace types, production API
+  build, mobile types after the layout changes, formatting and diff checks.
+- [Final code CI](https://github.com/Tauqeer-Ahmed-99/hajj-and-umrah-travel-checklist/actions/runs/43891126998)
+  passed; Expo Doctor **20/20**; Android JavaScript export passed with bytecode
+  disabled, and a new x86_64 debug native build passed. This is not a cloud
+  Hermes/signing acceptance claim.
+- Android development client with real Clerk and the supplied Neon database:
+  email-code verification, profile save, restart, Light persistence, Dark/System
+  selection, trip navigation and Arabic text rendering. The initial hosted API
+  request returned 503; subsequent successful profile/trip/guide checks used a
+  loopback API with ADB reverse. These do not establish hosted availability.
+- Fourteen text/control contrast pairs passed. The final source archive's 142
+  mobile files match the pinned source, and its 510 files contain no matches for
+  the five populated server credentials checked, including common encodings.
+- Disposable native trip/guide/account fixtures were removed through the
+  application; standalone restart returned to auth without private entry points.
+
+The supplied Neon database was empty. Its **17 existing SQL migrations** were
+applied through the Drizzle transaction runner. The correct Vercel project is
+`tauqeerahmed99s-projects/nmt-travel-api`; its Production `DATABASE_URL` was
+updated to the migrated database. A populated `CRON_SECRET` was also added as a
+Production secret during configuration import. Existing Clerk/R2 settings were
+retained; Preview database settings were not changed. Activating the updated
+Production settings requires a redeployment, which is still gated by fresh
+Vercel MFA. The default API therefore must not be reported as repaired yet.
+
+Final signed Preview v4 request (versionCode **4**):
+[EAS build 64872742](https://expo.dev/accounts/tauqeerahmed/projects/nmt-travel/builds/64872742-dd81-4284-97ca-602b46b8625c).
+It is **queued**, with no APK/hash/signature/runtime or install result available
+yet. Earlier queued requests `840792fb` and `26f051fe` were canceled before final
+source submission. Reanimated/worklets/SVG introduce native changes: require the
+new signed binary and inspect its new runtime; do not send this code to v3's
+`7030a563186c138a162568b6d3b7683c7e2cce70` runtime. No production OTA, public
+binary release, PR or issue closure is claimed.
