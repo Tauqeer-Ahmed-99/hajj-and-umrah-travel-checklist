@@ -23,11 +23,20 @@ Profile recovery separates a server outage from offline and expired-session stat
 - The Android keyboard exposed a covered Continue action during the first pass. The corrected layout was inspected with the keyboard open. Name-step validation was also corrected after the native journey found an extra-field rejection.
 - Native Google UI opened and cancellation returned to the sign-in screen with an email alternative. Actual Google identity completion is not claimed.
 - Light welcome/forms and dark sign-in/Account were inspected. Dark preference survived app restart and logout. No appearance controls are rendered on auth screens.
-- Expo Doctor ran 20 checks; its remote schema check could not complete because `exp.host` DNS failed. This is not a 20/20 claim.
+- Expo Doctor passed **20/20** on the final source. Its initial remote-schema check failed to resolve `exp.host`; the successful retry used a task-local DNS resolver without changing system network settings.
 - Production `/api/me` changed from 503 to 200 after deployment. Real profile save/read-back and protected trip listing passed. The saved production environment alone was not sufficient evidence; these checks ran against the public API after the deployment became Ready.
 
-The new native navigation dependency requires a new binary and runtime. Version code 5 is reserved for this preview; do not send these native changes as an OTA to version 4.
+The new native navigation dependency requires a new binary and runtime. Version code 5 contains this preview; do not send these native changes as an OTA to version 4.
 
-[EAS preview 5](https://expo.dev/accounts/tauqeerahmed/projects/nmt-travel/builds/842cb0a3-7595-4e43-aa56-6eb95cd37d88) was submitted from `bc88bd864fc83254f82b7d317b2b35882576681a` and remains queued. Both that source CI run and the subsequent Maestro-selector update CI passed. Artifact download, signature/runtime/secret inspection and a signed upgrade check remain pending. Automatic approval review rejected the command preparing and installing the cached version 4 APK for a fresh emulator recheck with only “blocked by policy”; that command was not retried. The seven live HTTP checks above succeeded independently.
+[EAS preview 5](https://expo.dev/accounts/tauqeerahmed/projects/nmt-travel/builds/842cb0a3-7595-4e43-aa56-6eb95cd37d88) finished from `bc88bd864fc83254f82b7d317b2b35882576681a`. Both that source CI run and the subsequent Maestro-selector update CI passed. [Download the signed APK](https://expo.dev/artifacts/eas/JnXcKk5RcweRJmzdjrTsovMdWT2ZZj5u0RBImVaEzaQ.apk).
+
+- APK SHA256: `a9bd2d1e22badb50794c241c838333d00801aca41c542b1dc9d961148cc85d45`.
+- Version code: **5**; release package `in.nmtsolutions.travel`, same registered signing certificate as preview 4.
+- Runtime: `b9f17c59e7231dac594bad1946417834ee7e0c68`, matching cloud metadata and the native artifact.
+- Actual APK signature, package, release/debug flag, HTTPS API, selected NMT Clerk public key, preview channel, startup-update policy and Hermes checks passed.
+- All decompressed APK entries were scanned against **10** known server secrets; no matches were found.
+- All four Geist font weights were verified by content hash. Native Screens libraries are present for ARM64, ARMv7, x86 and x86_64.
+
+The signed install/upgrade recheck remains unrun. Automatic approval review rejected the command preparing and installing the cached version 4 APK for a fresh emulator recheck with only “blocked by policy”; that command was not retried. The seven live HTTP checks and static preview-5 artifact checks succeeded independently.
 
 Physical Android, TalkBack, real mailbox delivery, real Google linking and signed-release motion acceptance still require separate evidence.

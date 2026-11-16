@@ -5,6 +5,29 @@ production APK or production OTA until every launch gate below and the parent's
 fresh Standards + Spec review/fixes pass. An internal signed preview is not the
 complete production app. November 14/20 are planning dates, not acceptance evidence.
 
+## Latest preview follow-up: November 16
+
+The user completed Vercel verification. Production deployment
+[`4SndUtX9W`](https://vercel.com/tauqeerahmed99s-projects/nmt-travel-api/4SndUtX9WpbczgCudpQqS9m6Drkc)
+is Ready from `3a52a54a86da53feae43c0ff61dd29cbaa23e5cf`, using the saved server
+configuration and current Drizzle API. The original authenticated profile
+reproduction changed from HTTP 503 to 200 at `https://nmt-travel-api.vercel.app`.
+Live checks passed profile load/save/retry, read-back from a new session,
+protected Trips, username immutability and rejection of missing authentication.
+The disposable account was removed through the application. These checks use
+the supplied Neon endpoint and the selected NMT Travel Clerk development app.
+They do not establish production Google, DNS, cron/push or physical-device gates.
+
+Native onboarding was rebuilt in `bc88bd8`; its source CI and the subsequent
+Maestro-selector CI both passed. Expo Doctor now passes **20/20** after resolving
+the task-local DNS lookup failure. Preview 5 finished and its actual APK passed
+signature, runtime, configuration, font/native-library and known-secret checks.
+Its download and exact artifact evidence are recorded in
+[onboarding refresh](onboarding-refresh.md). A fresh signed install/upgrade check
+was blocked by automatic approval review and remains unrun.
+Historical pre-activation 503 and MFA observations below are superseded by these
+live API checks.
+
 ## Source and resources
 
 Implementation began at integration commit
@@ -16,9 +39,9 @@ Only Vercel account `tauqeer-ahmed-99`, team `tauqeerahmed99s-projects` is corre
 Default CLI credentials are for another account and must not be used. The
 [intended `nmt-travel-api` project](https://vercel.com/tauqeerahmed99s-projects/nmt-travel-api)
 now exists. Its default hostname is `https://nmt-travel-api.vercel.app`; the
-observed Ready Production deployment still uses older source `8d72647`.
-Unauthenticated requests return JSON 401, which does not establish configured
-provider operation.
+Ready Production deployment uses `3a52a54`, superseding `8d72647`.
+Authenticated profile save/read-back now passes, in addition to JSON 401 for
+unauthenticated requests.
 
 Seven consumed API variables were saved as Secrets for Preview and Production:
 `DATABASE_URL`, `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `R2_ENDPOINT`,
@@ -302,7 +325,7 @@ node --env-file=<restricted-clerkdev.env> --import tsx apps/api/scripts/check-re
 | Selected real Neon migrations                     | **PASS**, all 17 files applied; repeat passed; initially 0 members/trips                                                                                                                                                                                       |
 | Real private R2 provider                          | **PASS** signed PUT/GET 120s, copy survives staging overwrite, anonymous 400/tampered 403 denial, object backup-copy/delete/restore; four explicit task keys cleaned                                                                                           |
 | Real development Clerk + Neon + R2 HTTP           | **PASS** two-family privacy/invitations, receipt idempotency, stock/packing limit, separate return reconciliation, private PDF/finalization/read/revocation, last-admin block, owned trip deletion and real Clerk removal                                      |
-| Vercel deployment / production cron               | Project exists; seven consumed API Secrets saved for Preview/Production with development Clerk. Reviewed-source redeploy **BLOCKED** by fresh authenticator factor; no authenticated hosted API or cron pass                                                   |
+| Vercel deployment / production cron               | **PASS API**: production 4SndUtX9W from 3a52a54 restored authenticated profile load/save/read-back and protected Trips. Vercel verification is complete. Production cron remains **UNRUN**.                                                                    |
 | Production Clerk DNS/certificates                 | **BLOCKED**, zone-owner access unavailable; no DNS changes                                                                                                                                                                                                     |
 | Google native/email continuity both orders        | **UNRUN** on physical Android; OAuth configuration is not sign-in acceptance                                                                                                                                                                                   |
 | FCM/Expo delivery                                 | Dedicated FCM V1 key assigned and Android client configured; **BLOCKED** server Expo token, **UNRUN** actual device delivery                                                                                                                                   |
