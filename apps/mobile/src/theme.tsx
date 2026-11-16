@@ -18,7 +18,7 @@ const palettes = {
     brand: "#253FC7",
     onBrand: "#FFFFFF",
     tint: "#E9EDFF",
-    border: "#8996B5",
+    border: "#7D8BAA",
     error: "#B02B46",
   },
   dark: {
