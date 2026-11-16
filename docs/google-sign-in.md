@@ -198,3 +198,19 @@ future member-list endpoints.
   invoking `hermesc.exe -version` directly confirmed "An Application Control
   policy has blocked this file". JS-only export does not establish release Hermes
   compilation. No host security policy was changed.
+
+## November 2026 preview repair
+
+Use the existing `nmt-travel` Clerk application. The failing preview had selected
+a different development instance: `oauth_google` was enabled there, but
+`google_one_tap` was unavailable and a password was required after email
+verification. Merely enabling browser Google OAuth does not enable the native
+strategy. Clerk requires Google custom Web credentials for the native hook:
+[native Google setup](https://clerk.com/docs/expo/guides/configure/auth-strategies/sign-in-with-google).
+
+The selected NMT Travel development instance now passes the mobile provider
+preflight: native API, passwordless email, and `google_one_tap`. An invalid-token
+probe progresses to `google_one_tap_token_invalid` rather than rejecting the
+strategy. This proves configuration acceptance, not successful Google identity
+authentication. Keep actual Google account, mailbox delivery, production OAuth,
+and physical-device results separate from development test-email verification.

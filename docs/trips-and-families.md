@@ -86,11 +86,12 @@ Open trips, appearance, and Sign out. Email-code and Google authentication logic
 are unchanged by this slice. Foreground profile refresh does not unmount a trip
 form, and Android Back from Account returns to the workspace.
 
-The interface retains the account flow's identity: canvas `#F6F5EF`, white
-surfaces, ink `#17382B`, actions `#185C43`, tint `#E3EFE5`, and the matching dark
-palette. The existing serif wordmark is paired with scalable native sans text.
+The November 2026 refresh follows NMT Solutions: canvas `#F4F6FF`, white
+surfaces, ink `#17213B`, indigo actions `#253FC7`, tint `#E9EDFF`, and a matching
+navy dark palette. Bundled Geist fonts cover controls and content throughout the
+app; the parent brand's geometric mark accompanies the NMT Travel wordmark.
 Left-aligned journey dates and destination names lead the overview; separate
-family rows open their protected rosters. Fixed, wrapping text tabs keep all four
+family rows open their protected rosters. Wrapping icon-and-text tabs keep all four
 destinations reachable with 48+ dp targets, without fixed-width truncated labels.
 
 ```text

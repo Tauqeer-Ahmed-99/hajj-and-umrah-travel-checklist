@@ -1,5 +1,20 @@
 # Account flow (#2)
 
+The November 2026 mobile refresh uses bundled Geist fonts and NMT Solutions'
+indigo brand, with scalable controls and reduced-motion-aware press feedback.
+Appearance is changed from the signed-in Account screen using System, Light, or
+Dark; the existing device preference persists across sign-out and restart. Auth
+screens follow that preference without showing an appearance picker or a
+trip-access connection banner.
+
+The passwordless flow requires the selected Clerk application to have email-code
+sign-in, verified email, Native API, and no required password. The mobile EAS
+post-install check now verifies these public provider settings, including native
+Google strategy support. Run `npm run check:auth-provider -w @nmt/mobile` with
+the build's `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` for an explicit preflight. It does
+not require API secrets. A completed verification whose session activation fails
+can retry activation without consuming the code again.
+
 #21 adds [safe responsibility transfer, account removal and recovery](account-removal.md),
 including the permanent application tombstone, removal-only receipt and shared
 private-storage/notification/navigation cleanup gate. Its contract supersedes

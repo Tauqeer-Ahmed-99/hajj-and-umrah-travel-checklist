@@ -1,5 +1,13 @@
 import { Text } from "./typography";
-import { BookOpen, LayoutGrid, ListChecks, Luggage } from "lucide-react-native";
+import {
+  Archive,
+  BookOpen,
+  Download,
+  LayoutGrid,
+  ListChecks,
+  Luggage,
+  Mail,
+} from "lucide-react-native";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useAuth } from "@clerk/expo";
 import {
@@ -18,7 +26,16 @@ import {
   overviewQuery,
   type OverviewQuery,
 } from "@nmt/contracts";
-import { Action, Copy, Heading, Loading, Notice, Screen } from "./ui";
+import {
+  Action,
+  Copy,
+  Heading,
+  Loading,
+  Notice,
+  Screen,
+  Shortcut,
+  Shortcuts,
+} from "./ui";
 import { useTheme } from "./theme";
 import { tripApi } from "./trip-api";
 import { useTripRequest } from "./use-trip-request";
@@ -688,6 +705,7 @@ function TripList({
 }) {
   const api = useTripRequest();
   const [trips, setTrips] = useState<Trip[] | null>(null);
+  const { colors } = useTheme();
   const load = useCallback(async () => {
     const result = await api.run(tripApi.list);
     if (result) setTrips(result.trips);
@@ -698,12 +716,10 @@ function TripList({
   useForegroundRefresh(load);
   return (
     <Screen>
-      <Action title="Open cached trips" secondary onPress={onCached} />
-      <TripLink title="Account" onPress={onAccount} />
-      <Heading>Your trips</Heading>
-      <Action title="Archived trips" secondary onPress={onArchives} />
-      <Action title="Open saved guides" secondary onPress={onOffline} />
-      <Action title="Your invitations" secondary onPress={onInvitations} />
+      <View style={styles.tools}>
+        <Heading>Your trips</Heading>
+        <TripLink title="Account" onPress={onAccount} />
+      </View>
       <Copy>Keep each journey and its families together.</Copy>
       {preferenceError && <Notice error>{preferenceError}</Notice>}
       {!trips && !api.error && <Loading message="Loading your trips…" />}
@@ -740,6 +756,28 @@ function TripList({
         </Section>
       ))}
       <Action title="Create trip" onPress={onCreate} />
+      <Shortcuts>
+        <Shortcut
+          title="Open cached trips"
+          icon={<Download size={20} color={colors.brand} accessible={false} />}
+          onPress={onCached}
+        />
+        <Shortcut
+          title="Open saved guides"
+          icon={<BookOpen size={20} color={colors.brand} accessible={false} />}
+          onPress={onOffline}
+        />
+        <Shortcut
+          title="Your invitations"
+          icon={<Mail size={20} color={colors.brand} accessible={false} />}
+          onPress={onInvitations}
+        />
+        <Shortcut
+          title="Archived trips"
+          icon={<Archive size={20} color={colors.brand} accessible={false} />}
+          onPress={onArchives}
+        />
+      </Shortcuts>
       <TripLink title="Refresh trips" onPress={() => void load()} />
     </Screen>
   );

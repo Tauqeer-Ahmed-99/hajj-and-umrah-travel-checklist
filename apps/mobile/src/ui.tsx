@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import Animated, { useReducedMotion } from "react-native-reanimated";
-import { Check, Monitor, Moon, Sun } from "lucide-react-native";
+import { Check, ChevronRight, Monitor, Moon, Sun } from "lucide-react-native";
 import { useTheme, type Appearance } from "./theme";
 import { useTripConnection } from "./trip-cache-state";
 import { Text } from "./typography";
@@ -171,6 +171,43 @@ export function Field({
       {error && <Notice error>{error}</Notice>}
     </View>
   );
+}
+export function Shortcut({
+  title,
+  icon,
+  onPress,
+}: {
+  title: string;
+  icon: ReactNode;
+  onPress: () => void;
+}) {
+  const { colors } = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.shortcut,
+        {
+          backgroundColor: colors.surface,
+          borderColor: colors.border,
+          opacity: pressed ? 0.8 : 1,
+        },
+      ]}
+    >
+      <View style={styles.shortcutTop}>
+        <View style={[styles.shortcutIcon, { backgroundColor: colors.tint }]}>
+          {icon}
+        </View>
+        <ChevronRight size={16} color={colors.muted} accessible={false} />
+      </View>
+      <Text style={[styles.shortcutTitle, { color: colors.ink }]}>{title}</Text>
+    </Pressable>
+  );
+}
+export function Shortcuts({ children }: { children: ReactNode }) {
+  return <View style={styles.shortcuts}>{children}</View>;
 }
 export function AppearancePicker() {
   const { colors, appearance, setAppearance, preferenceError } = useTheme();
@@ -353,4 +390,21 @@ const styles = StyleSheet.create({
   loading: { gap: 16, alignItems: "flex-start" },
   attribution: { marginTop: "auto", paddingTop: 32, alignItems: "center" },
   caption: { fontSize: 12, lineHeight: 20 },
+  shortcuts: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  shortcut: {
+    flexBasis: "45%",
+    flexGrow: 1,
+    minHeight: 104,
+    borderRadius: 17,
+    borderWidth: 1,
+    padding: 15,
+    gap: 12,
+  },
+  shortcutTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  shortcutIcon: { padding: 7, borderRadius: 10 },
+  shortcutTitle: { fontSize: 15, lineHeight: 22, fontWeight: "500" },
 });

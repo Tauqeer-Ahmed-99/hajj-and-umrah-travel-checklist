@@ -1,4 +1,5 @@
 import { Text } from "./typography";
+import { BookOpen, Download } from "lucide-react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, AppState, BackHandler, StyleSheet, View } from "react-native";
 import { useClerk } from "@clerk/expo";
@@ -19,6 +20,8 @@ import {
   Loading,
   Notice,
   Screen,
+  Shortcut,
+  Shortcuts,
 } from "./ui";
 import { useTheme } from "./theme";
 import { TripsScreen } from "./trips-screen";
@@ -588,40 +591,47 @@ export function AccountScreen() {
     );
   return (
     <Screen>
-      <Heading>
-        {profile ? `Welcome, ${profile.firstName}` : "Let’s get to know you"}
-      </Heading>
+      <Heading>{profile ? "Your account" : "Let’s get to know you"}</Heading>
       <Copy>
         {profile
-          ? "Your account is ready."
+          ? "Your profile, saved travel plans, and appearance preferences."
           : "Add the name your family knows and a username they can use to invite you."}
       </Copy>
       <View style={[styles.email, { backgroundColor: colors.tint }]}>
-        <Text style={[styles.label, { color: colors.ink }]}>
-          Verified email (private)
-        </Text>
-        <Copy>{account.email}</Copy>
-      </View>
-      {profile ? (
-        <>
+        {profile && (
           <View style={styles.details}>
             <Text style={[styles.name, { color: colors.ink }]}>
               {profile.firstName} {profile.lastName}
             </Text>
             <Copy>@{profile.username}</Copy>
           </View>
-          <Notice>Profile saved</Notice>
+        )}
+        <Text style={[styles.label, { color: colors.ink }]}>
+          Verified email (private)
+        </Text>
+        <Copy>{account.email}</Copy>
+        {profile && <Notice>Profile saved</Notice>}
+      </View>
+      {profile ? (
+        <>
           <AppearancePicker />
           <Action title="Open trips" onPress={() => setShowAccount(false)} />
-          <Action
-            title="Open cached trips"
-            onPress={() => setShowCached(true)}
-          />
-          <Action
-            title="Open saved guides"
-            secondary
-            onPress={() => setShowOffline(true)}
-          />
+          <Shortcuts>
+            <Shortcut
+              title="Open cached trips"
+              icon={
+                <Download size={20} color={colors.brand} accessible={false} />
+              }
+              onPress={() => setShowCached(true)}
+            />
+            <Shortcut
+              title="Open saved guides"
+              icon={
+                <BookOpen size={20} color={colors.brand} accessible={false} />
+              }
+              onPress={() => setShowOffline(true)}
+            />
+          </Shortcuts>
           <Copy muted>
             Your email stays private. Your name and username identify you to
             people on your trips.
@@ -722,7 +732,7 @@ export function AccountScreen() {
   );
 }
 const styles = StyleSheet.create({
-  email: { padding: 20, borderRadius: 8, gap: 6 },
+  email: { padding: 20, borderRadius: 18, gap: 8 },
   label: { fontSize: 14, lineHeight: 22, fontWeight: "600" },
   details: { gap: 6, paddingVertical: 12 },
   name: {
