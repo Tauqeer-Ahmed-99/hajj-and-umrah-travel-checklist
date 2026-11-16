@@ -1,14 +1,35 @@
-import { useEffect, useState } from "react";
-import { BackHandler, StyleSheet, View } from "react-native";
-import Animated, { FadeIn, ReduceMotion } from "react-native-reanimated";
-import { ArrowRight, Compass, Mail, ShieldCheck } from "lucide-react-native";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+import { BackHandler, Keyboard, StyleSheet, View } from "react-native";
+import {
+  createNativeStackNavigator,
+  type NativeStackScreenProps,
+} from "@react-navigation/native-stack";
+import { useFocusEffect } from "@react-navigation/native";
+import { useReducedMotion } from "react-native-reanimated";
+import { Mail, ShieldCheck } from "lucide-react-native";
 import { isClerkAPIResponseError, useSignIn, useSignUp } from "@clerk/expo";
 import { useSignInWithGoogle } from "@clerk/expo/google";
 import Constants from "expo-constants";
-import { Action, Copy, Field, Heading, Notice, Screen } from "./ui";
+import { Action, Field, Notice } from "./ui";
 import { Text } from "./typography";
 import { GoogleMark } from "./brand";
 import { useTheme } from "./theme";
+import {
+  AuthPage,
+  AuthTitle,
+  AuthBody,
+  TextAction,
+  CodeInput,
+  JourneyIllustration,
+  ContinueArrow,
+  useAuthInputFocus,
+} from "./auth-ui";
 
 function providerMessage(error: unknown) {
   if (isClerkAPIResponseError(error)) {
@@ -38,13 +59,11 @@ function providerMessage(error: unknown) {
     : "Could not connect to sign-in. Check your connection and try again.";
 }
 export function AuthScreen() {
-  const { colors } = useTheme();
   const { signIn } = useSignIn();
   const { signUp } = useSignUp();
   const { startGoogleAuthenticationFlow } = useSignInWithGoogle();
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
-  const [verifying, setVerifying] = useState(false);
   const [busy, setBusy] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
   const [error, setError] = useState("");
@@ -123,30 +142,6 @@ export function AuthScreen() {
     const timer = setTimeout(() => setCooldown((value) => value - 1), 1000);
     return () => clearTimeout(timer);
   }, [cooldown]);
-  async function startOver() {
-    if (busy) return;
-    setBusy(true);
-    setError("");
-    try {
-      await resetAttempts();
-      setVerifying(false);
-      setCode("");
-      setStatus("");
-      setCooldown(0);
-    } catch (error) {
-      setError(providerMessage(error));
-    } finally {
-      setBusy(false);
-    }
-  }
-  useEffect(() => {
-    if (!verifying) return;
-    const listener = BackHandler.addEventListener("hardwareBackPress", () => {
-      if (!busy) void startOver();
-      return true;
-    });
-    return () => listener.remove();
-  }, [verifying, busy, signIn, signUp]);
   async function requestCode(resend = false) {
     if (busy || !signIn || !signUp) return;
     setError("");
@@ -169,14 +164,11 @@ export function AuthScreen() {
       const { error } = await signIn.emailCode.sendCode();
       if (error) throw error;
       setEmail(address);
-      setVerifying(true);
       setCode("");
       setCooldown(30);
-      setStatus(
-        resend
-          ? "A new code has been sent. Use the latest email."
-          : "Code sent. Check your email, including spam.",
-      );
+      setStatus(resend ? "New code sent. Use the latest email." : "");
+      Keyboard.dismiss();
+      return true;
     } catch (error) {
       setError(providerMessage(error));
     } finally {
@@ -240,164 +232,314 @@ export function AuthScreen() {
       setBusy(false);
     }
   }
+  const reduced = useReducedMotion();
   return (
-    <Screen auth>
-      <View style={styles.intro}>
-        <View style={[styles.symbol, { backgroundColor: colors.tint }]}>
-          {verifying ? (
-            <Mail color={colors.brand} size={24} accessible={false} />
-          ) : (
-            <Compass color={colors.brand} size={24} accessible={false} />
-          )}
+    <AuthContext.Provider
+      value={{
+        email,
+        setEmail,
+        code,
+        setCode,
+        busy,
+        googleBusy,
+        error,
+        status,
+        cooldown,
+        ready,
+        google,
+        requestCode,
+        verify,
+        clearMessages: () => {
+          setError("");
+          setStatus("");
+        },
+      }}
+    >
+      <Stack.Navigator
+        screenOptions={{
+          headerShown: false,
+          animation: reduced ? "fade" : "default",
+          contentStyle: { backgroundColor: "transparent" },
+        }}
+      >
+        <Stack.Screen name="Welcome" component={Welcome} />
+        <Stack.Screen name="SignIn" component={SignIn} />
+        <Stack.Screen name="Email" component={Email} />
+        <Stack.Screen name="Code" component={Code} />
+      </Stack.Navigator>
+    </AuthContext.Provider>
+  );
+}
+
+type Routes = {
+  Welcome: undefined;
+  SignIn: undefined;
+  Email: undefined;
+  Code: undefined;
+};
+const Stack = createNativeStackNavigator<Routes>();
+type Flow = {
+  email: string;
+  setEmail: (value: string) => void;
+  code: string;
+  setCode: (value: string) => void;
+  busy: boolean;
+  googleBusy: boolean;
+  error: string;
+  status: string;
+  cooldown: number;
+  ready: boolean;
+  google: () => Promise<void>;
+  requestCode: (resend?: boolean) => Promise<boolean | undefined>;
+  verify: () => Promise<void>;
+  clearMessages: () => void;
+};
+const AuthContext = createContext<Flow | null>(null);
+function useFlow() {
+  const value = useContext(AuthContext);
+  if (!value) throw Error("Auth flow is missing");
+  return value;
+}
+function useBusyBack(busy: boolean) {
+  useFocusEffect(
+    useCallback(() => {
+      if (!busy) return;
+      const listener = BackHandler.addEventListener(
+        "hardwareBackPress",
+        () => true,
+      );
+      return () => listener.remove();
+    }, [busy]),
+  );
+}
+function Feedback() {
+  const flow = useFlow();
+  return (
+    <>
+      {flow.error ? (
+        <Notice error>{flow.error}</Notice>
+      ) : flow.status ? (
+        <Notice>{flow.status}</Notice>
+      ) : null}
+    </>
+  );
+}
+function Welcome({ navigation }: NativeStackScreenProps<Routes, "Welcome">) {
+  const { colors } = useTheme();
+  return (
+    <AuthPage
+      welcome
+      footer={
+        <>
+          <Action
+            title="Get started"
+            icon={<ContinueArrow />}
+            onPress={() => navigation.navigate("SignIn")}
+          />
+          <Text style={[styles.attribution, { color: colors.muted }]}>
+            A product of NMT Solutions
+          </Text>
+        </>
+      }
+    >
+      <View style={styles.welcomeContent}>
+        <JourneyIllustration />
+        <View style={styles.welcomeText}>
+          <AuthTitle centered>Your journey, together.</AuthTitle>
+          <AuthBody centered>
+            Plan your Hajj &amp; Umrah, pack with your family, and keep what
+            matters close.
+          </AuthBody>
         </View>
-        <Heading>
-          {verifying
-            ? "Check your inbox"
-            : "A little planning.\nA meaningful journey."}
-        </Heading>
-        <Copy>
-          {verifying
-            ? `Enter the code sent to ${email}.`
-            : "Keep your Hajj & Umrah plans, family, and essentials together."}
-        </Copy>
       </View>
-      <View style={[styles.form, { backgroundColor: colors.surface }]}>
-        {!verifying ? (
-          <>
-            <Text style={[styles.formTitle, { color: colors.ink }]}>
-              Welcome to NMT Travel
-            </Text>
-            <Action
-              title={googleBusy ? "Opening Google…" : "Continue with Google"}
-              secondary
-              icon={<GoogleMark />}
-              busy={googleBusy}
-              disabled={!ready || busy}
-              onPress={() => void google()}
-            />
-            <View style={styles.divider}>
-              <View style={[styles.rule, { backgroundColor: colors.border }]} />
-              <Text style={[styles.small, { color: colors.muted }]}>
-                or continue with email
-              </Text>
-              <View style={[styles.rule, { backgroundColor: colors.border }]} />
-            </View>
-            <Field
-              label="Email address"
-              testID="email-input"
-              value={email}
-              placeholder="you@example.com"
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoComplete="email"
-              textContentType="emailAddress"
-              autoCapitalize="none"
-              autoCorrect={false}
-              editable={!busy}
-              onSubmitEditing={() => void requestCode()}
-              returnKeyType="go"
-              maxLength={254}
-            />
-            <Action
-              title={busy && !googleBusy ? "Sending code…" : "Send email code"}
-              busy={busy && !googleBusy}
-              disabled={!ready || busy}
-              icon={
-                <ArrowRight
-                  size={18}
-                  color={colors.onBrand}
-                  accessible={false}
-                />
-              }
-              onPress={() => void requestCode()}
-            />
-          </>
-        ) : (
-          <Animated.View
-            entering={FadeIn.duration(180).reduceMotion(ReduceMotion.System)}
-            style={styles.codeForm}
-          >
-            <Field
-              label="Verification code"
-              testID="code-input"
-              value={code}
-              autoFocus
-              placeholder="000000"
-              style={styles.code}
-              onChangeText={setCode}
-              keyboardType="number-pad"
-              autoComplete="one-time-code"
-              textContentType="oneTimeCode"
-              autoCapitalize="none"
-              autoCorrect={false}
-              editable={!busy}
-              maxLength={6}
-              onSubmitEditing={() => void verify()}
-              returnKeyType="go"
-            />
-            <Action
-              title={busy ? "Checking…" : "Verify email"}
-              busy={busy}
-              onPress={() => void verify()}
-            />
-            <Action
-              title={
-                cooldown ? `Send new code in ${cooldown}s` : "Send new code"
-              }
-              secondary
-              disabled={busy || cooldown > 0}
-              onPress={() => void requestCode(true)}
-            />
-            <Action
-              title="Use another email"
-              secondary
-              disabled={busy}
-              onPress={() => void startOver()}
-            />
-          </Animated.View>
-        )}
-        {status && <Notice>{status}</Notice>}
-        {error && <Notice error>{error}</Notice>}
+    </AuthPage>
+  );
+}
+function SignIn({ navigation }: NativeStackScreenProps<Routes, "SignIn">) {
+  const flow = useFlow();
+  const { colors } = useTheme();
+  useBusyBack(flow.busy);
+  return (
+    <AuthPage
+      onBack={() => navigation.goBack()}
+      backDisabled={flow.busy}
+      footer={
+        <View style={styles.privacy}>
+          <ShieldCheck color={colors.muted} size={17} accessible={false} />
+          <Text style={[styles.small, { color: colors.muted, flex: 1 }]}>
+            Your trips are private. Join your family with an invitation.
+          </Text>
+        </View>
+      }
+    >
+      <View style={styles.signInContent}>
+        <AuthTitle>Welcome to{`\n`}NMT Travel</AuthTitle>
+        <AuthBody>
+          Sign in or create an account. No password to remember.
+        </AuthBody>
+        <View style={styles.methods}>
+          <Action
+            title={flow.googleBusy ? "Opening Google…" : "Continue with Google"}
+            secondary
+            icon={<GoogleMark />}
+            busy={flow.googleBusy}
+            disabled={!flow.ready || flow.busy}
+            onPress={() => void flow.google()}
+          />
+          <Action
+            title="Continue with email"
+            icon={<Mail size={19} color={colors.onBrand} accessible={false} />}
+            disabled={!flow.ready || flow.busy}
+            onPress={() => {
+              flow.clearMessages();
+              navigation.navigate("Email");
+            }}
+          />
+        </View>
+        <Feedback />
       </View>
-      <View style={styles.privacy}>
-        <ShieldCheck size={18} color={colors.muted} accessible={false} />
-        <Text
-          style={[styles.small, styles.privacyText, { color: colors.muted }]}
-        >
-          Your trips stay private. Join your family with an invitation.
-        </Text>
+    </AuthPage>
+  );
+}
+function Email({ navigation }: NativeStackScreenProps<Routes, "Email">) {
+  const flow = useFlow();
+  const input = useAuthInputFocus();
+  useBusyBack(flow.busy);
+  const submit = async () => {
+    if (await flow.requestCode()) navigation.navigate("Code");
+  };
+  return (
+    <AuthPage
+      onBack={() => {
+        flow.clearMessages();
+        navigation.goBack();
+      }}
+      backDisabled={flow.busy}
+      footer={
+        <Action
+          title={flow.busy ? "Sending code…" : "Continue"}
+          busy={flow.busy}
+          disabled={!flow.ready || !flow.email.trim()}
+          icon={<ContinueArrow />}
+          onPress={() => void submit()}
+        />
+      }
+    >
+      <AuthTitle>What’s your email?</AuthTitle>
+      <AuthBody>We’ll send a six-digit code to sign you in.</AuthBody>
+      <View style={styles.entry}>
+        <Field
+          inputRef={input}
+          label="Email address"
+          testID="email-input"
+          value={flow.email}
+          onChangeText={(value) => {
+            flow.setEmail(value);
+            flow.clearMessages();
+          }}
+          placeholder="you@example.com"
+          keyboardType="email-address"
+          autoComplete="email"
+          textContentType="emailAddress"
+          autoCapitalize="none"
+          autoCorrect={false}
+          editable={!flow.busy}
+          returnKeyType="go"
+          onSubmitEditing={() => void submit()}
+          maxLength={254}
+        />
       </View>
-    </Screen>
+      <Feedback />
+    </AuthPage>
+  );
+}
+function Code({ navigation }: NativeStackScreenProps<Routes, "Code">) {
+  const flow = useFlow();
+  const { colors } = useTheme();
+  useBusyBack(flow.busy);
+  const back = () => {
+    flow.clearMessages();
+    flow.setCode("");
+    navigation.goBack();
+  };
+  return (
+    <AuthPage
+      onBack={back}
+      backDisabled={flow.busy}
+      footer={
+        <Action
+          title={flow.busy ? "Verifying…" : "Verify and continue"}
+          busy={flow.busy}
+          disabled={flow.code.length !== 6}
+          onPress={() => void flow.verify()}
+        />
+      }
+    >
+      <AuthTitle>Check your email</AuthTitle>
+      <AuthBody>Enter the six-digit code sent to</AuthBody>
+      <Text style={[styles.address, { color: colors.ink }]}>{flow.email}</Text>
+      <View style={styles.change}>
+        <TextAction title="Change email" disabled={flow.busy} onPress={back} />
+      </View>
+      <CodeInput
+        value={flow.code}
+        onChange={(value) => {
+          flow.setCode(value);
+          flow.clearMessages();
+        }}
+        disabled={flow.busy}
+        error={Boolean(flow.error)}
+        onSubmit={() => void flow.verify()}
+      />
+      <Feedback />
+      <View style={styles.resend}>
+        <AuthBody centered>Didn’t get a code? Check your spam folder.</AuthBody>
+        <TextAction
+          title={
+            flow.cooldown ? `Resend code in ${flow.cooldown}s` : "Resend code"
+          }
+          disabled={flow.busy || flow.cooldown > 0}
+          onPress={() => void flow.requestCode(true)}
+        />
+      </View>
+    </AuthPage>
   );
 }
 const styles = StyleSheet.create({
-  intro: { gap: 14, paddingTop: 4 },
-  symbol: {
-    width: 48,
-    height: 48,
-    borderRadius: 15,
-    alignItems: "center",
+  welcomeContent: {
+    flex: 1,
     justifyContent: "center",
-    marginBottom: 2,
+    gap: 24,
+    paddingBottom: 16,
   },
-  form: { padding: 20, borderRadius: 22, gap: 20 },
-  formTitle: {
-    fontSize: 18,
-    lineHeight: 26,
-    fontWeight: "600",
-    letterSpacing: -0.3,
+  welcomeText: { gap: 14, alignItems: "center" },
+  attribution: {
+    fontSize: 12,
+    lineHeight: 20,
+    textAlign: "center",
+    paddingTop: 10,
   },
-  divider: { flexDirection: "row", alignItems: "center", gap: 12 },
-  rule: { flex: 1, height: StyleSheet.hairlineWidth },
-  small: { fontSize: 13, lineHeight: 21 },
+  signInContent: {
+    flex: 1,
+    justifyContent: "center",
+    gap: 18,
+    paddingBottom: 32,
+  },
+  methods: { gap: 12, paddingTop: 22 },
   privacy: {
     flexDirection: "row",
-    alignItems: "flex-start",
     gap: 10,
-    paddingHorizontal: 8,
-    paddingTop: 4,
+    alignItems: "center",
+    paddingBottom: 8,
   },
-  privacyText: { flex: 1 },
-  codeForm: { gap: 18 },
-  code: { fontSize: 25, letterSpacing: 8, fontVariant: ["tabular-nums"] },
+  small: { fontSize: 13, lineHeight: 21 },
+  entry: { paddingTop: 14 },
+  address: { fontSize: 16, lineHeight: 24, fontWeight: "600", marginTop: -10 },
+  change: {
+    alignSelf: "flex-start",
+    marginLeft: -8,
+    marginTop: -14,
+    marginBottom: -14,
+  },
+  resend: { gap: 2, paddingTop: 12 },
 });

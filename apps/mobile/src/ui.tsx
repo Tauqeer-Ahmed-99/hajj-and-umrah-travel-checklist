@@ -132,8 +132,16 @@ export function Field({
   label,
   error,
   hint,
+  inputRef,
   ...props
-}: TextInputProps & { label: string; error?: string; hint?: string }) {
+}: TextInputProps & {
+  label: string;
+  error?: string;
+  hint?: string;
+  inputRef?: import("react").Ref<
+    import("react").ComponentRef<typeof TextInput>
+  >;
+}) {
   const { colors } = useTheme();
   const [focused, setFocused] = useState(false);
   return (
@@ -141,6 +149,7 @@ export function Field({
       <Text style={[styles.label, { color: colors.ink }]}>{label}</Text>
       <TextInput
         {...props}
+        ref={inputRef}
         onFocus={(e) => {
           setFocused(true);
           props.onFocus?.(e);

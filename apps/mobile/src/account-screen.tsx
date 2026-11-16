@@ -15,9 +15,7 @@ import {
   Action,
   AppearancePicker,
   Copy,
-  Field,
   Heading,
-  Loading,
   Notice,
   Screen,
   Shortcut,
@@ -53,6 +51,7 @@ import {
   rememberRemovalIntent,
   removalIntentChanged,
 } from "./account-lifecycle";
+import { ProfileRecovery, ProfileSetup } from "./profile-setup";
 import { AccountRemovalForm } from "./account-removal-screen";
 import { accountRemovalRequest } from "./account-removal-api";
 import { clearAllTripNavigation, clearTripNavigation } from "./trip-navigation";
@@ -64,6 +63,10 @@ export function AccountScreen() {
   const { colors } = useTheme();
   const [account, setAccount] = useState<Account | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadFailure, setLoadFailure] = useState<
+    "server" | "offline" | "session" | null
+  >(null);
+  const [recoveryMessage, setRecoveryMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [hidden, setHidden] = useState(false);
@@ -145,6 +148,7 @@ export function AccountScreen() {
       if (request.current === controller) request.current = null;
       if (current === generation.current) {
         setLoading(false);
+        setLoadFailure("offline");
         setError(
           "Loading took too long. Check your connection, then try again.",
         );
@@ -187,6 +191,8 @@ export function AccountScreen() {
           });
         }
         setAccount(result);
+        setLoadFailure(null);
+        setRecoveryMessage("");
         setSaveUncertain(false);
         if (result.profile) {
           rememberCopyProfile(copies, result.profile);
@@ -245,12 +251,21 @@ export function AccountScreen() {
         setShowOffline(false);
         setAccount(null);
       }
-      if (current === generation.current)
+      if (current === generation.current) {
+        setLoadFailure(
+          error instanceof AccountError &&
+            [401, 403, 404].includes(error.status)
+            ? "session"
+            : error instanceof AccountError && error.status >= 500
+              ? "server"
+              : "offline",
+        );
         setError(
           error instanceof AccountError
             ? error.message
             : "Could not load your profile. Check your connection, then try again.",
         );
+      }
       if (copies.controller.signal.aborted) setCleanupBlocked(true);
       if (
         current === generation.current &&
@@ -487,94 +502,62 @@ export function AccountScreen() {
         onRefresh={() => void load()}
       />
     );
-  if (loading && !account)
-    return (
-      <Screen>
-        <Loading message="Loading your saved profile…" />
-        {offlineProfile && (
-          <Action
-            title="Open cached trips"
-            onPress={() => setShowCached(true)}
-          />
-        )}
-        {offlineProfile && (
-          <Action
-            title="Open saved guides"
-            secondary
-            onPress={() => setShowOffline(true)}
-          />
-        )}
-        <Action title="Sign out" secondary onPress={() => void logout()} />
-      </Screen>
-    );
   if (!account)
     return (
-      <Screen>
-        <Heading>Could not load your profile</Heading>
-        <Notice error>{error}</Notice>
-        <Action title="Try again" onPress={() => void load()} />
-        <Action
-          title="Check account removal"
-          secondary
-          onPress={() => {
-            void (async () => {
-              const controller = new AbortController();
-              request.current?.abort();
-              request.current = controller;
-              const current = ++generation.current;
-              const timer = setTimeout(() => controller.abort(), 15_000);
-              try {
-                const token = await getToken();
-                if (!token || controller.signal.aborted) return;
-                const status = await accountRemovalRequest(
-                  `Bearer ${token}`,
-                  controller.signal,
+      <ProfileRecovery
+        loading={loading}
+        failure={loadFailure}
+        message={recoveryMessage}
+        onRetry={() => void load()}
+        onSignOut={() => void logout()}
+        onCheckRemoval={() => {
+          void (async () => {
+            const controller = new AbortController();
+            request.current?.abort();
+            request.current = controller;
+            const current = ++generation.current;
+            const timer = setTimeout(() => controller.abort(), 15_000);
+            try {
+              const token = await getToken();
+              if (!token || controller.signal.aborted) return;
+              const status = await accountRemovalRequest(
+                `Bearer ${token}`,
+                controller.signal,
+              );
+              if (current !== generation.current || controller.signal.aborted)
+                return;
+              if (status.requestId) {
+                await rememberRemovalIntent({
+                  accountId: copies.accountId,
+                  requestId: status.requestId,
+                });
+                removalIntentChanged();
+              } else
+                setRecoveryMessage(
+                  "The server confirms removal has not started. Refresh your profile to continue.",
                 );
-                if (current !== generation.current || controller.signal.aborted)
-                  return;
-                if (status.requestId) {
-                  await rememberRemovalIntent({
-                    accountId: copies.accountId,
-                    requestId: status.requestId,
-                  });
-                  removalIntentChanged();
-                } else
-                  setError(
-                    "The server confirms removal has not started. Refresh your profile to continue.",
-                  );
-              } catch (failure) {
-                if (current === generation.current)
-                  setError(
-                    failure instanceof Error
-                      ? failure.message
-                      : "Removal status could not be checked.",
-                  );
-              } finally {
-                clearTimeout(timer);
-                if (request.current === controller) request.current = null;
+            } catch (failure) {
+              if (current === generation.current)
+                setRecoveryMessage(
+                  failure instanceof Error
+                    ? failure.message
+                    : "Removal status could not be checked.",
+                );
+            } finally {
+              clearTimeout(timer);
+              if (request.current === controller) request.current = null;
+            }
+          })();
+        }}
+        cached={
+          offlineProfile
+            ? {
+                trips: () => setShowCached(true),
+                guides: () => setShowOffline(true),
               }
-            })();
-          }}
-        />
-        {offlineProfile && (
-          <>
-            <Copy muted>
-              Your previously completed profile is restored for this account.
-              Cached trips and saved guides are read only; connect for current
-              trip access and changes.
-            </Copy>
-            <Action
-              title="Open cached trips"
-              onPress={() => setShowCached(true)}
-            />
-            <Action
-              title="Open saved guides"
-              onPress={() => setShowOffline(true)}
-            />
-          </>
-        )}
-        <Action title="Sign out" secondary onPress={() => void logout()} />
-      </Screen>
+            : undefined
+        }
+      />
     );
   const profile = account.profile;
   // A completed server profile remains the gate for every protected trip view.
@@ -589,6 +572,31 @@ export function AccountScreen() {
         onCached={() => setShowCached(true)}
       />
     );
+  if (!profile)
+    return (
+      <ProfileSetup
+        draft={draft}
+        onChange={(change) =>
+          setDraft((previous) => ({ ...previous, ...change }))
+        }
+        fields={fields}
+        saving={saving}
+        error={error}
+        uncertain={saveUncertain}
+        onSave={() => void save()}
+        onCheck={() => void load()}
+        onExit={() =>
+          Alert.alert(
+            "Finish your profile later?",
+            "You can sign in again to complete it.",
+            [
+              { text: "Keep editing", style: "cancel" },
+              { text: "Sign out", onPress: () => void logout() },
+            ],
+          )
+        }
+      />
+    );
   return (
     <Screen>
       <Heading>{profile ? "Your account" : "Let’s get to know you"}</Heading>
@@ -598,129 +606,44 @@ export function AccountScreen() {
           : "Add the name your family knows and a username they can use to invite you."}
       </Copy>
       <View style={[styles.email, { backgroundColor: colors.tint }]}>
-        {profile && (
-          <View style={styles.details}>
-            <Text style={[styles.name, { color: colors.ink }]}>
-              {profile.firstName} {profile.lastName}
-            </Text>
-            <Copy>@{profile.username}</Copy>
-          </View>
-        )}
+        <View style={styles.details}>
+          <Text style={[styles.name, { color: colors.ink }]}>
+            {profile.firstName} {profile.lastName}
+          </Text>
+          <Copy>@{profile.username}</Copy>
+        </View>
         <Text style={[styles.label, { color: colors.ink }]}>
           Verified email (private)
         </Text>
         <Copy>{account.email}</Copy>
-        {profile && <Notice>Profile saved</Notice>}
       </View>
-      {profile ? (
-        <>
-          <AppearancePicker />
-          <Action title="Open trips" onPress={() => setShowAccount(false)} />
-          <Shortcuts>
-            <Shortcut
-              title="Open cached trips"
-              icon={
-                <Download size={20} color={colors.brand} accessible={false} />
-              }
-              onPress={() => setShowCached(true)}
-            />
-            <Shortcut
-              title="Open saved guides"
-              icon={
-                <BookOpen size={20} color={colors.brand} accessible={false} />
-              }
-              onPress={() => setShowOffline(true)}
-            />
-          </Shortcuts>
-          <Copy muted>
-            Your email stays private. Your name and username identify you to
-            people on your trips.
-          </Copy>
-          {error && <Notice error>{error}</Notice>}
-          <Action
-            title="Refresh profile"
-            secondary
-            onPress={() => void load()}
-          />
-          <Action
-            title="Review account removal"
-            secondary
-            requiresConnection
-            onPress={() => setShowRemoval(true)}
-          />
-        </>
-      ) : (
-        <>
-          <Field
-            label="First name"
-            testID="first-name-input"
-            value={draft.firstName}
-            onChangeText={(firstName) =>
-              setDraft((draft) => ({ ...draft, firstName }))
-            }
-            error={fields.firstName}
-            autoComplete="given-name"
-            textContentType="givenName"
-            autoCapitalize="words"
-            maxLength={80}
-            editable={!saving}
-          />
-          <Field
-            label="Last name"
-            testID="last-name-input"
-            value={draft.lastName}
-            onChangeText={(lastName) =>
-              setDraft((draft) => ({ ...draft, lastName }))
-            }
-            error={fields.lastName}
-            autoComplete="family-name"
-            textContentType="familyName"
-            autoCapitalize="words"
-            maxLength={80}
-            editable={!saving}
-          />
-          <Field
-            label="Username"
-            testID="username-input"
-            value={draft.username}
-            onChangeText={(username) =>
-              setDraft((draft) => ({ ...draft, username }))
-            }
-            error={fields.username}
-            hint="4–30 letters, numbers, or underscores. Saved in lowercase; cannot be renamed."
-            autoCapitalize="none"
-            autoCorrect={false}
-            maxLength={30}
-            editable={!saving}
-            onSubmitEditing={() => void save()}
-            returnKeyType="go"
-          />
-          <Action
-            title={
-              saving
-                ? "Saving profile…"
-                : saveUncertain
-                  ? "Retry save"
-                  : "Save profile"
-            }
-            busy={saving}
-            onPress={() => void save()}
-          />
-          {error && <Notice error>{error}</Notice>}
-          {saveUncertain && (
-            <Action
-              title="Check saved profile"
-              secondary
-              onPress={() => void load()}
-            />
-          )}
-          <Copy muted>
-            {saving
-              ? "Saving. Keep this screen open until your profile is confirmed."
-              : "These details are not saved until you choose Save profile."}
-          </Copy>
-        </>
-      )}
+
+      <AppearancePicker />
+      <Action title="Open trips" onPress={() => setShowAccount(false)} />
+      <Shortcuts>
+        <Shortcut
+          title="Open cached trips"
+          icon={<Download size={20} color={colors.brand} accessible={false} />}
+          onPress={() => setShowCached(true)}
+        />
+        <Shortcut
+          title="Open saved guides"
+          icon={<BookOpen size={20} color={colors.brand} accessible={false} />}
+          onPress={() => setShowOffline(true)}
+        />
+      </Shortcuts>
+      <Copy muted>
+        Your email stays private. Your name and username identify you to people
+        on your trips.
+      </Copy>
+      {error && <Notice error>{error}</Notice>}
+      <Action title="Refresh profile" secondary onPress={() => void load()} />
+      <Action
+        title="Review account removal"
+        secondary
+        requiresConnection
+        onPress={() => setShowRemoval(true)}
+      />
       <Action
         title="Sign out"
         secondary

@@ -10,13 +10,20 @@ import { tokenCache } from "@clerk/expo/token-cache";
 import { resourceCache } from "@clerk/expo/resource-cache";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import {
+  DarkTheme,
+  DefaultTheme,
+  NavigationContainer,
+} from "@react-navigation/native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { useReducedMotion } from "react-native-reanimated";
+import {
   useFonts,
   Geist_400Regular,
   Geist_500Medium,
   Geist_600SemiBold,
   Geist_700Bold,
 } from "@expo-google-fonts/geist";
-import { ThemeProvider } from "./src/theme";
+import { ThemeProvider, useTheme } from "./src/theme";
 import { Action, Copy, Heading, Loading, Notice, Screen } from "./src/ui";
 import { AuthScreen } from "./src/auth-screen";
 import { AccountScreen } from "./src/account-screen";
@@ -57,7 +64,11 @@ class AuthBoundary extends Component<
     return this.props.children;
   }
 }
+const RootStack = createNativeStackNavigator();
 function Session() {
+  const reducedMotion = useReducedMotion();
+  const { colors, dark } = useTheme();
+  const navigationTheme = dark ? DarkTheme : DefaultTheme;
   const { isLoaded, isSignedIn, userId, sessionId } = useAuth();
   const [slow, setSlow] = useState(false);
   const [retrying, setRetrying] = useState(false);
@@ -190,12 +201,44 @@ function Session() {
         )}
       </Screen>
     );
-  return isSignedIn && userId ? (
-    <GuideCopyProvider key={`${userId}:${sessionId}`} accountId={userId}>
-      <AccountScreen />
-    </GuideCopyProvider>
-  ) : (
-    <AuthScreen />
+  return (
+    <NavigationContainer
+      theme={{
+        ...navigationTheme,
+        colors: {
+          ...navigationTheme.colors,
+          background: colors.canvas,
+          card: colors.surface,
+          text: colors.ink,
+          primary: colors.brand,
+          border: colors.border,
+        },
+      }}
+    >
+      <RootStack.Navigator
+        screenOptions={{
+          headerShown: false,
+          animation: reducedMotion ? "none" : "fade",
+          animationDuration: 180,
+          contentStyle: { backgroundColor: colors.canvas },
+        }}
+      >
+        {isSignedIn && userId ? (
+          <RootStack.Screen name="Workspace">
+            {() => (
+              <GuideCopyProvider
+                key={`${userId}:${sessionId}`}
+                accountId={userId}
+              >
+                <AccountScreen />
+              </GuideCopyProvider>
+            )}
+          </RootStack.Screen>
+        ) : (
+          <RootStack.Screen name="Authentication" component={AuthScreen} />
+        )}
+      </RootStack.Navigator>
+    </NavigationContainer>
   );
 }
 export default function App() {
