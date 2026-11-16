@@ -1,6 +1,8 @@
 # Mobile onboarding and profile recovery
 
-The November 16 follow-up screenshot is a post-authentication API failure. A real Clerk development session against `https://nmt-travel-api.vercel.app/api/me` reproduces HTTP 503 `service_unavailable`; the diagnostic identity is deleted afterwards. A native rebuild does not resolve that hosted failure. The production deployment and saved server configuration still require activation in the correct Vercel project, followed by an authenticated profile read, save and read-back.
+The November 16 follow-up screenshot was a post-authentication API failure. A real Clerk development session against `https://nmt-travel-api.vercel.app/api/me` reproduced HTTP 503 `service_unavailable`. After the user completed Vercel verification, redeploying the reviewed API with the saved production configuration restored HTTP 200. The native rebuild addresses onboarding and recovery; the server deployment resolves the reproduced profile failure.
+
+Production deployment [4SndUtX9W](https://vercel.com/tauqeerahmed99s-projects/nmt-travel-api/4SndUtX9WpbczgCudpQqS9m6Drkc) uses source `3a52a54a86da53feae43c0ff61dd29cbaa23e5cf`. Its API and contracts match the subsequent mobile commits. Live authenticated checks passed profile load, save, an identical save retry, read-back from a new session, protected trip listing, username immutability and rejection of unauthenticated requests. The disposable identity was removed through the application and Clerk confirmed removal completion. This verifies the real NMT Clerk/Neon HTTP path; it does not substitute for real Google identity or mailbox delivery acceptance.
 
 ## Interaction and visual direction
 
@@ -22,8 +24,10 @@ Profile recovery separates a server outage from offline and expired-session stat
 - Native Google UI opened and cancellation returned to the sign-in screen with an email alternative. Actual Google identity completion is not claimed.
 - Light welcome/forms and dark sign-in/Account were inspected. Dark preference survived app restart and logout. No appearance controls are rendered on auth screens.
 - Expo Doctor ran 20 checks; its remote schema check could not complete because `exp.host` DNS failed. This is not a 20/20 claim.
-- Production `/api/me` remains red until Vercel deployment and authenticated rechecks succeed. The saved production environment is not proof that the running deployment consumes it.
+- Production `/api/me` changed from 503 to 200 after deployment. Real profile save/read-back and protected trip listing passed. The saved production environment alone was not sufficient evidence; these checks ran against the public API after the deployment became Ready.
 
 The new native navigation dependency requires a new binary and runtime. Version code 5 is reserved for this preview; do not send these native changes as an OTA to version 4.
+
+[EAS preview 5](https://expo.dev/accounts/tauqeerahmed/projects/nmt-travel/builds/842cb0a3-7595-4e43-aa56-6eb95cd37d88) was submitted from `bc88bd864fc83254f82b7d317b2b35882576681a` and remains queued. Both that source CI run and the subsequent Maestro-selector update CI passed. Artifact download, signature/runtime/secret inspection and a signed upgrade check remain pending. Automatic approval review rejected the command preparing and installing the cached version 4 APK for a fresh emulator recheck with only “blocked by policy”; that command was not retried. The seven live HTTP checks above succeeded independently.
 
 Physical Android, TalkBack, real mailbox delivery, real Google linking and signed-release motion acceptance still require separate evidence.
