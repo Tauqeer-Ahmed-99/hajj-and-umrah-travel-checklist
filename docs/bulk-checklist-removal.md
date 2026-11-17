@@ -15,3 +15,13 @@ The client removes confirmed deleted records from its visible Query data before 
 Verification passed six new real HTTP/PostgreSQL scenarios, including concurrent retries, mixed categories/items/tasks, a category changing after selection, cross-family IDs, invalid selections, outbound allocations, return reconciliation and a selection larger than a normal form. The full suite passed 135 API scenarios and 37 mobile tests. Mobile tests cover selection across kinds, whole-category children, retained children, empty categories and deduplication. Workspace types, the production API build, formatting and Android JavaScript export passed.
 
 The first HTTP test returned 404 before this endpoint was implemented. No actual user's checklist was deleted during development; live checks use an explicitly disposable account and trip.
+
+## Deployed verification
+
+The API is deployed in Mumbai from source `f4b760785a81dcd07d9283ceb977467e70a9150f`. A disposable account and family were used for the Android journey. Selecting one section removed its physical item, task and section together. An unselected task and its section remained. A separate authenticated read confirmed the resulting checklist and three attributed history events with the supplied reason.
+
+The compatible Android preview update is `01a1e90e-e94d-752b-bf5b-5fab5e3ba4d4`, group `ba9dac60-ca28-49fc-9ef9-c5fadd18aa0a`, on the `preview` branch/channel. Its runtime is `afdcadcbd67a8d82d210c2e4ebbeffc7e1766cb0`, matching the existing signed build 8 APK. No native dependency or binary change was needed.
+
+The actual signed build 8 APK was installed on an isolated Android emulator. After downloading the update and restarting, it displayed the new selection menu. Selecting the remaining task showed the correct singular count, review expanded to its name, and cancelling through the leave-form confirmation kept that task. This also verifies that the published JavaScript runs in the signed APK. Physical-device testing remains unrun.
+
+To receive this update, open the installed build 8 while connected, then fully close and reopen it after the update downloads. If the menu has not appeared yet, allow the download to finish and reopen once more. The existing APK remains available at the same build 8 download link. The audit fixture and its account are removed after verification.
