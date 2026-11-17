@@ -2,6 +2,7 @@ import { Text } from "./typography";
 import type { ReactNode } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useTheme } from "./theme";
+import { SelectField } from "./simple-ui";
 
 export function ChecklistSection({
   title,
@@ -44,6 +45,16 @@ export function ChecklistChoices<T extends string>({
   multiple?: boolean;
 }) {
   const { colors } = useTheme();
+  if (!multiple && !Array.isArray(value) && options.length > 3)
+    return (
+      <SelectField
+        label={label}
+        value={value}
+        options={options}
+        onChange={onChange}
+        disabled={locked}
+      />
+    );
   return (
     <View style={styles.group}>
       <Text

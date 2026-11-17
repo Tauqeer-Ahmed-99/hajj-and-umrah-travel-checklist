@@ -53,6 +53,7 @@
   },
   "devDependencies": {
     "@types/react": "^19.2.0",
-    "esbuild": "^0.28.2"
+    "esbuild": "^0.28.2",
+    "react-test-renderer": "^19.3.0"
   }
 }

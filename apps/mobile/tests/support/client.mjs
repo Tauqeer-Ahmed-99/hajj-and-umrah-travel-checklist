@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 // Only the unavailable native filesystem is adapted. The actual connection
 // store, request boundary, schemas, cache checks and Node HTTP transport run.
-const filesystem = `
+export const filesystem = `
 const files = new Map(); const directories = new Set();
 const uri = parts => parts.map(p => p.uri ?? p).join('/');
 export class Directory {

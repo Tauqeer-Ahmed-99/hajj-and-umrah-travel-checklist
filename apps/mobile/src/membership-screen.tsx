@@ -447,7 +447,7 @@ export function MembershipScreen({
       <Action
         title="Refresh members and permissions"
         secondary
-        busy={api.busy}
+
         onPress={() => load()}
       />
       <Copy muted>Changes need a connection. Nothing is queued for later.</Copy>

@@ -645,7 +645,7 @@ export function AccountScreen() {
             />
             <ListRow
               title="Refresh profile"
-              busy={loading}
+
               icon={RefreshCw}
               onPress={() => load()}
             />

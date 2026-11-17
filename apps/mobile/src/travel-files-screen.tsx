@@ -237,7 +237,7 @@ export function TravelFilesScreen({
         <Action
           title="Refresh files"
           secondary
-          busy={api.busy}
+
           onPress={() => load()}
         />
       )}

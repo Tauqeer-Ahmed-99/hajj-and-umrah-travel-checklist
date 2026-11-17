@@ -598,7 +598,7 @@ export function OverviewScreen({
       <Action
         title="Refresh overview"
         secondary
-        busy={busy}
+
         onPress={() => load()}
       />
     </Screen>

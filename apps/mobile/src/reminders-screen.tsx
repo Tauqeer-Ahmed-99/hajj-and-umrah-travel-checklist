@@ -291,7 +291,7 @@ export function RemindersScreen({
             <Action
               title="Refresh notifications"
               secondary
-              busy={deviceBusy}
+
               disabled={api.busy}
               onPress={() => refreshDevice()}
             />
@@ -308,7 +308,7 @@ export function RemindersScreen({
       <Action
         title="Refresh reminders"
         secondary
-        busy={api.busy}
+
         disabled={deviceBusy}
         onPress={() => load()}
       />

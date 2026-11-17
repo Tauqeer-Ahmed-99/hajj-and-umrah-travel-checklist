@@ -146,7 +146,6 @@ export function SaveActions({
         disabled={save.busy}
         onPress={save.cancel}
       />
-      <Copy muted>Changes need a connection. Nothing is queued for later.</Copy>
     </>
   );
 }
@@ -211,7 +210,7 @@ export function ChecklistEntryForm(
       kind: props.kind,
       title: "",
       requiredQuantity: props.kind === "item" ? 1 : null,
-      unit: "",
+      unit: props.kind === "item" ? "pieces" : "",
       beneficiaries: { kind: "family" },
       responsibleMemberId: props.memberId,
       priority: "normal",
@@ -282,8 +281,8 @@ export function ChecklistEntryForm(
       </Heading>
       <Copy>
         {props.kind === "task"
-          ? "Track an action such as calling your hotel. Task progress does not record any packing."
-          : "Record what is required. Required quantities do not confirm that supplies are available or packed."}
+          ? "Add something to do, such as calling your hotel."
+          : "Add what your family needs to bring. You can mark what you have afterwards."}
       </Copy>
       <Field
         label={props.kind === "task" ? "Task title" : "Item title"}
@@ -294,16 +293,18 @@ export function ChecklistEntryForm(
         error={save.fields.title}
         maxLength={120}
       />
-      <ChecklistChoices
-        label="Category"
-        options={props.checklist.categories.map((group) => ({
-          value: group.id,
-          label: group.name,
-        }))}
-        value={value.categoryId}
-        onChange={(next) => update("categoryId", next)}
-        locked={save.locked}
-      />
+      {props.checklist.categories.length > 1 && (
+        <ChecklistChoices
+          label="Category"
+          options={props.checklist.categories.map((group) => ({
+            value: group.id,
+            label: group.name,
+          }))}
+          value={value.categoryId}
+          onChange={(next) => update("categoryId", next)}
+          locked={save.locked}
+        />
+      )}
       {save.fields.categoryId && (
         <Notice error>{save.fields.categoryId}</Notice>
       )}
@@ -361,116 +362,120 @@ export function ChecklistEntryForm(
           its family beneficiaries.
         </Copy>
       )}
-      <ChecklistChoices<"family" | "travelers">
-        label="Who is this for?"
-        options={[
-          { value: "family", label: "Whole family" },
-          { value: "travelers", label: "Choose travelers" },
-        ]}
-        value={
-          value.beneficiaries.kind === "families"
-            ? []
-            : value.beneficiaries.kind
-        }
-        onChange={(kind) =>
-          update(
-            "beneficiaries",
-            kind === "family" ? { kind } : { kind, travelerIds: [] },
-          )
-        }
-        locked={save.locked}
-      />
-      {value.beneficiaries.kind === "travelers" && (
-        <>
-          {props.travelers.length === 0 && (
-            <Notice>
-              A family coordinator can add travelers from Overview. Save an item
-              for the whole family or add travelers first.
-            </Notice>
-          )}
-          <ChecklistChoices
-            label="Beneficiary travelers"
-            multiple
-            options={props.travelers.map((traveler) => ({
-              value: traveler.id,
-              label: `For ${traveler.firstName} ${traveler.lastName}`,
-            }))}
-            value={value.beneficiaries.travelerIds}
-            locked={save.locked}
-            onChange={(id) => {
-              const ids =
-                value.beneficiaries.kind === "travelers"
-                  ? value.beneficiaries.travelerIds
-                  : [];
-              update("beneficiaries", {
-                kind: "travelers",
-                travelerIds: ids.includes(id)
-                  ? ids.filter((value) => value !== id)
-                  : [...ids, id],
-              });
-            }}
-          />
-        </>
-      )}
-      {save.fields.beneficiaries && (
-        <Notice error>{save.fields.beneficiaries}</Notice>
-      )}
-      <Copy muted>
-        Beneficiaries need the preparation. One account is responsible for
-        arranging it. Assigning someone grants no new access.
-      </Copy>
-      <ChecklistChoices
-        label="Responsible member"
-        options={props.members.map((member) => ({
-          value: member.id,
-          label: `Responsible: ${member.firstName} ${member.lastName} @${member.username}`,
-        }))}
-        value={value.responsibleMemberId}
-        onChange={(next) => update("responsibleMemberId", next)}
-        locked={save.locked}
-      />
-      {!props.members.some(
-        (member) => member.id === value.responsibleMemberId,
-      ) && (
-        <Notice>
-          The previous responsible member no longer has family access. Choose a
-          current member to reassign.
-        </Notice>
-      )}
-      {save.fields.responsibleMemberId && (
-        <Notice error>{save.fields.responsibleMemberId}</Notice>
-      )}
-      <ChecklistChoices
-        label="Priority"
-        options={checklistPriority.options.map((value) => ({
-          value,
-          label: value[0].toUpperCase() + value.slice(1),
-        }))}
-        value={value.priority}
-        onChange={(next) => update("priority", next)}
-        locked={save.locked}
-      />
-      <ChecklistChoices
-        label="Travel leg"
-        options={checklistLeg.options.map((value) => ({
-          value,
-          label:
-            value === "both"
-              ? "Both legs"
-              : value === "return"
-                ? "Return"
-                : "Outbound",
-        }))}
-        value={value.leg}
-        onChange={(next) => update("leg", next)}
-        locked={save.locked}
-      />
       <Action
-        title={details ? "Hide optional details" : "Due date, notes and source"}
+        title={details ? "Hide details" : "People, priority and more"}
         secondary
         disabled={save.locked}
         onPress={() => setDetails(!details)}
       />
+      {details && (
+        <>
+          <ChecklistChoices<"family" | "travelers">
+            label="Who is this for?"
+            options={[
+              { value: "family", label: "Whole family" },
+              { value: "travelers", label: "Choose travelers" },
+            ]}
+            value={
+              value.beneficiaries.kind === "families"
+                ? []
+                : value.beneficiaries.kind
+            }
+            onChange={(kind) =>
+              update(
+                "beneficiaries",
+                kind === "family" ? { kind } : { kind, travelerIds: [] },
+              )
+            }
+            locked={save.locked}
+          />
+          {value.beneficiaries.kind === "travelers" && (
+            <>
+              {props.travelers.length === 0 && (
+                <Notice>
+                  A family coordinator can add travelers from your family page.
+                  Save an item for the whole family or add travelers first.
+                </Notice>
+              )}
+              <ChecklistChoices
+                label="Who needs this?"
+                multiple
+                options={props.travelers.map((traveler) => ({
+                  value: traveler.id,
+                  label: `For ${traveler.firstName} ${traveler.lastName}`,
+                }))}
+                value={value.beneficiaries.travelerIds}
+                locked={save.locked}
+                onChange={(id) => {
+                  const ids =
+                    value.beneficiaries.kind === "travelers"
+                      ? value.beneficiaries.travelerIds
+                      : [];
+                  update("beneficiaries", {
+                    kind: "travelers",
+                    travelerIds: ids.includes(id)
+                      ? ids.filter((value) => value !== id)
+                      : [...ids, id],
+                  });
+                }}
+              />
+            </>
+          )}
+          {save.fields.beneficiaries && (
+            <Notice error>{save.fields.beneficiaries}</Notice>
+          )}
+          <Copy muted>
+            Beneficiaries need the preparation. One account is responsible for
+            arranging it. Assigning someone grants no new access.
+          </Copy>
+          <ChecklistChoices
+            label="Who will arrange it?"
+            options={props.members.map((member) => ({
+              value: member.id,
+              label: `${member.firstName} ${member.lastName}`,
+            }))}
+            value={value.responsibleMemberId}
+            onChange={(next) => update("responsibleMemberId", next)}
+            locked={save.locked}
+          />
+          {!props.members.some(
+            (member) => member.id === value.responsibleMemberId,
+          ) && (
+            <Notice>
+              The previous responsible member no longer has family access.
+              Choose a current member to reassign.
+            </Notice>
+          )}
+          {save.fields.responsibleMemberId && (
+            <Notice error>{save.fields.responsibleMemberId}</Notice>
+          )}
+          <ChecklistChoices
+            label="Priority"
+            options={checklistPriority.options.map((value) => ({
+              value,
+              label: value[0].toUpperCase() + value.slice(1),
+            }))}
+            value={value.priority}
+            onChange={(next) => update("priority", next)}
+            locked={save.locked}
+          />
+          <ChecklistChoices
+            label="Travel leg"
+            options={checklistLeg.options.map((value) => ({
+              value,
+              label:
+                value === "both"
+                  ? "Both legs"
+                  : value === "return"
+                    ? "Return"
+                    : "Outbound",
+            }))}
+            value={value.leg}
+            onChange={(next) => update("leg", next)}
+            locked={save.locked}
+          />
+        </>
+      )}
       {details && (
         <>
           <DateField

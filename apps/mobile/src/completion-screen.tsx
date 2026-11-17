@@ -346,7 +346,7 @@ export function CompletionScreen({
       <Action
         title="Refresh completion"
         secondary
-        busy={api.busy}
+
         onPress={() => load()}
       />
       {data && (
@@ -472,7 +472,7 @@ export function ArchivesScreen({
       <Action
         title="Refresh archives"
         secondary
-        busy={api.busy}
+
         onPress={() => load()}
       />
       {archives?.length === 0 && (

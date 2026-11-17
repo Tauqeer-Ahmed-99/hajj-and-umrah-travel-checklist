@@ -502,7 +502,7 @@ export function SharedScreen({
       <Action
         title="Refresh shared content"
         secondary
-        busy={api.busy}
+
         onPress={() => load()}
       />
     </Screen>

@@ -129,7 +129,6 @@ function SaveActions({
         disabled={save.busy}
         onPress={save.cancel}
       />
-      <Copy muted>Changes need a connection. Nothing is queued for later.</Copy>
     </>
   );
 }

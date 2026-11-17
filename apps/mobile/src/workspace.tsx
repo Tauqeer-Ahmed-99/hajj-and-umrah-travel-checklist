@@ -262,7 +262,7 @@ function HomePage({
           <Action
             title="Refresh journeys"
             secondary
-            busy={catalog.busy}
+
             onPress={() => catalog.refresh()}
           />
         </Surface>

@@ -1,3 +1,5 @@
+import { OptionsMenu, SelectField } from "./simple-ui";
+import { PageHeader, Surface } from "./design-system";
 import { DateField } from "./date-field";
 import { useState } from "react";
 import { randomUUID } from "expo-crypto";
@@ -65,7 +67,7 @@ export function AcquisitionForm(
   );
   const [to, setTo] = useState<State>(
     stock.remaining > 0
-      ? "ordered"
+      ? "bought"
       : stock.ordered > 0
         ? "delivered"
         : "received",
@@ -129,69 +131,125 @@ export function AcquisitionForm(
   };
   return (
     <Screen>
-      <Heading>Acquisition for {entry.title}</Heading>
-      <AcquisitionSummary entry={entry} />
-      <Copy>
-        Payment, awaiting pickup and unchecked parcels do not confirm physical
-        availability.
-      </Copy>
-      <ChecklistChoices
-        label="Item action"
-        value={mode}
-        onChange={setMode}
-        locked={save.locked}
-        options={
-          stock.notNeededReason
-            ? [{ value: "restore", label: "Restore requirement" }]
-            : [
-                { value: "move", label: "Record a quantity" },
+      <PageHeader
+        title={
+          {
+            move: "Update quantity",
+            correct: "Correct counts",
+            delivery: "Expected delivery",
+            notNeeded: "Mark not needed",
+            restore: "Restore item",
+          }[mode]
+        }
+        subtitle={entry.title}
+        action={
+          stock.notNeededReason ? undefined : (
+            <OptionsMenu
+              title="Other item actions"
+              actions={[
+                { label: "Update a quantity", onPress: () => setMode("move") },
                 {
-                  value: "correct",
-                  label: "Correct quantities or requirement",
+                  label: "Expected delivery date",
+                  onPress: () => setMode("delivery"),
                 },
-                { value: "delivery", label: "Set expected delivery" },
-                { value: "notNeeded", label: "Mark Not needed" },
-              ]
+                {
+                  label: "Correct counts or requirement",
+                  onPress: () => setMode("correct"),
+                },
+                {
+                  label: "Mark not needed",
+                  onPress: () => setMode("notNeeded"),
+                },
+              ]}
+            />
+          )
         }
       />
+      <Surface>
+        <Copy>
+          Need: {entry.requiredQuantity} {entry.unit}
+        </Copy>
+        <Copy>
+          Have: {stock.available} {entry.unit}
+        </Copy>
+        {stock.awaitingReceipt > 0 && (
+          <Copy muted>
+            Waiting for: {stock.awaitingReceipt} {entry.unit}
+          </Copy>
+        )}
+      </Surface>
+      {stock.notNeededReason && (
+        <Notice>
+          This item was marked not needed. Restore it to start tracking again.
+        </Notice>
+      )}
       {mode === "move" && (
         <>
-          <ChecklistChoices
-            label="Move from"
-            value={from}
-            onChange={setFrom}
-            locked={save.locked}
-            options={acquisitionState.options.map((state) => ({
-              value: state,
-              label: `From ${acquisitionLabels[state]}: ${stock[state]}`,
-            }))}
-          />
-          <ChecklistChoices
-            label="Move to"
+          <SelectField
+            label="What changed?"
             value={to}
-            onChange={setTo}
-            locked={save.locked}
             options={acquisitionState.options
               .filter((state) => state !== from)
               .map((state) => ({
                 value: state,
-                label: `To ${acquisitionLabels[state]}`,
+                label: {
+                  remaining: "Still needed / returned",
+                  ordered: "I ordered it",
+                  delivered: "Delivery arrived, not checked yet",
+                  bought: "I bought it",
+                  received: "I received and checked it",
+                  alreadyAvailable: "I already have it",
+                }[state],
               }))}
+            onChange={(next) => {
+              setTo(next);
+              setConfirmed(false);
+            }}
+            disabled={save.locked}
           />
+          {acquisitionState.options.filter((state) => stock[state] > 0).length >
+            1 && (
+            <SelectField
+              label="Previous status"
+              value={from}
+              options={acquisitionState.options
+                .filter((state) => stock[state] > 0)
+                .map((state) => ({
+                  value: state,
+                  label:
+                    acquisitionLabels[state] +
+                    ": " +
+                    stock[state] +
+                    " " +
+                    entry.unit,
+                }))}
+              onChange={(next) => {
+                setFrom(next);
+                if (next === to)
+                  setTo(next === "received" ? "remaining" : "received");
+                setConfirmed(false);
+              }}
+              disabled={save.locked}
+            />
+          )}
           <Field
             label={`Quantity (${entry.unit})`}
             testID="acquisition-quantity"
             value={quantity}
-            onChangeText={setQuantity}
+            onChangeText={(next) => {
+              setQuantity(next);
+              setConfirmed(false);
+            }}
             keyboardType="decimal-pad"
             editable={!save.locked}
             error={save.fields.quantity}
           />
-          <Copy muted>
-            Use Remaining for canceled orders, rejected parcels, returns or an
-            incorrect count. Record a reason below. Direct Received is available
-            for checked gifts or borrowed items.
-          </Copy>
+          {to === "delivered" && (
+            <Copy muted>
+              Check the parcel first, then record it as received. Unchecked
+              deliveries do not count as things you have.
+            </Copy>
+          )}
         </>
       )}
       {mode === "correct" && (
@@ -211,9 +269,10 @@ export function AcquisitionForm(
               }
               testID={`acquisition-correct-${key}`}
               value={values[key]}
-              onChangeText={(text) =>
-                setValues((previous) => ({ ...previous, [key]: text }))
-              }
+              onChangeText={(text) => {
+                setConfirmed(false);
+                setValues((previous) => ({ ...previous, [key]: text }));
+              }}
               keyboardType="decimal-pad"
               editable={!save.locked}
               error={save.fields[key] ?? save.fields.fields}
@@ -231,7 +290,9 @@ export function AcquisitionForm(
           optional
         />
       )}
-      {(mode === "move" || mode === "correct") && (
+      {(mode === "correct" ||
+        (mode === "move" &&
+          ["bought", "received", "alreadyAvailable"].includes(to))) && (
         <>
           <ChecklistChoices
             label="Physical confirmation"
@@ -258,19 +319,33 @@ export function AcquisitionForm(
           packing completion.
         </Notice>
       )}
-      {mode !== "delivery" && (
-        <Field
-          label="Reason"
-          testID="acquisition-reason"
-          value={reason}
-          onChangeText={setReason}
-          editable={!save.locked}
-          maxLength={800}
-          error={save.fields.reason ?? save.fields.fields}
-          hint="Required for corrections, reductions, Not needed, restoration, cancellation, rejection or return."
-        />
-      )}
-      <SaveActions save={save} title="Save acquisition" onSave={submit} />
+      {mode !== "delivery" &&
+        (mode !== "move" ||
+          ["bought", "received", "alreadyAvailable"].includes(from) ||
+          to === "remaining" ||
+          !(
+            from === "remaining" ||
+            (from === "ordered" &&
+              ["delivered", "received", "bought"].includes(to)) ||
+            (from === "delivered" && to === "received")
+          ) ||
+          !!save.fields.reason) && (
+          <Field
+            label="Reason"
+            testID="acquisition-reason"
+            value={reason}
+            onChangeText={setReason}
+            editable={!save.locked}
+            maxLength={800}
+            error={save.fields.reason ?? save.fields.fields}
+            hint="Briefly explain this change."
+          />
+        )}
+      <SaveActions
+        save={save}
+        title={mode === "restore" ? "Restore item" : "Save quantity"}
+        onSave={submit}
+      />
     </Screen>
   );
 }

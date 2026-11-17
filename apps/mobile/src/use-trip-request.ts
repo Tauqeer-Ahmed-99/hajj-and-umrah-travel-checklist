@@ -2,12 +2,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSessionAuth } from "./session-auth";
 import { TripError } from "./trip-api";
 
-export function useTripRequest(timeoutMs = 15_000) {
+export function useTripRequest(timeoutMs = 15_000, requestScope?: string) {
   const { getToken } = useSessionAuth();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<TripError | null>(null);
   const active = useRef(true);
   const running = useRef<AbortController | null>(null);
+  const scope = useRef(requestScope);
+  scope.current = requestScope;
+  useEffect(() => {
+    running.current?.abort();
+  }, [requestScope]);
   useEffect(() => {
     active.current = true;
     return () => {
@@ -21,6 +26,7 @@ export function useTripRequest(timeoutMs = 15_000) {
     ): Promise<T | undefined> => {
       if (running.current) return;
       const controller = new AbortController();
+      const startedScope = scope.current;
       running.current = controller;
       setBusy(true);
       setError(null);
@@ -53,9 +59,14 @@ export function useTripRequest(timeoutMs = 15_000) {
           })(),
           aborted,
         ]);
-        if (active.current && !controller.signal.aborted) return result;
+        if (
+          active.current &&
+          !controller.signal.aborted &&
+          startedScope === scope.current
+        )
+          return result;
       } catch (failure) {
-        if (active.current)
+        if (active.current && startedScope === scope.current)
           setError(
             failure instanceof TripError
               ? failure

@@ -321,7 +321,7 @@ export function OfflineGuidesScreen({
       <Action
         title="Refresh saved permissions"
         secondary
-        busy={api.busy}
+
         onPress={() =>
           api.run(async (token, signal) => {
             const failed = await refreshSavedGuideAccess(

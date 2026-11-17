@@ -178,23 +178,37 @@ export function IconButton({
   label,
   icon: Icon,
   onPress,
+  busy = false,
 }: {
   label: string;
   icon: LucideIcon;
   onPress(): void;
+  busy?: boolean;
 }) {
   const { colors } = useTheme();
+  const action = useButtonAction(onPress, busy);
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      onPress={onPress}
+      accessibilityState={{ busy: action.busy, disabled: action.busy }}
+      disabled={action.busy}
+      onPress={action.press}
       style={({ pressed }) => [
         s.iconButton,
         { backgroundColor: colors.surface, opacity: pressed ? 0.65 : 1 },
       ]}
     >
-      <Icon size={21} strokeWidth={1.7} color={colors.ink} accessible={false} />
+      {action.busy ? (
+        <ActivityIndicator color={colors.brand} accessible={false} />
+      ) : (
+        <Icon
+          size={21}
+          strokeWidth={1.7}
+          color={colors.ink}
+          accessible={false}
+        />
+      )}
     </Pressable>
   );
 }
@@ -458,6 +472,7 @@ const s = StyleSheet.create({
   body: { fontSize: 14, lineHeight: 21 },
   small: { fontSize: 12, lineHeight: 18 },
   iconButton: {
+    width: 48,
     minWidth: 48,
     minHeight: 48,
     borderRadius: 24,

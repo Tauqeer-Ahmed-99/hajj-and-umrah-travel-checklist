@@ -748,7 +748,7 @@ export function OfflineTripsScreen({
       )}
       <Action
         title="Refresh cached trips"
-        busy={connection.refreshing}
+
         onPress={onRefresh}
       />
       <Action title="Open saved guides" secondary onPress={onGuides} />

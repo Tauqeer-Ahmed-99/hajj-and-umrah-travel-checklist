@@ -1,8 +1,17 @@
+import { OptionsMenu, RecordRow } from "./simple-ui";
+import { useForegroundRefresh } from "./use-foreground-refresh";
+import { RefreshCw } from "lucide-react-native";
 import { ArrowLeft, Luggage } from "lucide-react-native";
-import { DetailRow, IconButton, ListRow, PageHeader } from "./design-system";
+import {
+  DetailRow,
+  IconButton,
+  ListRow,
+  PageHeader,
+  Surface,
+} from "./design-system";
 import { useScreenBackEffect } from "./screen-back";
 import { useCallback, useEffect, useState } from "react";
-import { AppState, BackHandler } from "react-native";
+import { AppState, BackHandler, View } from "react-native";
 import {
   bagStatusLabels,
   type Bag,
@@ -166,9 +175,11 @@ export function PackingScreen({
   initialId,
   onRemember,
   onBack,
+  onChecklist,
 }: ChecklistScope & {
   memberId: string;
   onBack: () => void;
+  onChecklist?: () => void;
   initialLeg?: "outbound" | "return";
   initialView?: PackingView;
   initialId?: string;
@@ -178,17 +189,18 @@ export function PackingScreen({
     recordId?: string,
   ) => void;
 }) {
-  const api = useTripRequest();
   const [data, setData] = useState<{
     packing: Packing;
     travelers: Traveler[];
     returnPreparation: ReturnPreparation | null;
     canShare: boolean;
+    familyName: string;
   } | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [leg, setLeg] = useState<"outbound" | "return">(
     initialLeg ?? "outbound",
   );
+  const api = useTripRequest(15_000, tripId + ":" + familyId + ":" + leg);
   const [query, setQuery] = useState("");
   const [view, setView] = useState<PackingView>(
     initialView ?? (initialLeg === "return" ? "review" : "bags"),
@@ -263,6 +275,8 @@ export function PackingScreen({
         packing,
         travelers: roster.travelers,
         returnPreparation,
+        familyName:
+          trip.families.find((f) => f.id === familyId)?.name ?? "Family",
         canShare: !!trip.families.find((f) => f.id === familyId)?.canCoordinate,
       };
     });
@@ -271,22 +285,16 @@ export function PackingScreen({
   useEffect(() => {
     if (api.error && [401, 403, 404].includes(api.error.status)) setData(null);
   }, [api.error]);
-  useEffect(() => {
-    if (editor) return;
-    void load();
-    const listener = AppState.addEventListener("change", (state) => {
-      if (state === "active") void load();
-    });
-    return () => listener.remove();
-  }, [load, editor]);
+  const refresh = useForegroundRefresh(load, !editor);
   useScreenBackEffect(() => {
     if (editor) return;
     const listener = BackHandler.addEventListener("hardwareBackPress", () => {
-      onBack();
+      if (view === "bags" || view === "items") onBack();
+      else setView("bags");
       return true;
     });
     return () => listener.remove();
-  }, [editor, onBack]);
+  }, [editor, onBack, view]);
   const open = (next: Editor) => {
     setSaved(false);
     setEditor(next);
@@ -362,57 +370,78 @@ export function PackingScreen({
     text.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
   return (
     <Screen contentKey={view}>
-      <IconButton
-        label="Back to family bags"
-        icon={ArrowLeft}
-        onPress={onBack}
-      />
+      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+        <IconButton
+          label="Back"
+          icon={ArrowLeft}
+          onPress={() =>
+            ["bags", "items"].includes(view) ? onBack() : setView("bags")
+          }
+        />
+        <View style={{ flexDirection: "row", gap: 6 }}>
+          <IconButton
+            label="Refresh bags"
+            icon={RefreshCw}
+            onPress={() => refresh()}
+          />
+          <OptionsMenu
+            title="Packing options"
+            actions={[
+              {
+                label:
+                  leg === "outbound"
+                    ? "Prepare the journey home"
+                    : "Prepare the journey there",
+                onPress: () => {
+                  setData(null);
+                  setLeg(leg === "outbound" ? "return" : "outbound");
+                  setView(leg === "outbound" ? "review" : "bags");
+                  setQuery("");
+                  setSelectedId(undefined);
+                },
+              },
+              {
+                label: "Packing history",
+                onPress: () => {
+                  setView("history");
+                  setSelectedId(undefined);
+                },
+              },
+            ]}
+          />
+        </View>
+      </View>
       <PageHeader
-        title="Bags & packing"
-        subtitle={legLabel + " · Physical confirmations"}
+        title={
+          {
+            bags: "Bags",
+            items: "Pack items",
+            departure: "Before you leave",
+            review: "What’s coming home?",
+            checkout: "Room check",
+            history: "Packing history",
+          }[view]
+        }
+        subtitle={
+          (data?.familyName ?? "Family") +
+          " · " +
+          (leg === "return" ? "Coming home" : "Going there")
+        }
       />
-      <ChecklistChoices
-        label="Travel leg"
-        locked={api.busy}
-        value={leg}
-        options={[
-          { value: "outbound", label: "Outbound" },
-          { value: "return", label: "Return" },
-        ]}
-        onChange={(next) => {
-          if (next === leg) return;
-          setData(null);
-          setSaved(false);
-          setView(next === "return" ? "review" : "bags");
-          setLeg(next);
-          setQuery("");
-          setSelectedId(undefined);
-        }}
-      />
-      <Copy>
-        Physical bags, current carrying locations and manual departure
-        confirmations.
-      </Copy>
-      <ChecklistChoices
-        label="Packing view"
-        value={view}
-        onChange={(next) => {
-          setView(next);
-          setSelectedId(undefined);
-        }}
-        options={[
-          ...(leg === "return"
-            ? [
-                { value: "review" as const, label: "Review belongings" },
-                { value: "checkout" as const, label: "Checkout" },
-              ]
-            : []),
-          { value: "bags", label: "Bags" },
-          { value: "items", label: "Items to pack" },
-          { value: "departure", label: "Departure checks" },
-          { value: "history", label: "Packing activity" },
-        ]}
-      />
+      {["bags", "items"].includes(view) && (
+        <ChecklistChoices
+          label="Show"
+          value={view}
+          onChange={(next) => {
+            setView(next);
+            setSelectedId(undefined);
+          }}
+          options={[
+            { value: "bags", label: "Your bags" },
+            { value: "items", label: "Items to pack" },
+          ]}
+        />
+      )}
       {saved && <Notice>Saved</Notice>}
       {selectedId &&
         data &&
@@ -440,11 +469,7 @@ export function PackingScreen({
       {api.error && (
         <>
           <Notice error>{api.error.message}</Notice>
-          <Action
-            title="Retry loading bags"
-            busy={api.busy}
-            onPress={() => load()}
-          />
+          <Action title="Retry loading bags" onPress={() => refresh()} />
         </>
       )}
       {data && packing && (
@@ -466,7 +491,7 @@ export function PackingScreen({
               {packing.canEdit && (
                 <>
                   <Action
-                    title="Propose return list"
+                    title="Start my return list"
                     onPress={() => open({ mode: "proposal" })}
                   />
                   <Action
@@ -483,8 +508,7 @@ export function PackingScreen({
               </Copy>
               {data.returnPreparation.items.length === 0 && (
                 <Notice>
-                  Propose the return list to review your belongings and start
-                  checkout checks.
+                  Start your return list, then check what is still with you.
                 </Notice>
               )}
               {data.returnPreparation.items
@@ -494,7 +518,19 @@ export function PackingScreen({
                     (!selectedId || item.entryId === selectedId),
                 )
                 .map((item) => (
-                  <ChecklistSection key={item.entryId} title={item.title}>
+                  <RecordRow
+                    key={item.entryId}
+                    title={item.title}
+                    subtitle={
+                      "Checked " +
+                      item.possessionQuantity +
+                      " of " +
+                      item.requiredQuantity +
+                      " " +
+                      item.unit
+                    }
+                    initiallyOpen={selectedId === item.entryId}
+                  >
                     <Copy>
                       {item.origin === "outbound"
                         ? "Reusable outbound belongings"
@@ -546,7 +582,7 @@ export function PackingScreen({
                         onPress={() => open({ mode: "reconcile", item })}
                       />
                     )}
-                  </ChecklistSection>
+                  </RecordRow>
                 ))}
             </>
           )}
@@ -591,18 +627,55 @@ export function PackingScreen({
             )}
           {view === "bags" && (
             <>
-              {packing.canEdit && (
+              <Surface>
+                <ListRow
+                  title="Pack your items"
+                  subtitle={
+                    packing.items.filter((item) => item.notPacked > 0).length +
+                    " items have quantities ready to pack"
+                  }
+                  onPress={() => setView("items")}
+                />
+                <ListRow
+                  title="Check essentials before leaving"
+                  onPress={() => setView("departure")}
+                />
+                {leg === "return" && (
+                  <>
+                    <ListRow
+                      title="Review what’s coming home"
+                      onPress={() => setView("review")}
+                    />
+                    <ListRow
+                      title="Check your room"
+                      onPress={() => setView("checkout")}
+                    />
+                  </>
+                )}
+              </Surface>
+              {packing.canEdit && data.travelers.length > 0 && (
                 <Action
                   title="Add bag"
                   onPress={() => open({ mode: "bag", initial: null })}
                 />
               )}
-              {packing.bags.length === 0 && (
-                <Notice>
-                  Add a named bag and a traveler carrier, then open Items to
-                  pack. Essentials can also be kept with a traveler.
-                </Notice>
+              {packing.canEdit && data.travelers.length === 0 && (
+                <Surface>
+                  <Copy>
+                    Add a traveler in your family first, so you can choose who
+                    carries the bag.
+                  </Copy>
+                  <Action title="Back to family" onPress={onBack} />
+                </Surface>
               )}
+              {packing.bags.length === 0 &&
+                (!packing.canEdit || data.travelers.length > 0) && (
+                  <Notice>
+                    {packing.canEdit
+                      ? "Add a bag, then choose items to pack."
+                      : "No bags added yet."}
+                  </Notice>
+                )}
               {packing.bags
                 .filter(
                   (bag) =>
@@ -614,97 +687,136 @@ export function PackingScreen({
                     needsReview: false,
                     confirmedAt: null,
                   };
+                  const hasContents = packing.items.some((item) =>
+                    item.allocations.some(
+                      (allocation) =>
+                        allocation.location.kind === "bag" &&
+                        allocation.location.id === bag.id,
+                    ),
+                  );
                   return (
-                    <DetailRow
+                    <RecordRow
                       key={bag.id}
                       title={bag.name}
                       initiallyOpen={selectedId === bag.id}
                       subtitle={
-                        bag.type +
-                        " · " +
                         travelerName(data.travelers, bag.carrierTravelerId) +
                         " · " +
                         (outbound.needsReview
-                          ? "Review needed"
+                          ? "Needs review"
                           : bagStatusLabels[outbound.status])
                       }
                     >
-                      <Copy>
-                        {bag.type} · Carrier:{" "}
-                        {travelerName(data.travelers, bag.carrierTravelerId)}
-                      </Copy>
-                      <Copy>
-                        {legLabel}: {bagStatusLabels[outbound.status]}
-                      </Copy>
                       {outbound.needsReview && (
                         <Notice>
-                          Bag review needed: check changed contents and details.
+                          Contents or details changed. Check the bag again.
                         </Notice>
                       )}
-                      {outbound.confirmedAt && (
-                        <Copy muted>
-                          Confirmed:{" "}
-                          {new Date(outbound.confirmedAt).toLocaleString()}
+                      {packing.canEdit && (
+                        <Action
+                          title={
+                            hasContents ? "Update bag status" : "Pack items"
+                          }
+                          onPress={() =>
+                            hasContents
+                              ? open({ mode: "status", bag })
+                              : (setView("items"), setSelectedId(undefined))
+                          }
+                        />
+                      )}
+                      <Surface>
+                        {!hasContents && (
+                          <Copy muted>
+                            This bag is empty. Choose items to put in it.
+                          </Copy>
+                        )}
+                        <Copy>
+                          Carried by{" "}
+                          {travelerName(data.travelers, bag.carrierTravelerId)}
                         </Copy>
+                        <Copy muted>{bag.type}</Copy>
+                        {packing.items.flatMap((item) =>
+                          item.allocations
+                            .filter(
+                              (allocation) =>
+                                allocation.location.kind === "bag" &&
+                                allocation.location.id === bag.id,
+                            )
+                            .map((allocation) => (
+                              <Copy key={item.entryId}>
+                                {item.title}: {allocation.quantity} {item.unit}
+                              </Copy>
+                            )),
+                        )}
+                      </Surface>
+                      {packing.canEdit && hasContents && (
+                        <Action
+                          title="Pack an item"
+                          secondary
+                          onPress={() => {
+                            setView("items");
+                            setSelectedId(undefined);
+                          }}
+                        />
                       )}
                       {bag.identifyingNote && (
-                        <Copy>Identify: {bag.identifyingNote}</Copy>
+                        <Copy>{bag.identifyingNote}</Copy>
                       )}
-                      <Action
-                        title={`Identification photo for ${bag.name}`}
-                        secondary
-                        onPress={() => open({ mode: "photo", bag })}
-                      />
-                      {bag.weightNote && <Copy>Weight: {bag.weightNote}</Copy>}
+                      {bag.weightNote && (
+                        <Copy muted>Weight: {bag.weightNote}</Copy>
+                      )}
                       {bag.allowanceNote && (
-                        <Copy>Allowance: {bag.allowanceNote}</Copy>
+                        <Copy muted>Allowance: {bag.allowanceNote}</Copy>
                       )}
-                      {packing.items.flatMap((item) =>
-                        item.allocations
-                          .filter(
-                            (a) =>
-                              a.location.kind === "bag" &&
-                              a.location.id === bag.id,
-                          )
-                          .map((a) => (
-                            <Copy key={item.entryId}>
-                              {item.title}: {a.quantity} {item.unit}
-                            </Copy>
-                          )),
-                      )}
-                      {packing.canEdit && (
-                        <>
-                          <Action
-                            title={`Confirm status for ${bag.name}`}
-                            onPress={() => open({ mode: "status", bag })}
-                          />
-                          {data.canShare && (
-                            <Action
-                              title={`Visibility for ${bag.name}`}
-                              secondary
-                              onPress={() => open({ mode: "visibility", bag })}
-                            />
-                          )}
-                          <Action
-                            title={`Edit ${bag.name}`}
-                            secondary
-                            onPress={() => open({ mode: "bag", initial: bag })}
-                          />
-                          <Action
-                            title={`Remove ${bag.name}`}
-                            secondary
-                            onPress={() =>
-                              open({
-                                mode: "remove",
-                                kind: "bag",
-                                id: bag.id,
-                                title: bag.name,
-                              })
-                            }
-                          />
-                        </>
-                      )}
-                    </DetailRow>
+                      <OptionsMenu
+                        title="Bag options"
+                        triggerLabel="More"
+                        actions={[
+                          {
+                            label: "Identification photo",
+                            onPress: () => open({ mode: "photo", bag }),
+                          },
+                          ...(packing.canEdit
+                            ? [
+                                ...(!hasContents
+                                  ? [
+                                      {
+                                        label: "Update bag status",
+                                        onPress: () =>
+                                          open({ mode: "status", bag }),
+                                      },
+                                    ]
+                                  : []),
+                                {
+                                  label: "Edit bag",
+                                  onPress: () =>
+                                    open({ mode: "bag", initial: bag }),
+                                },
+                                ...(data.canShare
+                                  ? [
+                                      {
+                                        label: "Who can see this bag?",
+                                        onPress: () =>
+                                          open({ mode: "visibility", bag }),
+                                      },
+                                    ]
+                                  : []),
+                                {
+                                  label: "Remove bag",
+                                  destructive: true,
+                                  onPress: () =>
+                                    open({
+                                      mode: "remove",
+                                      kind: "bag",
+                                      id: bag.id,
+                                      title: bag.name,
+                                    }),
+                                },
+                              ]
+                            : []),
+                        ]}
+                      />
+                    </RecordRow>
                   );
                 })}
             </>
@@ -712,9 +824,7 @@ export function PackingScreen({
           {view === "items" && (
             <>
               <Copy>
-                Use Checklist to add requirements and confirm physical
-                availability. Tasks do not have bag allocations. Return stock
-                must be reviewed and confirmed in Review belongings.
+                Choose an item, then choose its bag or the person keeping it.
               </Copy>
               {packing.items.length === 0 && (
                 <Notice>
@@ -728,62 +838,74 @@ export function PackingScreen({
                     (!selectedId || item.entryId === selectedId),
                 )
                 .map((item) => (
-                  <ChecklistSection
+                  <RecordRow
                     key={item.entryId}
-                    title={`${item.priority === "essential" ? "Essential: " : ""}${item.title}`}
+                    title={item.title}
+                    initiallyOpen={selectedId === item.entryId}
+                    subtitle={
+                      item.needsRepacking > 0
+                        ? "Needs repacking"
+                        : item.available === 0
+                          ? "Mark what you have in Checklist first"
+                          : item.notPacked > 0
+                            ? item.notPacked +
+                              " " +
+                              item.unit +
+                              " ready to pack"
+                            : "Placed " +
+                              (item.packed + item.keptWithTraveler) +
+                              " of " +
+                              item.requiredQuantity +
+                              " " +
+                              item.unit
+                    }
                   >
-                    <Copy>
-                      Required: {item.requiredQuantity} {item.unit}
-                    </Copy>
-                    <Copy>
-                      Available: {item.available} {item.unit}
-                    </Copy>
-                    <Copy>
-                      Packed in bags: {item.packed} {item.unit}
-                    </Copy>
-                    <Copy>
-                      Kept with a traveler: {item.keptWithTraveler} {item.unit}
-                    </Copy>
-                    <Copy>
-                      Not packed: {item.notPacked} {item.unit}
-                    </Copy>
-                    <Copy>
-                      Still to place:{" "}
-                      {Math.round(
-                        (item.requiredQuantity -
-                          item.packed -
-                          item.keptWithTraveler) *
-                          1000,
-                      ) / 1000}{" "}
-                      {item.unit}
-                    </Copy>
-                    {item.needsRepacking > 0 && (
-                      <Notice>
-                        Removed / needs repacking: {item.needsRepacking}{" "}
-                        {item.unit}
-                      </Notice>
-                    )}
-                    {item.allocations.map((a) => (
-                      <Copy key={JSON.stringify(a.location)}>
-                        {locationLabel(a.location, packing, data.travelers)}:{" "}
-                        {a.quantity} {item.unit}
+                    <Surface>
+                      <Copy>
+                        Need: {item.requiredQuantity} {item.unit}
+                      </Copy>
+                      <Copy>
+                        Have: {item.available} {item.unit}
+                      </Copy>
+                      <Copy>
+                        In bags or with someone:{" "}
+                        {item.packed + item.keptWithTraveler} {item.unit}
+                      </Copy>
+                    </Surface>
+                    {item.allocations.map((allocation) => (
+                      <Copy key={JSON.stringify(allocation.location)}>
+                        {locationLabel(
+                          allocation.location,
+                          packing,
+                          data.travelers,
+                        )}
+                        : {allocation.quantity} {item.unit}
                       </Copy>
                     ))}
-                    {packing.canEdit && (
-                      <Action
-                        title={`Pack or move ${item.title}`}
-                        onPress={() => open({ mode: "move", item })}
-                      />
-                    )}
+                    {packing.canEdit &&
+                      (item.available > 0 || item.allocations.length ? (
+                        <Action
+                          title="Choose where this goes"
+                          onPress={() => open({ mode: "move", item })}
+                        />
+                      ) : (
+                        <>
+                          <Copy>Mark what you have in Checklist first.</Copy>
+                          <Action
+                            title="Open checklist"
+                            onPress={onChecklist ?? onBack}
+                          />
+                        </>
+                      ))}
                     <Action
-                      title={`Packing history for ${item.title}`}
+                      title="View packing history"
                       secondary
                       onPress={() => {
                         setHistoryItem(item.entryId);
                         setView("history");
                       }}
                     />
-                  </ChecklistSection>
+                  </RecordRow>
                 ))}
             </>
           )}
@@ -920,7 +1042,7 @@ export function PackingScreen({
                 ))}
             </>
           )}
-          <Action title="Refresh bags" secondary onPress={() => load()} />
+          <></>
         </>
       )}
     </Screen>

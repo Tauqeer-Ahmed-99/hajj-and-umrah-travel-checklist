@@ -585,7 +585,7 @@ function GuideReader({
       <Action
         title="Refresh guide"
         secondary
-        busy={api.busy}
+
         onPress={() => load()}
       />
     </Screen>
@@ -655,7 +655,7 @@ function GuideHistory({
       <Action
         title="Refresh history"
         secondary
-        busy={api.busy}
+
         onPress={() => load()}
       />
     </Screen>

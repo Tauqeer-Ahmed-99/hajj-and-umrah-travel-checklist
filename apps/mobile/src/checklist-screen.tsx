@@ -1,3 +1,6 @@
+import { DetailPage, OptionsMenu, RecordRow } from "./simple-ui";
+import { useForegroundRefresh } from "./use-foreground-refresh";
+import { RefreshCw } from "lucide-react-native";
 import {
   ArrowLeft,
   ListChecks,
@@ -167,6 +170,138 @@ function historyValue(field: string, value: unknown, data: Data): string {
   if (typeof value === "boolean") return value ? "Yes" : "No";
   return String(value);
 }
+function ChecklistItemRow({
+  entry,
+  data,
+  edit,
+  selected,
+}: {
+  entry: ChecklistEntry;
+  data: Data;
+  edit(value: Editor): void;
+  selected: boolean;
+}) {
+  const responsible = data.members.find(
+    (m) => m.id === entry.responsibleMemberId,
+  );
+  const isItem = entry.kind === "item";
+  const subtitle = isItem
+    ? entry.acquisition?.notNeededReason
+      ? "Not needed"
+      : "Have " +
+        (entry.acquisition?.available ?? 0) +
+        " of " +
+        entry.requiredQuantity +
+        " " +
+        entry.unit
+    : checklistTaskLabels[entry.taskStatus!];
+  return (
+    <RecordRow title={entry.title} subtitle={subtitle} initiallyOpen={selected}>
+      {isItem && (
+        <Surface>
+          <Copy>
+            Need: {entry.requiredQuantity} {entry.unit}
+          </Copy>
+          <Copy>
+            Have: {entry.acquisition?.available ?? 0} {entry.unit}
+          </Copy>
+          {!!entry.acquisition?.awaitingReceipt && (
+            <Copy muted>
+              Waiting for: {entry.acquisition.awaitingReceipt} {entry.unit}
+            </Copy>
+          )}
+        </Surface>
+      )}
+      {data.checklist.canEdit && (
+        <Action
+          title={
+            isItem
+              ? entry.acquisition?.notNeededReason
+                ? "Restore item"
+                : "Update what I have"
+              : "Update task"
+          }
+          onPress={() =>
+            edit(
+              isItem
+                ? { mode: "acquisition", entry }
+                : { mode: "entry", initial: entry, kind: entry.kind },
+            )
+          }
+        />
+      )}
+      {entry.notes && <Copy>{entry.notes}</Copy>}
+      <DetailRow title="Details" subtitle="People, dates and notes">
+        <Copy>For: {beneficiaries(entry, data.travelers)}</Copy>
+        <Copy>
+          Arranged by:{" "}
+          {responsible
+            ? responsible.firstName + " " + responsible.lastName
+            : "Choose someone to arrange this"}
+        </Copy>
+        <Copy>Priority: {entry.priority}</Copy>
+        {entry.dueDate && <Copy>Due: {entry.dueDate}</Copy>}
+        <Copy>
+          {entry.leg === "both"
+            ? "For both journeys"
+            : entry.leg === "return"
+              ? "For the journey home"
+              : "For the journey there"}
+        </Copy>
+        {entry.source && <Copy muted>Source: {entry.source}</Copy>}
+        {entry.lastReviewedOn && (
+          <Copy muted>Last reviewed: {entry.lastReviewedOn}</Copy>
+        )}
+      </DetailRow>
+      <OptionsMenu
+        title="Item options"
+        triggerLabel="More"
+        actions={[
+          ...(data.checklist.canEdit
+            ? [
+                {
+                  label: "Edit details",
+                  onPress: () =>
+                    edit({ mode: "entry", initial: entry, kind: entry.kind }),
+                },
+              ]
+            : []),
+          { label: "History", onPress: () => edit({ mode: "history", entry }) },
+          ...(data.family.canCoordinate
+            ? [
+                {
+                  label: "Who can see this?",
+                  onPress: () => edit({ mode: "visibility", entry }),
+                },
+              ]
+            : []),
+          ...(data.checklist.canEdit
+            ? [
+                {
+                  label: "Remove",
+                  destructive: true,
+                  onPress: () =>
+                    edit({
+                      mode: "remove",
+                      kind: "entries",
+                      id: entry.id,
+                      title: entry.title,
+                      requiresReason: isItem,
+                    }),
+                },
+              ]
+            : []),
+        ]}
+      />
+      {isItem && (
+        <Copy muted>
+          Having an item does not pack it. Open Bags to choose where it goes.
+        </Copy>
+      )}
+    </RecordRow>
+  );
+}
+
 export function ChecklistScreen({
   tripId,
   familyId,
@@ -232,6 +367,8 @@ export function ChecklistScreen({
   useEffect(() => {
     onRemember?.(view, selectedId);
   }, [view, selectedId, onRemember]);
+  const [kind, setKind] = useState<"item" | "task">("item");
+  const [manage, setManage] = useState(false);
   const scope = { tripId, familyId };
   const load = useCallback(async () => {
     const result = await api.run(async (token, signal) => {
@@ -261,14 +398,10 @@ export function ChecklistScreen({
   useEffect(() => {
     if (api.error && [401, 403, 404].includes(api.error.status)) setData(null);
   }, [api.error]);
-  useEffect(() => {
-    if (editor && editor.mode !== "history") return;
-    void load();
-    const listener = AppState.addEventListener("change", (state) => {
-      if (state === "active") void load();
-    });
-    return () => listener.remove();
-  }, [load, editor]);
+  const refresh = useForegroundRefresh(
+    load,
+    !editor || editor.mode === "history",
+  );
   useScreenBackEffect(() => {
     if (editor && editor.mode !== "history") return;
     const listener = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -350,7 +483,7 @@ export function ChecklistScreen({
         {api.error && (
           <>
             <Notice error>{api.error.message}</Notice>
-            <Action title="Retry loading history" onPress={() => load()} />
+            <Action title="Retry loading history" onPress={() => refresh()} />
           </>
         )}
         {data && (
@@ -419,272 +552,227 @@ export function ChecklistScreen({
     setSaved(false);
     setEditor(value);
   };
-  const priority = { essential: 0, high: 1, normal: 2, low: 3 };
+  const effectiveKind = selectedId
+    ? (data?.checklist.entries.find((e) => e.id === selectedId)?.kind ?? kind)
+    : kind;
   const entries = (
     !data ? [] : view === "all" ? data.checklist.entries : data.views[view]
-  ).filter((entry) => !selectedId || entry.id === selectedId);
+  ).filter(
+    (entry) =>
+      (!selectedId || entry.id === selectedId) && entry.kind === effectiveKind,
+  );
+  const add = () => edit({ mode: "entry", initial: null, kind: effectiveKind });
   return (
     <Screen>
-      <IconButton
-        label="Back to family checklists"
-        icon={ArrowLeft}
-        onPress={onBack}
-      />
-      <PageHeader
-        title="Checklist"
-        subtitle={data?.family.name ?? "Family essentials and tasks"}
-      />
+      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+        <IconButton label="Back to family" icon={ArrowLeft} onPress={onBack} />
+        <View style={{ flexDirection: "row", gap: 6 }}>
+          <IconButton
+            label="Refresh checklist"
+            icon={RefreshCw}
+            onPress={() => refresh()}
+          />
+          {data && (
+            <OptionsMenu
+              title="Checklist options"
+              actions={[
+                ...(data.checklist.canEdit
+                  ? [
+                      {
+                        label: "Use starter suggestions",
+                        onPress: () => edit({ mode: "starter" }),
+                      },
+                      {
+                        label: "Manage sections",
+                        onPress: () => setManage(true),
+                      },
+                    ]
+                  : []),
+                {
+                  label: "Recent activity",
+                  onPress: () => edit({ mode: "history" }),
+                },
+              ]}
+            />
+          )}
+        </View>
+      </View>
+      <PageHeader title="Checklist" subtitle={data?.family.name} />
       {saved && <Notice>Saved</Notice>}
-      {selectedId && (
-        <>
-          <Notice>
-            {entries.length
-              ? "Showing the selected record."
-              : "The selected record is no longer available in this view."}
-          </Notice>
-          <Action
-            title="Show all family checklist entries"
-            secondary
-            onPress={() => {
-              setSelectedId(undefined);
-              setView("all");
-            }}
-          />
-        </>
-      )}
-      {!data && !api.error && (
-        <Loading message="Loading the family checklist…" />
-      )}
+      {!data && !api.error && <Loading message="Loading checklist" />}
       {api.error && (
-        <>
+        <Surface>
           <Notice error>{api.error.message}</Notice>
-          <Action
-            title="Retry loading checklist"
-            busy={api.busy}
-            onPress={() => load()}
-          />
-        </>
+          <Action title="Try again" onPress={() => refresh()} />
+        </Surface>
       )}
       {data && (
         <>
-          <Copy>
-            Preparation is family-private until its coordinator shares it. Only
-            physically checked supplies count as available. Availability does
-            not confirm packing.
-          </Copy>
           <ChecklistChoices
-            label="Preparation view"
-            value={view}
-            onChange={setView}
+            label="Show"
             options={[
-              { value: "all", label: "All entries" },
-              { value: "shopping", label: "Shopping" },
-              { value: "expectedDelivery", label: "Expected delivery" },
-              { value: "overdueReceipt", label: "Overdue receipt" },
-              { value: "essentialOutstanding", label: "Essential outstanding" },
+              { value: "item", label: "Things to bring" },
+              { value: "task", label: "Things to do" },
             ]}
+            value={effectiveKind}
+            onChange={(next) => {
+              setKind(next);
+              setView("all");
+              setSelectedId(undefined);
+            }}
           />
-          {view === "overdueReceipt" && (
-            <Copy muted>
-              Expected before {data.views.asOf} (UTC) and still awaiting
-              receipt.
-            </Copy>
-          )}
-          {view !== "all" && entries.length === 0 && (
-            <Copy>No items need attention in this view.</Copy>
-          )}
-          {!data.checklist.canEdit && (
-            <Notice>
-              Read-only family access. A coordinator or editor can change this
-              checklist.
-            </Notice>
-          )}
-          {data.checklist.canEdit && (
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              <QuickTile
-                title="Category"
-                icon={FolderPlus}
-                onPress={() => edit({ mode: "category", initial: null })}
-              />
-              <QuickTile
-                title="Starters"
-                icon={CopyIcon}
-                onPress={() => edit({ mode: "starter" })}
-              />
-              {data.checklist.categories.length > 0 && (
+          {data.checklist.categories.length === 0 ? (
+            <Surface>
+              <Copy>
+                {data.checklist.canEdit
+                  ? "Start with a suggested list, or make your own section."
+                  : "No checklist yet. A family editor can add one."}
+              </Copy>
+              {data.checklist.canEdit && (
                 <>
-                  <QuickTile
-                    title="Add item"
-                    icon={Plus}
-                    onPress={() =>
-                      edit({ mode: "entry", initial: null, kind: "item" })
-                    }
+                  <Action
+                    title="Use starter list"
+                    onPress={() => edit({ mode: "starter" })}
                   />
-                  <QuickTile
-                    title="Add task"
-                    icon={ListChecks}
-                    onPress={() =>
-                      edit({ mode: "entry", initial: null, kind: "task" })
-                    }
+                  <Action
+                    title="Create my own list"
+                    secondary
+                    onPress={() => edit({ mode: "category", initial: null })}
                   />
                 </>
               )}
-            </View>
+            </Surface>
+          ) : (
+            <>
+              {data.checklist.canEdit && (
+                <Action
+                  title={effectiveKind === "item" ? "Add item" : "Add task"}
+                  onPress={add}
+                />
+              )}
+              {effectiveKind === "item" && (
+                <OptionsMenu
+                  title="Filter items"
+                  triggerLabel={
+                    {
+                      all: "All items",
+                      shopping: "Still to get",
+                      expectedDelivery: "Waiting for delivery",
+                      overdueReceipt: "Delivery overdue",
+                      essentialOutstanding: "Essentials to get",
+                    }[view]
+                  }
+                  actions={[
+                    { value: "all", label: "All items" },
+                    { value: "shopping", label: "Still to get" },
+                    {
+                      value: "expectedDelivery",
+                      label: "Waiting for delivery",
+                    },
+                    { value: "overdueReceipt", label: "Delivery overdue" },
+                    {
+                      value: "essentialOutstanding",
+                      label: "Essentials to get",
+                    },
+                  ].map((option) => ({
+                    label: option.label,
+                    selected: view === option.value,
+                    onPress: () => {
+                      setView(option.value as ChecklistView);
+                      setSelectedId(undefined);
+                    },
+                  }))}
+                />
+              )}
+              {selectedId && (
+                <Action
+                  title="Show all"
+                  secondary
+                  onPress={() => {
+                    setSelectedId(undefined);
+                    setView("all");
+                  }}
+                />
+              )}
+              {!entries.length && (
+                <Surface>
+                  <Copy muted>
+                    {view === "all"
+                      ? effectiveKind === "item"
+                        ? "No items yet. Add what your family needs to bring."
+                        : "No tasks yet. Add something your family needs to do."
+                      : "Nothing to do in this view."}
+                  </Copy>
+                </Surface>
+              )}
+              {data.checklist.categories
+                .filter((group) =>
+                  entries.some((entry) => entry.categoryId === group.id),
+                )
+                .map((group) => (
+                  <ChecklistSection key={group.id} title={group.name}>
+                    {entries
+                      .filter((entry) => entry.categoryId === group.id)
+                      .map((entry) => (
+                        <ChecklistItemRow
+                          key={entry.id}
+                          entry={entry}
+                          data={data}
+                          edit={edit}
+                          selected={selectedId === entry.id}
+                        />
+                      ))}
+                  </ChecklistSection>
+                ))}
+            </>
           )}
-          {data.checklist.categories.length === 0 && (
-            <Copy>
-              No categories yet. Start with your own category or copy editable
-              starter suggestions.
-            </Copy>
+          {!data.checklist.canEdit && (
+            <Notice>View only. A family editor can change this list.</Notice>
           )}
-          {data.checklist.categories
-            .filter(
-              (group) =>
-                view === "all" ||
-                entries.some((entry) => entry.categoryId === group.id),
-            )
-            .map((group) => (
-              <ChecklistSection key={group.id} title={group.name}>
-                {data.checklist.canEdit && view === "all" && (
-                  <DetailRow
-                    title="Manage category"
-                    subtitle="Edit or remove this category"
-                  >
-                    <Action
-                      title={`Edit category ${group.name}`}
-                      secondary
-                      onPress={() => edit({ mode: "category", initial: group })}
-                    />
-                    <Action
-                      title={`Remove category ${group.name}`}
-                      secondary
-                      onPress={() =>
+          <DetailPage
+            title="List sections"
+            open={manage}
+            onClose={() => setManage(false)}
+          >
+            <Action
+              title="Add section"
+              onPress={() => {
+                setManage(false);
+                edit({ mode: "category", initial: null });
+              }}
+            />
+            {data.checklist.categories.map((group) => (
+              <Surface key={group.id}>
+                <Copy>{group.name}</Copy>
+                <OptionsMenu
+                  title={group.name}
+                  triggerLabel="Edit section"
+                  actions={[
+                    {
+                      label: "Rename",
+                      onPress: () => {
+                        setManage(false);
+                        edit({ mode: "category", initial: group });
+                      },
+                    },
+                    {
+                      label: "Remove section",
+                      destructive: true,
+                      onPress: () => {
+                        setManage(false);
                         edit({
                           mode: "remove",
                           kind: "categories",
                           id: group.id,
                           title: group.name,
-                        })
-                      }
-                    />
-                  </DetailRow>
-                )}
-                {entries.filter((entry) => entry.categoryId === group.id)
-                  .length === 0 && (
-                  <Copy muted>No entries in this category.</Copy>
-                )}
-                {entries
-                  .filter((entry) => entry.categoryId === group.id)
-                  .sort((a, b) => priority[a.priority] - priority[b.priority])
-                  .map((entry) => {
-                    const responsible = data.members.find(
-                      (member) => member.id === entry.responsibleMemberId,
-                    );
-                    return (
-                      <DetailRow
-                        key={entry.id}
-                        title={entry.title}
-                        initiallyOpen={selectedId === entry.id}
-                        subtitle={
-                          entry.kind === "task"
-                            ? checklistTaskLabels[entry.taskStatus!]
-                            : `${entry.acquisition?.available ?? 0} / ${entry.requiredQuantity} ${entry.unit} available · ${entry.priority}`
-                        }
-                      >
-                        <Copy>
-                          {entry.priority[0].toUpperCase() +
-                            entry.priority.slice(1)}{" "}
-                          priority
-                        </Copy>
-                        <AcquisitionSummary entry={entry} />
-                        <Copy>
-                          {entry.kind === "task"
-                            ? `Task: ${checklistTaskLabels[entry.taskStatus!]}`
-                            : `Required: ${entry.requiredQuantity} ${entry.unit}`}
-                        </Copy>
-                        <Copy>For: {beneficiaries(entry, data.travelers)}</Copy>
-                        <Copy>
-                          Responsible:{" "}
-                          {responsible
-                            ? `${responsible.firstName} ${responsible.lastName} @${responsible.username}`
-                            : "Former family member; reassign when ready"}
-                        </Copy>
-                        <Copy muted>
-                          {entry.leg === "both"
-                            ? "Outbound and return"
-                            : entry.leg === "return"
-                              ? "Return"
-                              : "Outbound"}
-                          {entry.dueDate ? `; due ${entry.dueDate}` : ""}
-                        </Copy>
-                        {!!entry.notes && <Copy>{entry.notes}</Copy>}
-                        {!!entry.source && (
-                          <Copy muted>Source: {entry.source}</Copy>
-                        )}
-                        {!!entry.lastReviewedOn && (
-                          <Copy muted>
-                            Last reviewed: {entry.lastReviewedOn}
-                          </Copy>
-                        )}
-                        {data.checklist.canEdit && (
-                          <>
-                            {entry.kind === "item" && (
-                              <Action
-                                title={`Acquisition for ${entry.title}`}
-                                onPress={() =>
-                                  edit({ mode: "acquisition", entry })
-                                }
-                              />
-                            )}
-                            <Action
-                              title={`Edit ${entry.title}`}
-                              secondary
-                              onPress={() =>
-                                edit({
-                                  mode: "entry",
-                                  initial: entry,
-                                  kind: entry.kind,
-                                })
-                              }
-                            />
-                            <Action
-                              title={`Remove ${entry.title}`}
-                              secondary
-                              onPress={() =>
-                                edit({
-                                  mode: "remove",
-                                  kind: "entries",
-                                  id: entry.id,
-                                  title: entry.title,
-                                  requiresReason: entry.kind === "item",
-                                })
-                              }
-                            />
-                          </>
-                        )}
-                        {data.family.canCoordinate && (
-                          <Action
-                            title={`Visibility for ${entry.title}`}
-                            secondary
-                            onPress={() => edit({ mode: "visibility", entry })}
-                          />
-                        )}
-                        <Action
-                          title={`History for ${entry.title}`}
-                          secondary
-                          onPress={() => edit({ mode: "history", entry })}
-                        />
-                      </DetailRow>
-                    );
-                  })}
-              </ChecklistSection>
+                        });
+                      },
+                    },
+                  ]}
+                />
+              </Surface>
             ))}
-          <Action title="Refresh checklist" secondary onPress={() => load()} />
-          <Action
-            title="Recent checklist changes"
-            secondary
-            onPress={() => edit({ mode: "history" })}
-          />
+          </DetailPage>
         </>
       )}
     </Screen>

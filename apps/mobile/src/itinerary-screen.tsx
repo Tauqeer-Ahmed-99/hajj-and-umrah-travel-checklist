@@ -1,3 +1,14 @@
+import { ArrowLeft, FileText, RefreshCw } from "lucide-react-native";
+import {
+  IconButton,
+  ListRow,
+  PageHeader,
+  SectionLabel,
+  Surface,
+} from "./design-system";
+import { OptionsMenu, RecordRow } from "./simple-ui";
+import { useForegroundRefresh } from "./use-foreground-refresh";
+import { pickerDate } from "./date-values";
 import { useScreenBackEffect } from "./screen-back";
 import { Text } from "./typography";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
@@ -141,7 +152,6 @@ export function ItineraryScreen({
   const [editor, setEditor] = useState<Editor | null>(null);
   const [saved, setSaved] = useState(false);
   const load = useCallback(async () => {
-    setData(null);
     const result = await api.run(async (token, signal) => {
       const [itinerary, detail] = await Promise.all([
         itineraryApi.read(tripId, token, signal),
@@ -151,14 +161,10 @@ export function ItineraryScreen({
     });
     if (result) setData(result);
   }, [api.run, tripId]);
+  const refresh = useForegroundRefresh(load, !editor);
   useEffect(() => {
-    if (editor) return;
-    void load();
-    const listener = AppState.addEventListener("change", (state) => {
-      if (state === "active") void load();
-    });
-    return () => listener.remove();
-  }, [load, editor]);
+    if (api.error && [401, 403, 404].includes(api.error.status)) setData(null);
+  }, [api.error]);
   useScreenBackEffect(() => {
     if (editor) return; // The active form owns its unsaved-change confirmation.
     const listener = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -207,162 +213,192 @@ export function ItineraryScreen({
     [order[index], order[index + delta]] = [order[index + delta], order[index]];
     setEditor({ mode: "action", entry, order });
   };
+  const dateLabel = (value: string) =>
+    pickerDate(value).toLocaleDateString(undefined, {
+      timeZone: "UTC",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
   return (
     <Screen>
-      <Action title="Back to trip" secondary onPress={onBack} />
-      <Heading>Itinerary</Heading>
-      {saved && <Notice>Saved</Notice>}
-      {!data && !api.error && <Loading message="Loading travel details…" />}
-      {api.error && (
-        <>
-          <Notice error>{api.error.message}</Notice>
-          <Action
-            title="Retry loading itinerary"
-            busy={api.busy}
-            onPress={() => load()}
+      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+        <IconButton label="Back to journey" icon={ArrowLeft} onPress={onBack} />
+        <View style={{ flexDirection: "row", gap: 6 }}>
+          <IconButton
+            label="Refresh journey details"
+            icon={RefreshCw}
+            onPress={() => refresh()}
           />
-        </>
+          {data?.itinerary.canEdit && (
+            <OptionsMenu
+              title="Journey options"
+              actions={[
+                {
+                  label: "Edit travel details",
+                  onPress: () => setEditor({ mode: "references" }),
+                },
+                {
+                  label: "Change journey stage",
+                  onPress: () => setEditor({ mode: "phase" }),
+                },
+                ...(data.trip.kind === "hajj"
+                  ? [
+                      {
+                        label: "Add Hajj milestone",
+                        onPress: () =>
+                          setEditor({
+                            mode: "entry",
+                            entry: null,
+                            kind: "hajj_milestone",
+                          }),
+                      },
+                    ]
+                  : []),
+              ]}
+            />
+          )}
+        </View>
+      </View>
+      <PageHeader title="Journey details" subtitle={data?.trip.name} />
+      {saved && <Notice>Saved</Notice>}
+      {!data && !api.error && <Loading message="Loading journey details" />}
+      {api.error && (
+        <Surface>
+          <Notice error>{api.error.message}</Notice>
+          <Action title="Try again" onPress={() => refresh()} />
+        </Surface>
       )}
       {data && (
         <>
-          <Copy>{data.trip.name}</Copy>
-          <Section title={tripPhaseLabels[data.itinerary.phase]}>
-            <Copy muted>Trip phase, chosen manually by an organizer.</Copy>
-            {data.itinerary.canEdit ? (
-              <Action
-                title="Change trip phase"
-                secondary
-                onPress={() => setEditor({ mode: "phase" })}
-              />
-            ) : (
-              <Notice>
-                Read-only itinerary. A trip organizer manages these details.
-              </Notice>
+          <Surface>
+            <Copy>
+              {dateLabel(data.trip.startDate)} — {dateLabel(data.trip.endDate)}
+            </Copy>
+            <Copy muted>{tripPhaseLabels[data.itinerary.phase]}</Copy>
+          </Surface>
+          <SectionLabel>Travel plan</SectionLabel>
+          <Surface>
+            {data.itinerary.entries.length === 0 && (
+              <Copy muted>Add your stops so everyone knows where to go.</Copy>
             )}
-          </Section>
-          <Section title="Trip travel references">
+            {data.itinerary.entries.map((entry, index) => (
+              <RecordRow
+                key={entry.id}
+                title={entry.title}
+                subtitle={
+                  entry.startsAt
+                    ? dateLabel(entry.startsAt.dateTime) +
+                      " · " +
+                      entry.startsAt.dateTime.slice(11, 16) +
+                      " · " +
+                      entry.startsAt.timeZone
+                    : "Time not set"
+                }
+              >
+                {entry.startsAt && (
+                  <>
+                    <Copy muted>Starts</Copy>
+                    <Time value={entry.startsAt} />
+                  </>
+                )}
+                {entry.endsAt && (
+                  <>
+                    <Copy muted>Ends</Copy>
+                    <Time value={entry.endsAt} />
+                  </>
+                )}
+                <References value={entry} />
+                {entry.notes && <Copy>{entry.notes}</Copy>}
+                <Action
+                  title="Documents for this stop"
+                  secondary
+                  onPress={() =>
+                    setEditor({ mode: "files", entryId: entry.id })
+                  }
+                />
+                {entry.kind === "hajj_milestone" && (
+                  <Notice>
+                    This is the organizer’s plan, not a record of religious
+                    completion.
+                  </Notice>
+                )}
+                {data.itinerary.canEdit && (
+                  <OptionsMenu
+                    title="Stop options"
+                    triggerLabel="Edit or organize this stop"
+                    compact={false}
+                    actions={[
+                      {
+                        label: "Edit stop",
+                        onPress: () =>
+                          setEditor({ mode: "entry", entry, kind: entry.kind }),
+                      },
+                      ...(index > 0
+                        ? [
+                            {
+                              label: "Move earlier",
+                              onPress: () => move(entry, index, -1),
+                            },
+                          ]
+                        : []),
+                      ...(index < data.itinerary.entries.length - 1
+                        ? [
+                            {
+                              label: "Move later",
+                              onPress: () => move(entry, index, 1),
+                            },
+                          ]
+                        : []),
+                      {
+                        label: "Remove stop",
+                        destructive: true,
+                        onPress: () => setEditor({ mode: "action", entry }),
+                      },
+                    ]}
+                  />
+                )}
+              </RecordRow>
+            ))}
+          </Surface>
+          {data.itinerary.canEdit && (
             <Action
-              title="Files for trip travel details"
-              secondary
-              onPress={() => setEditor({ mode: "files" })}
+              title="Add a stop"
+              onPress={() =>
+                setEditor({ mode: "entry", entry: null, kind: "stop" })
+              }
             />
+          )}
+          <SectionLabel>Useful details</SectionLabel>
+          <Surface>
             <References value={data.itinerary} />
             {!data.itinerary.accommodationAddress &&
               !data.itinerary.transportReference &&
               !data.itinerary.meetingPoint &&
               !data.itinerary.contacts.length && (
-                <Copy muted>No trip-wide references yet.</Copy>
+                <Copy muted>
+                  Hotel, meeting point and contact details can go here.
+                </Copy>
               )}
+            <ListRow
+              title="Travel documents"
+              icon={FileText}
+              onPress={() => setEditor({ mode: "files" })}
+            />
             {data.itinerary.canEdit && (
               <Action
-                title="Edit travel references"
+                title="Edit details"
                 secondary
                 onPress={() => setEditor({ mode: "references" })}
               />
             )}
-          </Section>
-          <Section title="Stops and milestones">
-            <Copy muted>
-              In the organizer’s chosen travel order. Dates and stops are
-              optional.
-            </Copy>
-            {!data.itinerary.entries.length && (
-              <Copy>No itinerary entries yet.</Copy>
-            )}
-          </Section>
-          {data.itinerary.entries.map((entry, index) => (
-            <Section key={entry.id} title={`${index + 1}. ${entry.title}`}>
-              <Copy muted>
-                {entry.kind === "stop"
-                  ? "Stop"
-                  : "Hajj preparation or movement milestone"}
-              </Copy>
-              <Copy muted>Start</Copy>
-              <Time value={entry.startsAt} />
-              <Copy muted>End</Copy>
-              <Time value={entry.endsAt} />
-              <References value={entry} />
-              <Action
-                title={`Files for ${entry.title}`}
-                secondary
-                onPress={() => setEditor({ mode: "files", entryId: entry.id })}
-              />
-              {!!entry.notes && <Copy>{entry.notes}</Copy>}
-              {entry.kind === "hajj_milestone" && (
-                <Notice>
-                  Organizer’s plan. Religious completion is not recorded here.
-                </Notice>
-              )}
-              {data.itinerary.canEdit && (
-                <>
-                  <Action
-                    title={`Edit ${entry.title}`}
-                    secondary
-                    onPress={() =>
-                      setEditor({ mode: "entry", entry, kind: entry.kind })
-                    }
-                  />
-                  {index > 0 && (
-                    <Action
-                      title={`Move ${entry.title} earlier`}
-                      secondary
-                      onPress={() => move(entry, index, -1)}
-                    />
-                  )}
-                  {index < data.itinerary.entries.length - 1 && (
-                    <Action
-                      title={`Move ${entry.title} later`}
-                      secondary
-                      onPress={() => move(entry, index, 1)}
-                    />
-                  )}
-                  <Action
-                    title={`Remove ${entry.title}`}
-                    secondary
-                    onPress={() => setEditor({ mode: "action", entry })}
-                  />
-                </>
-              )}
-            </Section>
-          ))}
-          {data.itinerary.canEdit && (
-            <>
-              <Action
-                title="Add stop"
-                onPress={() =>
-                  setEditor({ mode: "entry", entry: null, kind: "stop" })
-                }
-              />
-              {data.trip.kind === "hajj" && (
-                <Action
-                  title="Add Hajj milestone"
-                  secondary
-                  onPress={() =>
-                    setEditor({
-                      mode: "entry",
-                      entry: null,
-                      kind: "hajj_milestone",
-                    })
-                  }
-                />
-              )}
-            </>
-          )}
-          <Action
-            title="Refresh itinerary"
-            secondary
-            busy={api.busy}
-            onPress={() => load()}
-          />
-          <Copy muted>
-            Travel details require a connection in this build. Refresh to check
-            current access and saved changes.
-          </Copy>
+          </Surface>
         </>
       )}
     </Screen>
   );
 }
+
 const styles = StyleSheet.create({
   section: { borderTopWidth: 1, paddingTop: 20, gap: 12 },
   sectionTitle: {

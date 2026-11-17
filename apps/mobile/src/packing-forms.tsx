@@ -1,3 +1,4 @@
+import { SelectField } from "./simple-ui";
 import { useState } from "react";
 import { randomUUID } from "expo-crypto";
 import {
@@ -22,7 +23,7 @@ import {
   type DepartureCheckPatch,
   type Traveler,
 } from "@nmt/contracts";
-import { Copy, Field, Heading, Notice, Screen } from "./ui";
+import { Action, Copy, Field, Heading, Notice, Screen } from "./ui";
 import { ChecklistChoices } from "./checklist-ui";
 import { useSave, SaveActions, type FormProps } from "./checklist-forms";
 import { packingApi } from "./packing-api";
@@ -43,13 +44,14 @@ export function BagForm(props: Props & { initial: Bag | null }) {
   const [requestId] = useState(randomUUID);
   const [draft, setDraft] = useState({
     name: props.initial?.name ?? "",
-    type: props.initial?.type ?? "",
+    type: props.initial?.type ?? "Suitcase",
     carrierTravelerId:
       props.initial?.carrierTravelerId ?? props.travelers[0]?.id ?? "",
     identifyingNote: props.initial?.identifyingNote ?? "",
     weightNote: props.initial?.weightNote ?? "",
     allowanceNote: props.initial?.allowanceNote ?? "",
   });
+  const [details, setDetails] = useState(false);
   const save = useSave<BagInput | BagPatch>(
     props.initial ? bagPatch : bagInput,
     (value, token, signal) =>
@@ -65,50 +67,92 @@ export function BagForm(props: Props & { initial: Bag | null }) {
   return (
     <Screen>
       <Heading>{props.initial ? "Edit bag" : "Add bag"}</Heading>
-      <Copy>
-        Give this physical bag a recognizable name. Outbound confirmations are
-        recorded separately.
-      </Copy>
+      <Copy>Name the bag, then choose who carries it.</Copy>
       {props.travelers.length === 0 && (
         <Notice>
-          Add a traveler from your family roster on Overview before assigning a
-          bag carrier.
+          Add a traveler in your family first, then come back to choose a
+          carrier.
         </Notice>
       )}
-      {(
-        [
-          ["name", "Bag name", 120],
-          ["type", "Bag type", 120],
-          ["identifyingNote", "Identifying note", 800],
-          ["weightNote", "Weight note", 800],
-          ["allowanceNote", "Allowance note", 800],
-        ] as const
-      ).map(([key, label, maxLength]) => (
+      <Field
+        label="Bag name"
+        testID="bag-name"
+        placeholder="e.g. Blue suitcase"
+        value={draft.name}
+        onChangeText={(name) => setDraft((old) => ({ ...old, name }))}
+        editable={!save.locked}
+        error={save.fields.name}
+        maxLength={120}
+      />
+      <SelectField
+        label="Bag type"
+        value={
+          ["Suitcase", "Cabin bag", "Backpack", "Handbag"].includes(draft.type)
+            ? draft.type
+            : "Other"
+        }
+        options={["Suitcase", "Cabin bag", "Backpack", "Handbag", "Other"].map(
+          (value) => ({ value, label: value }),
+        )}
+        onChange={(type) =>
+          setDraft((old) => ({ ...old, type: type === "Other" ? "" : type }))
+        }
+        disabled={save.locked}
+      />
+      {!["Suitcase", "Cabin bag", "Backpack", "Handbag"].includes(
+        draft.type,
+      ) && (
         <Field
-          key={key}
-          label={label}
-          testID={`bag-${key}`}
-          value={draft[key]}
-          maxLength={maxLength}
-          multiline={maxLength === 800}
+          label="Describe the bag type"
+          value={draft.type}
+          onChangeText={(type) => setDraft((old) => ({ ...old, type }))}
           editable={!save.locked}
-          error={save.fields[key]}
-          onChangeText={(text) => setDraft((old) => ({ ...old, [key]: text }))}
+          maxLength={120}
+          error={save.fields.type}
         />
-      ))}
-      <Copy muted>Weight and allowance are your own booking notes.</Copy>
-      <ChecklistChoices
-        label="Bag carrier"
-        options={props.travelers.map((traveler) => ({
-          value: traveler.id,
-          label: travelerName(props.travelers, traveler.id),
+      )}
+      <SelectField
+        label="Who carries this bag?"
+        options={props.travelers.map((person) => ({
+          value: person.id,
+          label: travelerName(props.travelers, person.id),
         }))}
         value={draft.carrierTravelerId}
-        locked={save.locked}
+        disabled={save.locked}
         onChange={(carrierTravelerId) =>
           setDraft((old) => ({ ...old, carrierTravelerId }))
         }
       />
+      <Action
+        title={
+          details
+            ? "Hide extra details"
+            : "Identification, weight and allowance"
+        }
+        secondary
+        onPress={() => setDetails(!details)}
+      />
+      {details &&
+        (
+          [
+            ["identifyingNote", "How to recognize it"],
+            ["weightNote", "Weight note"],
+            ["allowanceNote", "Airline allowance note"],
+          ] as const
+        ).map(([key, label]) => (
+          <Field
+            key={key}
+            label={label}
+            value={draft[key]}
+            onChangeText={(value) =>
+              setDraft((old) => ({ ...old, [key]: value }))
+            }
+            editable={!save.locked}
+            error={save.fields[key]}
+            maxLength={800}
+            multiline
+          />
+        ))}
       {save.fields.carrierTravelerId && (
         <Notice error>{save.fields.carrierTravelerId}</Notice>
       )}
@@ -192,16 +236,18 @@ export function BagStateForm(
         onChange={setStatus}
         locked={save.locked}
       />
-      <ChecklistChoices
-        label="Review changed bag"
-        options={[
-          { value: "yes", label: "I reviewed the changed bag and contents" },
-          { value: "no", label: "Keep review outstanding" },
-        ]}
-        value={reviewed ? "yes" : "no"}
-        onChange={(value) => setReviewed(value === "yes")}
-        locked={save.locked}
-      />
+      {leg.needsReview && (
+        <ChecklistChoices
+          label="Review changed bag"
+          options={[
+            { value: "yes", label: "I reviewed the changed bag and contents" },
+            { value: "no", label: "Keep review outstanding" },
+          ]}
+          value={reviewed ? "yes" : "no"}
+          onChange={(value) => setReviewed(value === "yes")}
+          locked={save.locked}
+        />
+      )}
       <SaveActions
         save={save}
         title="Confirm bag status"
@@ -226,13 +272,13 @@ export function PackingMoveForm(props: Props & { item: PackingItem }) {
       value: locationKey(a.location),
       label: `${locationLabel(a.location, data, travelers)}: ${a.quantity} ${item.unit}`,
     })),
-  ];
+  ].filter((option) => option.value !== "unpacked" || item.notPacked > 0);
   const destinations = [
-    { value: "unpacked", label: "Not packed / needs repacking" },
+    { value: "unpacked", label: "Leave unpacked" },
     ...carryingChoices(data, travelers),
   ];
   const [from, setFrom] = useState(
-    item.notPacked > 0 ? "unpacked" : (sources[1]?.value ?? "unpacked"),
+    item.notPacked > 0 ? "unpacked" : (sources[0]?.value ?? "unpacked"),
   );
   const [to, setTo] = useState(
     destinations.find((option) => option.value !== from)?.value ?? "unpacked",
@@ -248,7 +294,7 @@ export function PackingMoveForm(props: Props & { item: PackingItem }) {
   );
   return (
     <Screen>
-      <Heading>Pack or move {item.title}</Heading>
+      <Heading>Pack {item.title}</Heading>
       <Copy>
         Available: {item.available} {item.unit}. Required:{" "}
         {item.requiredQuantity} {item.unit}.
@@ -257,30 +303,32 @@ export function PackingMoveForm(props: Props & { item: PackingItem }) {
         Move only the quantity physically placed or removed. Preparation
         quantities stay separate.
       </Copy>
-      <ChecklistChoices
-        label="Move from"
-        options={sources}
-        value={from}
-        onChange={(value) => {
-          setFrom(value);
-          setConfirmed(false);
-          if (to === value)
-            setTo(
-              destinations.find((option) => option.value !== value)?.value ??
-                "unpacked",
-            );
-        }}
-        locked={save.locked}
-      />
-      <ChecklistChoices
-        label="Move to"
+      {sources.length > 1 && (
+        <ChecklistChoices
+          label="Where is it now?"
+          options={sources}
+          value={from}
+          onChange={(value) => {
+            setFrom(value);
+            setConfirmed(false);
+            if (to === value)
+              setTo(
+                destinations.find((option) => option.value !== value)?.value ??
+                  "unpacked",
+              );
+          }}
+          locked={save.locked}
+        />
+      )}
+      <SelectField
+        label="Where will it go?"
         options={destinations.filter((option) => option.value !== from)}
         value={to}
         onChange={(value) => {
           setTo(value);
           setConfirmed(false);
         }}
-        locked={save.locked}
+        disabled={save.locked}
       />
       <Field
         label={`Quantity (${item.unit})`}
@@ -294,32 +342,33 @@ export function PackingMoveForm(props: Props & { item: PackingItem }) {
         editable={!save.locked}
         error={save.fields.quantity}
       />
-      <Field
-        label={
-          to === "unpacked"
-            ? "Removal reason"
-            : "Correction or move note (optional)"
-        }
-        testID="packing-reason"
-        value={reason}
-        onChangeText={setReason}
-        editable={!save.locked}
-        error={save.fields.reason}
-        maxLength={800}
-        multiline
-      />
+      {(from !== "unpacked" || !!save.fields.reason) && (
+        <>
+          <Field
+            label={
+              to === "unpacked"
+                ? "Removal reason"
+                : "Correction or move note (optional)"
+            }
+            testID="packing-reason"
+            value={reason}
+            onChangeText={setReason}
+            editable={!save.locked}
+            error={save.fields.reason}
+            maxLength={800}
+            multiline
+          />
+        </>
+      )}
       {to !== "unpacked" && (
         <ChecklistChoices
-          label="Physical packing confirmation"
-          value={confirmed ? "yes" : "no"}
+          label="Confirm placement"
+          multiple
+          value={confirmed ? ["yes"] : []}
           options={[
-            {
-              value: "yes",
-              label: "I physically placed this quantity at the new location",
-            },
-            { value: "no", label: "Not placed yet" },
+            { value: "yes", label: "I put this quantity in this place" },
           ]}
-          onChange={(value) => setConfirmed(value === "yes")}
+          onChange={() => setConfirmed(!confirmed)}
           locked={save.locked}
         />
       )}
@@ -328,7 +377,7 @@ export function PackingMoveForm(props: Props & { item: PackingItem }) {
       )}
       <SaveActions
         save={save}
-        title="Save packing move"
+        title="Save placement"
         onSave={() =>
           void save.submit({
             requestId,

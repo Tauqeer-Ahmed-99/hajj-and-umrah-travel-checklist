@@ -74,9 +74,17 @@ type Cache = {
   generation: number;
   directory: Directory;
   reads: Map<string, number>;
+  snapshotReads: Map<string, SnapshotRead>;
   blocked: Set<string>;
 };
 type Stamp = { cache: Cache; generation: number; controller: AbortController };
+type SnapshotRead = {
+  value: Stamp;
+  request: AbortController;
+  result: Promise<Response>;
+  consumers: number;
+  settled: boolean;
+};
 export type TripSnapshot = {
   format: 1;
   path: string;
@@ -109,6 +117,7 @@ export function startTripCache(owner: Owner) {
     generation: 0,
     directory: new Directory(owner.directory, "trip-cache"),
     reads: new Map(),
+    snapshotReads: new Map(),
     blocked: new Set(),
   };
   if (cache.directory.exists && new File(cache.directory, "discard").exists)
@@ -613,6 +622,100 @@ export async function travelFetch(
   url: string,
   init: RequestInit,
 ): Promise<Response> {
+  const value = stamp();
+  if (
+    !value ||
+    (init.method ?? "GET") !== "GET" ||
+    !snapshotSchema(cachePath(new URL(url)))
+  )
+    return checkedTravelFetch(url, init);
+  current(value, init.signal ?? undefined);
+  // A foreground view and the reconnect checker often need the same live
+  // snapshot. Share only that exact in-flight read, never a stored response or
+  // a write. Different credentials, query, account or access generations still
+  // get independent authorization and the existing stale-response guards.
+  const key = JSON.stringify([
+    url,
+    Object.entries({
+      ...init,
+      method: "GET",
+      headers: [...new Headers(init.headers)],
+    })
+      .filter(([key]) => key !== "signal")
+      .sort(([a], [b]) => a.localeCompare(b)),
+  ]);
+  const reads = value.cache.snapshotReads;
+  let read = reads.get(key);
+  if (
+    !read ||
+    read.value.generation !== value.generation ||
+    read.value.controller !== value.controller
+  ) {
+    const request = new AbortController();
+    read = {
+      value,
+      request,
+      result: checkedTravelFetch(
+        url,
+        { ...init, signal: request.signal },
+        value,
+      ),
+      consumers: 0,
+      settled: false,
+    };
+    reads.set(key, read);
+    const flight = read;
+    const settled = () => {
+      flight.settled = true;
+      if (reads.get(key) === flight) reads.delete(key);
+    };
+    void flight.result.then(settled, settled);
+  }
+  const flight = read;
+  return new Promise<Response>((resolve, reject) => {
+    flight.consumers++;
+    let waiting = true;
+    const finish = () => {
+      waiting = false;
+      flight.consumers--;
+      init.signal?.removeEventListener("abort", abort);
+    };
+    const abort = () => {
+      if (!waiting) return;
+      finish();
+      if (!flight.settled && flight.consumers === 0) {
+        if (reads.get(key) === flight) reads.delete(key);
+        flight.request.abort();
+      }
+      reject(new TripError("This read was interrupted."));
+    };
+    init.signal?.addEventListener("abort", abort, { once: true });
+    if (init.signal?.aborted) abort();
+    void flight.result.then(
+      (response) => {
+        if (!waiting) return;
+        finish();
+        try {
+          current(flight.value, init.signal ?? undefined, response.ok);
+          resolve(response.clone());
+        } catch (error) {
+          reject(error);
+        }
+      },
+      (error) => {
+        if (!waiting) return;
+        finish();
+        reject(error);
+      },
+    );
+  });
+}
+
+async function checkedTravelFetch(
+  url: string,
+  init: RequestInit,
+  sharedStamp?: Stamp,
+): Promise<Response> {
   const path = cachePath(new URL(url));
   const method = init.method ?? "GET";
   const readAuthorization =
@@ -626,7 +729,7 @@ export async function travelFetch(
         true);
   // Explicit unregistration must still work after local account invalidation.
   // Its exact token is authorized on the server, and its response owns no cache.
-  const value = cleanup ? null : stamp();
+  const value = cleanup ? null : (sharedStamp ?? stamp());
   const readNumber =
     value && method === "GET" ? (value.cache.reads.get(path) ?? 0) + 1 : null;
   if (value && readNumber !== null) value.cache.reads.set(path, readNumber);

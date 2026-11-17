@@ -1,3 +1,8 @@
+import { OptionsMenu } from "./simple-ui";
+import { FamilyScreen } from "./family-screen";
+import { TripLink } from "./trip-link";
+export { TripLink } from "./trip-link";
+import { useForegroundRefresh } from "./use-foreground-refresh";
 import { useButtonAction } from "./use-button-action";
 import { useScreenBackEffect } from "./screen-back";
 import { Text } from "./typography";
@@ -13,6 +18,7 @@ import {
   ArrowLeft,
   CalendarDays,
   Users,
+  RefreshCw,
   Share2,
   Bell,
 } from "lucide-react-native";
@@ -499,12 +505,21 @@ export function TripsScreen({
             recordId,
           })
         }
-        onBack={() => openTrip(route.tripId, "Checklist")}
+        onBack={() =>
+          setRoute({
+            screen: "family",
+            tripId: route.tripId,
+            familyId: route.familyId,
+          })
+        }
       />
     );
   if (route.screen === "bags")
     return (
       <PackingScreen
+        onChecklist={() =>
+          openFamily(route.tripId, route.familyId, "Checklist")
+        }
         memberId={profile.id}
         key={`${route.tripId}:${route.familyId}`}
         tripId={route.tripId}
@@ -522,7 +537,13 @@ export function TripsScreen({
             recordId,
           })
         }
-        onBack={() => openTrip(route.tripId, "Bags")}
+        onBack={() =>
+          setRoute({
+            screen: "family",
+            tripId: route.tripId,
+            familyId: route.familyId,
+          })
+        }
       />
     );
   if (route.screen === "new-family")
@@ -546,11 +567,15 @@ export function TripsScreen({
     );
   if (route.screen === "family")
     return (
-      <FamilyRoster
+      <FamilyScreen
         key={`${route.tripId}:${route.familyId}`}
         tripId={route.tripId}
         familyId={route.familyId}
         onBack={() => openTrip(route.tripId)}
+        onChecklist={() =>
+          openFamily(route.tripId, route.familyId, "Checklist")
+        }
+        onBags={() => openFamily(route.tripId, route.familyId, "Bags")}
         onAdd={() => setRoute({ ...route, screen: "new-traveler" })}
         onAccount={onAccount}
         onAccess={() =>
@@ -629,46 +654,6 @@ export function TripsScreen({
   );
 }
 
-function useForegroundRefresh(load: () => Promise<void>) {
-  useEffect(() => {
-    void load();
-    const listener = AppState.addEventListener("change", (state) => {
-      if (state === "active") void load();
-    });
-    return () => listener.remove();
-  }, [load]);
-}
-
-export function TripLink({
-  title,
-  onPress,
-  testID,
-  busy = false,
-}: {
-  title: string;
-  onPress: () => void;
-  testID?: string;
-  busy?: boolean;
-}) {
-  const { colors } = useTheme();
-  const action = useButtonAction(onPress, busy);
-  busy = action.busy;
-  onPress = action.press;
-  return (
-    <Pressable
-      testID={testID}
-      accessibilityRole="button"
-      accessibilityLabel={title}
-      accessibilityState={{ busy, disabled: busy }}
-      disabled={busy}
-      onPress={onPress}
-      style={({ pressed }) => [styles.link, { opacity: pressed ? 0.6 : 1 }]}
-    >
-      {busy && <ActivityIndicator color={colors.brand} accessible={false} />}
-      <Text style={[styles.linkText, { color: colors.brand }]}>{title}</Text>
-    </Pressable>
-  );
-}
 function Section({ title, children }: { title: string; children: ReactNode }) {
   const { colors } = useTheme();
   return (
@@ -830,7 +815,7 @@ function TripList({
         />
         <ListRow title="Saved guides" icon={BookOpen} onPress={onOffline} />
       </Surface>
-      <TripLink busy={busy} title="Refresh trips" onPress={() => refresh()} />
+      <TripLink title="Refresh trips" onPress={() => refresh()} />
     </Screen>
   );
 }
@@ -880,7 +865,7 @@ function TripHome({
     );
     if (result) setDetail(result);
   }, [api.run, tripId]);
-  useForegroundRefresh(load);
+  const refresh = useForegroundRefresh(load);
   useEffect(() => {
     if (api.error && [401, 403, 404].includes(api.error.status))
       setDetail(null);
@@ -894,224 +879,125 @@ function TripHome({
   return (
     <Screen contentKey={destination}>
       <View style={styles.tools}>
-        <IconButton label="Switch trip" icon={ArrowLeft} onPress={onSwitch} />
-        <TripLink title="Trip members" onPress={onAccess} />
+        <IconButton label="Back to trips" icon={ArrowLeft} onPress={onSwitch} />
+        <View style={{ flexDirection: "row", gap: 6 }}>
+          <IconButton
+            label="Refresh journey"
+            icon={RefreshCw}
+            onPress={() => refresh()}
+          />
+          {detail && (
+            <OptionsMenu
+              title="Trip options"
+              actions={[
+                { label: "Reminders", onPress: onReminders },
+                { label: "Shared items & bags", onPress: onShared },
+                { label: "Members & invitations", onPress: onAccess },
+                { label: "Share a summary", onPress: onSummary },
+                {
+                  label: "Find an item or task",
+                  onPress: () => onFind(overviewQuery.parse({})),
+                },
+                { label: "Completion & archive", onPress: onCompletion },
+              ]}
+            />
+          )}
+        </View>
       </View>
       {preferenceError && <Notice error>{preferenceError}</Notice>}
-      {!detail && !api.error && <Loading message="Opening your trip…" />}
+      {!detail && !api.error && <Loading message="Opening journey" />}
       {api.error && (
-        <>
-          <Heading>Could not open this trip</Heading>
+        <Surface>
           <Notice error>{api.error.message}</Notice>
-          <Action
-            title="Retry opening trip"
-            busy={api.busy}
-            onPress={() => load()}
-          />
-          <Action title="Your trips" secondary onPress={onSwitch} />
-        </>
+          <Action title="Try again" onPress={() => refresh()} />
+        </Surface>
       )}
       {detail && (
         <>
           <PageHeader
             title={detail.trip.name}
-            subtitle={
-              detail.trip.kind === "hajj" ? "Hajj journey" : "Umrah journey"
-            }
+            subtitle={detail.trip.destinations.join(" → ")}
           />
-          <DestinationNav selected={destination} onSelect={onDestination} />
           {destination === "Overview" ? (
             <>
-              <JourneyCard
-                eyebrow="JOURNEY DETAILS"
-                title={detail.trip.destinations.join(" → ")}
-                subtitle={detail.trip.startDate + " — " + detail.trip.endDate}
-                onPress={onItinerary}
-                label="Itinerary and travel details"
-              />
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                <QuickTile
-                  title="Itinerary"
-                  icon={CalendarDays}
-                  onPress={onItinerary}
-                />
-                <QuickTile
-                  title="Reminders"
-                  icon={Bell}
-                  onPress={onReminders}
-                />
-                <QuickTile title="Summary" icon={Share2} onPress={onSummary} />
-                <QuickTile title="Members" icon={Users} onPress={onAccess} />
-              </View>
-              <OverviewSummary tripId={tripId} onFind={onFind} />
-              <SectionLabel>Your family groups</SectionLabel>
+              <SectionLabel>Prepare with your family</SectionLabel>
+              <Copy muted>
+                Choose your family to manage its checklist, travelers and bags.
+              </Copy>
               <Surface>
-                {detail.families.length === 0 && (
-                  <Copy muted>
-                    No family access yet. Ask your family coordinator for
-                    access.
-                  </Copy>
-                )}
                 {detail.families.map((family) => (
                   <ListRow
                     key={family.id}
                     title={family.name}
-                    subtitle="Travelers and family details"
+                    subtitle="Checklist, bags and travelers"
                     icon={Users}
                     onPress={() => onFamily(family.id)}
                   />
                 ))}
-                {detail.trip.role === "organizer" && (
-                  <ListRow
-                    title="Add family group"
-                    icon={Plus}
-                    onPress={onAddFamily}
-                  />
+                {!detail.families.length && (
+                  <Copy muted>
+                    No family access yet. Ask your family coordinator to add
+                    you.
+                  </Copy>
                 )}
               </Surface>
+              {detail.trip.role === "organizer" && (
+                <Action title="Add family" secondary onPress={onAddFamily} />
+              )}
+              <SectionLabel>Your journey</SectionLabel>
               <Surface>
                 <ListRow
-                  title="Completion and archive"
-                  icon={Archive}
-                  onPress={onCompletion}
+                  title="Journey details"
+                  subtitle={detail.trip.startDate + " — " + detail.trip.endDate}
+                  icon={CalendarDays}
+                  onPress={onItinerary}
+                />
+                <ListRow
+                  title="Guides"
+                  subtitle="Notes and documents for your trip"
+                  icon={BookOpen}
+                  onPress={() => onDestination("Guides")}
                 />
               </Surface>
             </>
-          ) : destination === "Checklist" ? (
+          ) : (
             <>
-              <Action title="Shared with trip" secondary onPress={onShared} />
-              <ChecklistDestination
-                families={detail.families}
-                onOpen={onChecklist}
+              <PageHeader
+                title={
+                  destination === "Checklist"
+                    ? "Whose checklist?"
+                    : "Whose bags?"
+                }
+                subtitle="Choose a family to continue."
               />
-            </>
-          ) : destination === "Bags" ? (
-            <>
-              <Action
-                title="Shared bags with trip"
-                secondary
+              <Surface>
+                {detail.families.map((family) => (
+                  <ListRow
+                    key={family.id}
+                    title={family.name}
+                    icon={destination === "Checklist" ? ListChecks : Luggage}
+                    onPress={() =>
+                      destination === "Checklist"
+                        ? onChecklist(family.id)
+                        : onBags(family.id)
+                    }
+                  />
+                ))}
+                {!detail.families.length && (
+                  <Copy muted>Ask your family coordinator for access.</Copy>
+                )}
+              </Surface>
+              <ListRow
+                title="Shared with the trip"
+                subtitle={
+                  destination === "Checklist"
+                    ? "Items shared by other families"
+                    : "Bags shared by other families"
+                }
                 onPress={onShared}
               />
-              <BagsDestination families={detail.families} onOpen={onBags} />
             </>
-          ) : (
-            <Section title={placeholders[destination][0]}>
-              <Copy>{placeholders[destination][1]}</Copy>
-              <TripLink
-                title="Back to Overview"
-                onPress={() => onDestination("Overview")}
-              />
-            </Section>
           )}
-          <TripLink
-            busy={api.busy}
-            title="Refresh trip"
-            onPress={() => load()}
-          />
-        </>
-      )}
-    </Screen>
-  );
-}
-
-function FamilyRoster({
-  tripId,
-  familyId,
-  onBack,
-  onAdd,
-  onAccount,
-  onAccess,
-}: {
-  tripId: string;
-  familyId: string;
-  onBack: () => void;
-  onAdd: () => void;
-  onAccount: () => void;
-  onAccess: () => void;
-}) {
-  const api = useTripRequest();
-  const [family, setFamily] = useState<Family | null>(null);
-  const [travelers, setTravelers] = useState<Traveler[] | null>(null);
-  const load = useCallback(async () => {
-    setFamily(null);
-    setTravelers(null);
-    const result = await api.run(async (token, signal) => {
-      const [detail, roster] = await Promise.all([
-        tripApi.read(tripId, token, signal),
-        tripApi.travelers(tripId, familyId, token, signal),
-      ]);
-      return {
-        family: detail.families.find((family) => family.id === familyId),
-        travelers: roster.travelers,
-      };
-    });
-    if (result) {
-      setFamily(result.family ?? null);
-      setTravelers(result.travelers);
-    }
-  }, [api.run, tripId, familyId]);
-  useForegroundRefresh(load);
-  return (
-    <Screen>
-      <View style={styles.tools}>
-        <TripLink title="Back to trip" onPress={onBack} />
-        <TripLink title="Account" onPress={onAccount} />
-      </View>
-      {!travelers && !api.error && (
-        <Loading message="Loading the family roster…" />
-      )}
-      {api.error && (
-        <>
-          <Heading>Could not open the roster</Heading>
-          <Notice error>{api.error.message}</Notice>
-          <Action
-            title="Retry loading roster"
-            busy={api.busy}
-            onPress={() => load()}
-          />
-        </>
-      )}
-      {travelers && (
-        <>
-          <Heading>{family?.name ?? "Family roster"}</Heading>
-          <Action
-            title="Family members & access"
-            secondary
-            onPress={onAccess}
-          />
-          <Copy>
-            Travelers are people on this journey. Adding a traveler does not
-            create an account or grant trip access.
-          </Copy>
-          {travelers.length === 0 && (
-            <Section title="No travelers yet">
-              <Copy>
-                A family coordinator can add adults, children, and elders
-                without a login or phone.
-              </Copy>
-            </Section>
-          )}
-          {travelers.map((traveler) => (
-            <Section
-              key={traveler.id}
-              title={`${traveler.firstName} ${traveler.lastName}`}
-            >
-              <Copy muted>Traveler profile</Copy>
-            </Section>
-          ))}
-          {family?.canCoordinate ? (
-            <Action title="Add traveler" onPress={onAdd} />
-          ) : (
-            <Notice>
-              Your access allows viewing this roster. A family coordinator
-              manages travelers.
-            </Notice>
-          )}
-          <TripLink
-            busy={api.busy}
-            title="Refresh roster"
-            onPress={() => load()}
-          />
         </>
       )}
     </Screen>

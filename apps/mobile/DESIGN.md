@@ -33,14 +33,17 @@ belong in Profile; onboarding and authentication have no appearance controls.
 - Root tabs are Home, Trips, Guides and Profile. The floating surface has a
   solid blue selected pill. Tabs retain their mounted screens and drafts.
   Only the focused screen consumes Android Back.
-- Trip destinations use a compact category strip within trip content, not a
-  second bottom navigation bar. Keep existing remembered destinations.
+- Journey pages lead with the family list, then Journey details and Guides.
+  Family pages lead to Checklist, Bags and Travelers. Keep existing remembered
+  destinations; put access management and occasional actions in context menus.
 - Use `Surface`, `ListRow`, `QuickTile`, `PageHeader` and `JourneyCard` from
   `design-system.tsx`. Corners are 18–24dp; borders and shadows are restrained.
 - Guide libraries use document cards, with a single column on narrow screens
   or at large font settings. A type illustration is not a downloaded preview.
-- Checklist entries and bags show a concise summary. Expand a row to inspect
-  quantities, physical confirmations, history and management actions.
+- Checklist entries show the title and "Have X of Y". Bags show their carrier
+  and current status. Open a row into a focused detail page with one primary
+  action. Keep history, sharing and removal in a menu, and optional form fields
+  behind disclosure. Distinguish having an item from physically packing it.
 - Reserve filled, full-width actions for the primary step. Secondary controls
   use compact outlined pills or list rows. All interactive targets are at least
   48dp tall. Forms remain keyboard-safe and scrollable.
@@ -61,6 +64,11 @@ Do not claim physical-device motion performance from emulator evidence.
 
 Content loading uses matching skeletons (screen, profile, list, document cards,
 reader or inline). Their restrained opacity pulse stops for reduced motion.
+Use skeletons only before the first result for the current scope. Ordinary
+refresh retains current content, layout, scroll position and the refresh control.
+Background reads never make a manual button look pressed; an explicit tap shows
+its own in-button progress until that read finishes. Confirmed access denial
+still removes private content immediately.
 Loading descriptions remain available to screen readers, without visible loading
 text or page spinners. Every busy action uses a spinner inside its button and
 prevents duplicate submission. Determinate file transfers use a progress bar;

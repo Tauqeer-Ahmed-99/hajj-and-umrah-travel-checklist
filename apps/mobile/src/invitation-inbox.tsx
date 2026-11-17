@@ -112,7 +112,7 @@ export function InvitationInbox({
           <Action
             title="Refresh invitation"
             secondary
-            busy={api.busy}
+
             onPress={() => preview(selected.id)}
           />
         </>
@@ -159,7 +159,7 @@ export function InvitationInbox({
           <Action
             title="Refresh invitations"
             secondary
-            busy={api.busy}
+
             onPress={() => load()}
           />
         </>
