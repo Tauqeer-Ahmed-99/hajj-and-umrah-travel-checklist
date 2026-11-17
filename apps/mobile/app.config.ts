@@ -13,15 +13,16 @@ const config: ExpoConfig = {
   name: "Travel Companion",
   slug: "nmt-travel",
   version: "0.2.0",
-  icon: "./assets/journey-mascot.png",
+  icon: "./assets/launcher-foreground.png",
   scheme: "nmttravel",
   platforms: ["android"],
   userInterfaceStyle: "automatic",
   android: {
     package: "in.nmtsolutions.travel",
-    versionCode: 8,
+    versionCode: 9,
     adaptiveIcon: {
-      foregroundImage: "./assets/journey-mascot.png",
+      // Separate padding keeps the whole mascot inside Android's launcher mask.
+      foregroundImage: "./assets/launcher-foreground.png",
       backgroundColor: "#F6F8FC",
     },
     softwareKeyboardLayoutMode: "resize",

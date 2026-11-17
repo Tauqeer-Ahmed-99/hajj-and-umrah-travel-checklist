@@ -2,7 +2,7 @@
 
 # Travel Companion
 
-A product by [NMT Solutions](https://nmtsolutions.in). Android version 0.2.0, build 8.
+A product by [NMT Solutions](https://nmtsolutions.in). Android version 0.2.0, build 9.
 
 See [NMT Solutions ownership and deployment](docs/ownership-transfer.md) for the current hosting account and repository transfer status.
 
