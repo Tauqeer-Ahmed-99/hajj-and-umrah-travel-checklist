@@ -89,7 +89,7 @@ form, and Android Back from Account returns to the workspace.
 The November 2026 refresh follows NMT Solutions: canvas `#F4F6FF`, white
 surfaces, ink `#17213B`, indigo actions `#253FC7`, tint `#E9EDFF`, and a matching
 navy dark palette. Bundled Geist fonts cover controls and content throughout the
-app; the parent brand's geometric mark accompanies the NMT Travel wordmark.
+app; the parent brand's geometric mark accompanies the Travel Companion wordmark.
 Left-aligned journey dates and destination names lead the overview; separate
 family rows open their protected rosters. Wrapping icon-and-text tabs keep all four
 destinations reachable with 48+ dp targets, without fixed-width truncated labels.

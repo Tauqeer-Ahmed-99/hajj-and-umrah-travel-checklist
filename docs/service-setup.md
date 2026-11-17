@@ -52,7 +52,7 @@ changed. Physical viewing and production checks remain separate.
 
 ## Google OAuth preparation
 
-Google Cloud project `nmt-travel` has no linked billing account. Its NMT Travel
+Google Cloud project `nmt-travel` has no linked billing account. Its Travel Companion
 OAuth consent configuration is created for an External audience in Testing mode,
 using the signed-in owner's support/contact address. The owner is the one
 configured test user. The Web client is

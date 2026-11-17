@@ -56,7 +56,11 @@ export async function verifySession(request: Request) {
     auth.sessionClaims.azp &&
     auth.sessionClaims.azp !== "https://travel.nmtsolutions.in"
   ) {
-    throw new HttpError(401, "invalid_session", "Sign in from NMT Travel.");
+    throw new HttpError(
+      401,
+      "invalid_session",
+      "Sign in from Travel Companion.",
+    );
   }
   return { clerkUserId: auth.userId, sessionId: auth.sessionId };
 }

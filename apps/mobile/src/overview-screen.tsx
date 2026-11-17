@@ -21,7 +21,7 @@ import { Action, Copy, Field, Heading, Loading, Notice, Screen } from "./ui";
 import { ChecklistChoices, ChecklistSection } from "./checklist-ui";
 import { overviewApi } from "./overview-api";
 import { TripError } from "./trip-api";
-import { onTripCacheRevoked } from "./trip-cache";
+import { onServerAccessRevoked } from "./server-data";
 
 // A refresh replaces data in place. It never remounts the input, scroll view or
 // keyed rows, and it cannot apply an older query/account response to a new view.
@@ -92,7 +92,7 @@ function useOverview(tripId: string, query: OverviewQuery) {
       if (state === "active") void load();
       else request.current?.abort();
     });
-    const stop = onTripCacheRevoked((removal) => {
+    const stop = onServerAccessRevoked((removal) => {
       if (removal.tripId !== tripId) return;
       request.current?.abort();
       if (removal.scope === "trip") {
@@ -500,6 +500,9 @@ export function OverviewScreen({
     <Screen footer={footer}>
       <Action title="Back to Overview" secondary onPress={onBack} />
       <Heading>Find belongings and responsibilities</Heading>
+      <Copy muted>
+        Find an item or task in this trip. Open a result to view or update it.
+      </Copy>
       <ChecklistChoices
         label="Responsibilities"
         options={[

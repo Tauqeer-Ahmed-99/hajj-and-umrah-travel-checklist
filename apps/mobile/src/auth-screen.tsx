@@ -224,7 +224,7 @@ export function AuthScreen() {
       } else {
         if (signIn.status !== "complete")
           throw new Error(
-            "Your account needs another verification step. Contact NMT Travel support to finish signing in.",
+            "Your account needs another verification step. Contact Travel Companion support to finish signing in.",
           );
         const finished = await signIn.finalize();
         if (finished.error) throw finished.error;
@@ -341,9 +341,6 @@ function Welcome({ navigation }: NativeStackScreenProps<Routes, "Welcome">) {
             icon={<ContinueArrow />}
             onPress={() => navigation.navigate("SignIn")}
           />
-          <Text style={[styles.attribution, { color: colors.muted }]}>
-            A product of NMT Solutions
-          </Text>
         </>
       }
     >
@@ -352,7 +349,7 @@ function Welcome({ navigation }: NativeStackScreenProps<Routes, "Welcome">) {
         <View style={styles.welcomeText}>
           <AuthTitle centered>Your journey.{`\n`}In your hands.</AuthTitle>
           <AuthBody centered>
-            Your family. Your plans. Your peace of mind.
+            Plan what to bring and keep your family's travel details together.
           </AuthBody>
         </View>
       </View>

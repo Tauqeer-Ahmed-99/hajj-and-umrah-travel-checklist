@@ -500,8 +500,8 @@ test("important accepted assignments and trip changes dispatch according to pref
   assert.equal(fixture.pushes.length, 1);
   assert.deepEqual(fixture.pushes[0], {
     to: registration.token,
-    title: "NMT Travel",
-    body: "An important assignment needs your attention. Open NMT Travel.",
+    title: "Travel Companion",
+    body: "An important assignment needs your attention. Open Travel Companion.",
     channelId: "travel",
     ttl: 3600,
   });

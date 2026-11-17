@@ -24,7 +24,7 @@ if (google)
   assert.match(
     google,
     /^25995067202-[a-z0-9]+\.apps\.googleusercontent\.com$/,
-    "Use the NMT Travel project's public Web OAuth client ID.",
+    "Use the Travel Companion project's public Web OAuth client ID.",
   );
 const file = process.env.GOOGLE_SERVICES_JSON;
 if (file) {

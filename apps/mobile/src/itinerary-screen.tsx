@@ -8,6 +8,7 @@ import {
 } from "./design-system";
 import { OptionsMenu, RecordRow } from "./simple-ui";
 import { useForegroundRefresh } from "./use-foreground-refresh";
+import { useServerView } from "./use-server-view";
 import { pickerDate } from "./date-values";
 import { useScreenBackEffect } from "./screen-back";
 import { Text } from "./typography";
@@ -145,26 +146,22 @@ export function ItineraryScreen({
   onBack: () => void;
   onCompletion: () => void;
 }) {
-  const api = useTripRequest();
-  const [data, setData] = useState<{ itinerary: Itinerary; trip: Trip } | null>(
-    null,
-  );
   const [editor, setEditor] = useState<Editor | null>(null);
   const [saved, setSaved] = useState(false);
-  const load = useCallback(async () => {
-    const result = await api.run(async (token, signal) => {
+  const api = useServerView(
+    `/api/trips/${tripId}/itinerary`,
+    ["itinerary", tripId],
+    async (token, signal) => {
       const [itinerary, detail] = await Promise.all([
         itineraryApi.read(tripId, token, signal),
         tripApi.read(tripId, token, signal),
       ]);
       return { itinerary, trip: detail.trip };
-    });
-    if (result) setData(result);
-  }, [api.run, tripId]);
-  const refresh = useForegroundRefresh(load, !editor);
-  useEffect(() => {
-    if (api.error && [401, 403, 404].includes(api.error.status)) setData(null);
-  }, [api.error]);
+    },
+    { enabled: !editor, staleTime: 120_000 },
+  );
+  const data = api.data,
+    refresh = api.refresh;
   useScreenBackEffect(() => {
     if (editor) return; // The active form owns its unsaved-change confirmation.
     const listener = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -261,6 +258,7 @@ export function ItineraryScreen({
         </View>
       </View>
       <PageHeader title="Journey details" subtitle={data?.trip.name} />
+      <Copy muted>Add stops, hotel details and contacts for this trip.</Copy>
       {saved && <Notice>Saved</Notice>}
       {!data && !api.error && <Loading message="Loading journey details" />}
       {api.error && (

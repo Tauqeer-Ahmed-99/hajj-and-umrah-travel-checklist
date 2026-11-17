@@ -10,11 +10,13 @@ import {
   startGuideCopies,
   stopGuideCopies,
   assertCopySession,
-  restoreCopyProfile,
   clearSessionGuideCopies,
   type CopySession,
 } from "./guide-copies";
-import { startTripCache } from "./trip-cache";
+import { QueryClientProvider, focusManager } from "@tanstack/react-query";
+import { AppState } from "react-native";
+import { Directory } from "expo-file-system";
+import { createServerQueryClient, startServerData } from "./server-data";
 import { accountDeadline, preparePrivateAccount } from "./account-lifecycle";
 const Context = createContext<CopySession | null>(null);
 export function GuideCopyProvider({
@@ -27,6 +29,14 @@ export function GuideCopyProvider({
   const [session, setSession] = useState<CopySession | null>(null),
     [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
+  const [queryClient] = useState(createServerQueryClient);
+  useEffect(() => {
+    focusManager.setFocused(AppState.currentState === "active");
+    const listener = AppState.addEventListener("change", (state) =>
+      focusManager.setFocused(state === "active"),
+    );
+    return () => listener.remove();
+  }, []);
   useEffect(() => {
     let current: CopySession | undefined;
     let stopCache: (() => void) | undefined;
@@ -38,15 +48,19 @@ export function GuideCopyProvider({
         if (cancelled) return;
         current = startGuideCopies(accountId);
         const owner = current;
-        stopCache = startTripCache({
-          directory: owner.directory,
-          current: () => {
-            assertCopySession(owner);
-            return owner.controller;
+        // Remove the previous JSON snapshot store once. Saved guide files stay.
+        const legacy = new Directory(owner.directory, "trip-cache");
+        if (legacy.exists) legacy.delete();
+        stopCache = startServerData(
+          {
+            current: () => {
+              assertCopySession(owner);
+              return owner.controller;
+            },
+            clearAccount: () => clearSessionGuideCopies(owner),
           },
-          completed: () => !!restoreCopyProfile(owner),
-          clearAccount: () => clearSessionGuideCopies(owner),
-        });
+          queryClient,
+        );
         setSession(current);
         setError("");
       } catch {
@@ -67,7 +81,7 @@ export function GuideCopyProvider({
         }
       }
     };
-  }, [accountId, attempt]);
+  }, [accountId, attempt, queryClient]);
   if (error)
     return (
       <Screen>
@@ -85,7 +99,11 @@ export function GuideCopyProvider({
         <Loading kind="screen" message="Preparing private guide storage…" />
       </Screen>
     );
-  return <Context.Provider value={session}>{children}</Context.Provider>;
+  return (
+    <QueryClientProvider client={queryClient}>
+      <Context.Provider value={session}>{children}</Context.Provider>
+    </QueryClientProvider>
+  );
 }
 export function useGuideCopies() {
   const session = useContext(Context);

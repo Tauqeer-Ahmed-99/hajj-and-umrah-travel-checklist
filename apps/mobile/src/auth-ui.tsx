@@ -24,6 +24,7 @@ import { JourneyMascot } from "./design-system";
 import { useTheme } from "./theme";
 import { Text } from "./typography";
 import { Brand } from "./brand";
+import { CompanyCredit } from "./company-brand";
 
 /** Onboarding has its own phone layout; trip chrome belongs to the workspace. */
 export function AuthPage({
@@ -74,7 +75,7 @@ export function AuthPage({
                 <View style={styles.back} />
               )}
               <Text style={[styles.navTitle, { color: colors.muted }]}>
-                NMT Travel
+                Travel Companion
               </Text>
             </>
           )}
@@ -87,6 +88,7 @@ export function AuthPage({
         >
           <View style={styles.body}>{children}</View>
           {footer && <View style={styles.footer}>{footer}</View>}
+          {welcome && <CompanyCredit />}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

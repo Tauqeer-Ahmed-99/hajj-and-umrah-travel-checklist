@@ -1,5 +1,7 @@
 # Simple preparation and stable refresh
 
+This document records earlier previews. Version 0.2.0 replaces the JSON snapshot implementation with [TanStack Query in memory](offline-trip-data.md). File privacy and explicit saving still apply.
+
 The next preview simplifies the journey → family → checklist/bags flow, using
 the Civic reference foundation in [mobile design](../apps/mobile/DESIGN.md).
 It does not change the API, database, authorization rules or environment inputs.

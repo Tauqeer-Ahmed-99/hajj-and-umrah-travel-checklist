@@ -257,7 +257,7 @@ export default function App() {
       <ThemeProvider>
         {!fontsLoaded && !fontError ? (
           <Screen auth>
-            <Loading kind="screen" message="Opening NMT Travel…" />
+            <Loading kind="screen" message="Opening Travel Companion…" />
           </Screen>
         ) : (
           <AuthBoundary>
@@ -267,8 +267,8 @@ export default function App() {
               <Screen auth>
                 <Heading>This build needs setup</Heading>
                 <Copy>
-                  NMT Travel is not ready to sign in on this build. Contact the
-                  person who shared it.
+                  Travel Companion is not ready to sign in on this build.
+                  Contact the person who shared it.
                 </Copy>
               </Screen>
             ) : (

@@ -1,5 +1,7 @@
 # Final review fixes
 
+This document records earlier previews. Version 0.2.0 replaces the JSON snapshot implementation with [TanStack Query in memory](offline-trip-data.md). File privacy and explicit saving still apply.
+
 Review base: `e8851a0fd12a14d69f849a789418e6b9f5271ff6`, branch
 `integration/spec-1-nmt-travel`. The isolated implementer branch
 `t3/implement-review-fixes` began clean at that exact commit, with the required

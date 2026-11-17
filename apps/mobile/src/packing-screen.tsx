@@ -1,5 +1,6 @@
 import { OptionsMenu, RecordRow } from "./simple-ui";
 import { useForegroundRefresh } from "./use-foreground-refresh";
+import { useServerView } from "./use-server-view";
 import { RefreshCw } from "lucide-react-native";
 import { ArrowLeft, Luggage } from "lucide-react-native";
 import {
@@ -49,7 +50,7 @@ import { locationLabel, travelerName } from "./packing-ui";
 import { VisibilityForm } from "./sharing-forms";
 import type { PackingView } from "./trip-navigation";
 import { TravelFilesScreen } from "./travel-files-screen";
-import { onTripCacheRevoked } from "./trip-cache";
+import { onServerAccessRevoked } from "./server-data";
 
 export function BagsDestination({
   families,
@@ -189,18 +190,10 @@ export function PackingScreen({
     recordId?: string,
   ) => void;
 }) {
-  const [data, setData] = useState<{
-    packing: Packing;
-    travelers: Traveler[];
-    returnPreparation: ReturnPreparation | null;
-    canShare: boolean;
-    familyName: string;
-  } | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [leg, setLeg] = useState<"outbound" | "return">(
     initialLeg ?? "outbound",
   );
-  const api = useTripRequest(15_000, tripId + ":" + familyId + ":" + leg);
   const [query, setQuery] = useState("");
   const [view, setView] = useState<PackingView>(
     initialView ?? (initialLeg === "return" ? "review" : "bags"),
@@ -208,7 +201,7 @@ export function PackingScreen({
   const [selectedId, setSelectedId] = useState(initialId);
   useEffect(
     () =>
-      onTripCacheRevoked((removal) => {
+      onServerAccessRevoked((removal) => {
         if (
           removal.tripId !== tripId ||
           removal.scope !== "records" ||
@@ -261,8 +254,10 @@ export function PackingScreen({
   const [historyItem, setHistoryItem] = useState("all");
   const [saved, setSaved] = useState(false);
   const scope = { tripId, familyId };
-  const load = useCallback(async () => {
-    const result = await api.run(async (token, signal) => {
+  const api = useServerView(
+    `/api/trips/${tripId}/families/${familyId}/packing`,
+    ["packing", tripId, familyId, leg],
+    async (token, signal) => {
       const [packing, roster, returnPreparation, trip] = await Promise.all([
         packingApi.read({ tripId, familyId, leg }, token, signal),
         tripApi.travelers(tripId, familyId, token, signal),
@@ -279,13 +274,10 @@ export function PackingScreen({
           trip.families.find((f) => f.id === familyId)?.name ?? "Family",
         canShare: !!trip.families.find((f) => f.id === familyId)?.canCoordinate,
       };
-    });
-    if (result) setData(result);
-  }, [api.run, tripId, familyId, leg]);
-  useEffect(() => {
-    if (api.error && [401, 403, 404].includes(api.error.status)) setData(null);
-  }, [api.error]);
-  const refresh = useForegroundRefresh(load, !editor);
+    },
+    { enabled: !editor },
+  );
+  const { data, setData, refresh } = api;
   useScreenBackEffect(() => {
     if (editor) return;
     const listener = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -393,7 +385,6 @@ export function PackingScreen({
                     ? "Prepare the journey home"
                     : "Prepare the journey there",
                 onPress: () => {
-                  setData(null);
                   setLeg(leg === "outbound" ? "return" : "outbound");
                   setView(leg === "outbound" ? "review" : "bags");
                   setQuery("");
@@ -443,6 +434,22 @@ export function PackingScreen({
         />
       )}
       {saved && <Notice>Saved</Notice>}
+      <Copy muted>
+        {
+          {
+            bags: "Name each bag and choose who carries it. Open a bag to see its contents.",
+            items:
+              "Choose an item you have, then choose its bag or the person carrying it.",
+            departure:
+              "Check your passports, tickets and other essentials before leaving.",
+            review:
+              "Count what is coming home. Record anything used, given away or missing.",
+            checkout:
+              "Check the room before you leave so nothing stays behind.",
+            history: "See who changed a bag or moved an item.",
+          }[view]
+        }
+      </Copy>
       {selectedId &&
         data &&
         ![

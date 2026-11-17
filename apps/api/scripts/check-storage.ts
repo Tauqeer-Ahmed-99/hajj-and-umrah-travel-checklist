@@ -22,7 +22,7 @@ let phase = "prepare";
 let failed = false;
 try {
   const pdf = await PDFDocument.create();
-  pdf.addPage().drawText("NMT Travel disposable provider recovery check");
+  pdf.addPage().drawText("Travel Companion disposable provider recovery check");
   const bytes = Buffer.from(await pdf.save());
   const digest = (value: Uint8Array) =>
     createHash("sha256").update(value).digest("hex");

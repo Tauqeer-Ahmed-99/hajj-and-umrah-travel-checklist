@@ -3,6 +3,7 @@ import { FamilyScreen } from "./family-screen";
 import { TripLink } from "./trip-link";
 export { TripLink } from "./trip-link";
 import { useForegroundRefresh } from "./use-foreground-refresh";
+import { useServerView } from "./use-server-view";
 import { useButtonAction } from "./use-button-action";
 import { useScreenBackEffect } from "./screen-back";
 import { Text } from "./typography";
@@ -90,7 +91,7 @@ import { GuidesScreen } from "./guides-screen";
 import { ChecklistDestination, ChecklistScreen } from "./checklist-screen";
 import { BagsDestination, PackingScreen } from "./packing-screen";
 import { RemindersScreen } from "./reminders-screen";
-import { onTripCacheRevoked } from "./trip-cache";
+import { onServerAccessRevoked } from "./server-data";
 import { SharedScreen } from "./sharing-screen";
 import { SummaryScreen } from "./summary-screen";
 import { CompletionScreen, ArchivesScreen } from "./completion-screen";
@@ -149,13 +150,11 @@ export function TripsScreen({
   profile,
   onAccount,
   onOffline,
-  onCached,
   request,
 }: {
   profile: MemberProfile;
   onAccount: () => void;
   onOffline: () => void;
-  onCached: () => void;
   request?: TripOpenRequest;
 }) {
   const focused = useIsFocused();
@@ -166,7 +165,7 @@ export function TripsScreen({
   const [preferenceError, setPreferenceError] = useState("");
   useEffect(
     () =>
-      onTripCacheRevoked((removal) => {
+      onServerAccessRevoked((removal) => {
         if (
           removal.scope === "records" ||
           !route ||
@@ -490,6 +489,13 @@ export function TripsScreen({
   if (route.screen === "checklist")
     return (
       <ChecklistScreen
+        onPack={(recordId, leg) =>
+          openFamily(route.tripId, route.familyId, "Bags", {
+            recordId,
+            leg,
+            packingView: "items",
+          })
+        }
         key={`${route.tripId}:${route.familyId}`}
         tripId={route.tripId}
         familyId={route.familyId}
@@ -591,7 +597,6 @@ export function TripsScreen({
     return (
       <TripList
         onArchives={() => setRoute({ screen: "archives" })}
-        onCached={onCached}
         onOffline={onOffline}
         preferenceError={preferenceError}
         onOpen={openTrip}
@@ -736,7 +741,6 @@ function DestinationNav({
 
 function TripList({
   onArchives,
-  onCached,
   onOpen,
   onCreate,
   onAccount,
@@ -745,7 +749,6 @@ function TripList({
   onOffline,
 }: {
   onArchives: () => void;
-  onCached: () => void;
   onOpen: (id: string) => void;
   onCreate: () => void;
   onAccount: () => void;
@@ -807,12 +810,6 @@ function TripList({
         <ListRow title="Archived trips" icon={Archive} onPress={onArchives} />
       </Surface>
       <Surface>
-        <ListRow
-          title="Cached trips"
-          subtitle="Travel details available offline"
-          icon={Download}
-          onPress={onCached}
-        />
         <ListRow title="Saved guides" icon={BookOpen} onPress={onOffline} />
       </Surface>
       <TripLink title="Refresh trips" onPress={() => refresh()} />
@@ -857,19 +854,14 @@ function TripHome({
   onBags: (familyId: string) => void;
   onFind: (query: OverviewQuery) => void;
 }) {
-  const api = useTripRequest();
-  const [detail, setDetail] = useState<TripDetail | null>(null);
-  const load = useCallback(async () => {
-    const result = await api.run((token, signal) =>
-      tripApi.read(tripId, token, signal),
-    );
-    if (result) setDetail(result);
-  }, [api.run, tripId]);
-  const refresh = useForegroundRefresh(load);
-  useEffect(() => {
-    if (api.error && [401, 403, 404].includes(api.error.status))
-      setDetail(null);
-  }, [api.error]);
+  const api = useServerView(
+    `/api/trips/${tripId}`,
+    ["trip", tripId],
+    (token, signal) => tripApi.read(tripId, token, signal),
+    { staleTime: 120_000 },
+  );
+  const detail = api.data,
+    refresh = api.refresh;
   const placeholders = {
     Guides: [
       "Guides are not available yet",

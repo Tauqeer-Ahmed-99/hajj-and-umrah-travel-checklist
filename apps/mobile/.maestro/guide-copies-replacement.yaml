@@ -10,7 +10,7 @@ appId: in.nmtsolutions.travel
     element: "Replace saved copy"
 - tapOn: "Replace saved copy"
 - extendedWaitUntil:
-    visible: "Could not reach NMT Travel.*"
+    visible: "Could not reach Travel Companion.*"
     timeout: 120000
 - assertVisible: "Available offline.*Version ${GUIDE_OLD_VERSION}.*"
 - setAirplaneMode: disabled

@@ -35,7 +35,7 @@ import { Action, Copy, Field, Heading, Loading, Notice, Screen } from "./ui";
 import { guideApi } from "./guide-api";
 import { tripApi } from "./trip-api";
 import { useTripRequest } from "./use-trip-request";
-import { onTripCacheRevoked } from "./trip-cache";
+import { onServerAccessRevoked } from "./server-data";
 import { GuideChangeForm, GuideForm } from "./guide-forms";
 import { GuideFileForm } from "./guide-file-form";
 import { GuideFileViewer } from "./guide-file-viewer";
@@ -99,7 +99,7 @@ export function GuidesScreen({
   const [saved, setSaved] = useState(false);
   useEffect(
     () =>
-      onTripCacheRevoked((removal) => {
+      onServerAccessRevoked((removal) => {
         if (removal.tripId !== tripId || removal.scope !== "family") return;
         setRoute((current) => {
           if (
@@ -312,8 +312,12 @@ function GuideLibrary({
       </View>
       <PageHeader
         title="Guide library"
-        subtitle={data?.name ?? "Your journey’s reading room"}
+        subtitle={data?.name ?? "Notes, links and files for your journey"}
       />
+      <Copy muted>
+        Open a guide to read it. Save a file if you need it without a
+        connection.
+      </Copy>
       {footer}
       {data && (
         <JourneyCard
@@ -471,7 +475,7 @@ function GuideReader({
   }, [api.run, tripId, id, copies]);
   useEffect(
     () =>
-      onTripCacheRevoked((removal) => {
+      onServerAccessRevoked((removal) => {
         if (
           removal.tripId !== tripId ||
           removal.scope !== "family" ||
@@ -521,8 +525,8 @@ function GuideReader({
                 </Notice>
               )}
               <Copy>
-                Files open inside NMT Travel using a temporary view. Opening
-                does not save an offline copy or export a device file.
+                Files open inside Travel Companion using a temporary view.
+                Opening does not save an offline copy or export a device file.
               </Copy>
               <Action
                 title="Open file"

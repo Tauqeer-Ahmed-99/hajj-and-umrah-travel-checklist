@@ -1,7 +1,7 @@
-# NMT Travel mobile interface
+# Travel Companion mobile interface
 
 The supplied CivicOne reference images (43576–43585) define this interface. Use
-their mobile composition and typography for travel content. Keep NMT Travel’s
+their mobile composition and typography for travel content. Keep Travel Companion’s
 name and actual domain behavior; do not introduce government identity claims,
 invented journeys, counts, verification badges or readiness guarantees.
 
@@ -82,9 +82,11 @@ the server independently authorizes every operation. Cancellation does not
 establish loss of transport. A failed cached-resource refresh cannot globally
 disable unrelated healthy requests.
 
-Show a network/service banner only for a real unavailable transport. Keep
-server errors in the affected view. Do not bypass profile, session, tombstone,
-family, file-version or revocation guards. Never queue or replay offline saves.
+Show an offline banner when Android reports no connected network. Keep request
+errors in the affected view. TanStack Query keeps JSON in the active account's
+memory. Only explicitly saved files survive an offline restart. Do not bypass
+profile, session, file cleanup, family, file-version or revocation guards.
+Never queue or replay offline saves.
 Root catalogue entries disappear when trip access is definitively revoked.
 
 Verify actual Android screens and connected/offline user journeys before

@@ -13,7 +13,7 @@ import {
 } from "@nmt/contracts";
 import { apiOrigin } from "./api";
 import { acceptedTravelChange } from "./accepted-travel-change";
-import { travelFetch } from "./trip-cache";
+import { travelFetch } from "./server-data";
 import { TripError } from "./trip-api";
 import type { ChecklistScope } from "./checklist-api";
 
@@ -29,7 +29,7 @@ async function request<T>(
 ) {
   const origin = apiOrigin();
   if (!origin)
-    throw new TripError("This build could not connect to NMT Travel.");
+    throw new TripError("This build could not connect to Travel Companion.");
   const response = await travelFetch(
     `${origin}/api/trips/${scope.tripId}/families/${scope.familyId}${path}${scope.leg ? `?leg=${scope.leg}` : ""}`,
     {

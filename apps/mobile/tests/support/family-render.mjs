@@ -10,12 +10,12 @@ import { act, create } from "react-test-renderer";
 import { filesystem } from "./client.mjs";
 const require = createRequire(import.meta.url);
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-const native = `import React from 'react';const listeners=new Set();export const AppState={currentState:'active',addEventListener:(_,fn)=>{listeners.add(fn);return{remove:()=>listeners.delete(fn)}}};export function foreground(){for(const fn of listeners)fn('active')}export const StyleSheet={create:x=>x,hairlineWidth:1};export function View(p){return React.createElement('view',p,p.children)};`;
+const native = `import React from 'react';import {focusManager} from '@tanstack/react-query';const listeners=new Set();export const AppState={currentState:'active',addEventListener:(_,fn)=>{listeners.add(fn);return{remove:()=>listeners.delete(fn)}}};export function foreground(){focusManager.setFocused(false);for(const fn of listeners)fn('active');focusManager.setFocused(true)}export const StyleSheet={create:x=>x,hairlineWidth:1};export function View(p){return React.createElement('view',p,p.children)};`;
 const ui = `import React from 'react';export const host=name=>function Component(p){return React.createElement(name,p,p.children)};export const Action=host('button'),Copy=host('text'),Heading=host('heading'),Loading=host('skeleton'),Notice=host('notice'),Screen=host('screen'),Surface=host('surface'),TripLink=host('button'),PageHeader=host('header'),IconButton=host('button'),ListRow=host('row'),OptionsMenu=host('menu'),SelectField=host('select'),DetailPage=host('detail');`;
 export async function renderFamily(t, origin, props) {
   const result = await build({
     stdin: {
-      contents: `export { FamilyScreen } from './src/family-screen';export {foreground} from 'react-native';export {setFocused} from '@react-navigation/native';export {useTripRequest} from './src/use-trip-request';export {useForegroundRefresh} from './src/use-foreground-refresh';export * from './src/trip-cache';export {Directory} from 'expo-file-system';`,
+      contents: `export { FamilyScreen } from './src/family-screen';export {foreground} from 'react-native';export {setFocused} from '@react-navigation/native';export {useServerView} from './src/use-server-view';export * from './src/server-data';export {Directory} from 'expo-file-system';export {QueryClientProvider} from '@tanstack/react-query';`,
       resolveDir: fileURLToPath(new URL("../../", import.meta.url)),
     },
     bundle: true,
@@ -55,6 +55,10 @@ export async function renderFamily(t, origin, props) {
             path: "auth",
             namespace: "fixture",
           }));
+          b.onResolve({ filter: /^\.\/guide-copy-context$/ }, () => ({
+            path: "copies",
+            namespace: "fixture",
+          }));
           b.onResolve({ filter: /^\.\/api$/ }, () => ({
             path: "api",
             namespace: "fixture",
@@ -69,9 +73,12 @@ export async function renderFamily(t, origin, props) {
               navigation:
                 "import {useSyncExternalStore} from 'react';let focused=true;const listeners=new Set();export function setFocused(value){focused=value;for(const fn of listeners)fn()}export const useIsFocused=()=>useSyncExternalStore(fn=>{listeners.add(fn);return()=>listeners.delete(fn)},()=>focused);",
               auth: "const getToken=async()=> 'owned-test-token';export const useSessionAuth=()=>({getToken});",
+              copies:
+                "export const useGuideCopies=()=>({accountId:'owned-account'});",
               api: `export const apiOrigin=()=>${JSON.stringify(origin)};`,
             }[a.path],
             loader: "js",
+            resolveDir: fileURLToPath(new URL("../../", import.meta.url)),
           }));
         },
       },
@@ -82,24 +89,49 @@ export async function renderFamily(t, origin, props) {
   t.after(() => unlink(path));
   const app = await import(pathToFileURL(path).href);
   const owner = new AbortController();
-  const stop = app.startTripCache({
-    directory: new app.Directory("memory://family-render"),
-    current: () => owner,
-    completed: () => true,
-    clearAccount: () => owner.abort(),
+  const client = app.createServerQueryClient();
+  client.setDefaultOptions({
+    ...client.getDefaultOptions(),
+    queries: { ...client.getDefaultOptions().queries, gcTime: Infinity },
   });
-  t.after(stop);
+  const stop = app.startServerData(
+    {
+      directory: new app.Directory("memory://family-render"),
+      current: () => owner,
+      completed: () => true,
+      clearAccount: () => owner.abort(),
+    },
+    client,
+  );
   let renderer;
   await act(async () => {
-    renderer = create(React.createElement(app.FamilyScreen, props));
+    renderer = create(
+      React.createElement(
+        app.QueryClientProvider,
+        { client: app.getServerQueryClient() },
+        React.createElement(app.FamilyScreen, props),
+      ),
+    );
   });
   t.after(async () => {
     await act(async () => renderer.unmount());
+    owner.abort();
+    stop();
   });
   return {
     app,
     renderer,
     act,
+    stale: () =>
+      app.getServerQueryClient().invalidateQueries({ refetchType: "none" }),
+    replace: (component, props) =>
+      renderer.update(
+        React.createElement(
+          app.QueryClientProvider,
+          { client },
+          React.createElement(component, props),
+        ),
+      ),
     async until(predicate) {
       for (let i = 0; i < 100; i++) {
         await act(async () => {

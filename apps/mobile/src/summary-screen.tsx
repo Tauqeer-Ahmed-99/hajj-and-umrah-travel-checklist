@@ -22,7 +22,7 @@ import { ChecklistChoices, ChecklistSection } from "./checklist-ui";
 import { useTripRequest } from "./use-trip-request";
 import { useTheme } from "./theme";
 import { summaryApi } from "./summary-api";
-import { onTripCacheRevoked } from "./trip-cache";
+import { onServerAccessRevoked } from "./server-data";
 import { TripError } from "./trip-api";
 import { deviceNetworkAvailable, subscribeTripCache } from "./trip-cache-state";
 
@@ -203,7 +203,7 @@ export function SummaryScreen({
   }, [accessWake, api.busy, sharing, accessApi.run, tripId]);
   useEffect(
     () =>
-      onTripCacheRevoked((removal) => {
+      onServerAccessRevoked((removal) => {
         if (removal.tripId !== tripId) return;
         if (removal.scope === "trip") {
           generation.current++;

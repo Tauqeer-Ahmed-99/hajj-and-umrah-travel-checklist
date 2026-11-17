@@ -105,7 +105,7 @@ test("summary includes only selected travel fields and explicitly selected itine
   );
   assert.equal(preview.status, 200, fixture.logs());
   assert.deepEqual(preview.data, {
-    text: "NMT Travel summary\n\nTrip travel details\nTransport: Bus 42",
+    text: "Travel Companion summary\n\nTrip travel details\nTransport: Bus 42",
   });
   assert.equal(preview.headers.get("cache-control"), "private, no-store");
   assert.match(preview.headers.get("vary") ?? "", /Authorization/i);
@@ -120,7 +120,7 @@ test("summary includes only selected travel fields and explicitly selected itine
     "POST",
   );
   assert.deepEqual(selected.data, {
-    text: "NMT Travel summary\n\nMadinah stop\nStart: 2026-11-21T15:30:00+03:00 (Asia/Riyadh)\nTransport: Train 7",
+    text: "Travel Companion summary\n\nMadinah stop\nStart: 2026-11-21T15:30:00+03:00 (Asia/Riyadh)\nTransport: Train 7",
   });
   const references = await fixture.request(
     `${journey.path}/summary`,
@@ -133,7 +133,7 @@ test("summary includes only selected travel fields and explicitly selected itine
     "POST",
   );
   assert.deepEqual(references.data, {
-    text: "NMT Travel summary\n\nTrip travel details\nDeparture: 2026-11-20\nReturn: 2026-12-04\nAccommodation: Hotel address withheld\nMeeting point: North gate withheld\nContact: Travel desk withheld; phone: +1234567; Contact note withheld",
+    text: "Travel Companion summary\n\nTrip travel details\nDeparture: 2026-11-20\nReturn: 2026-12-04\nAccommodation: Hotel address withheld\nMeeting point: North gate withheld\nContact: Travel desk withheld; phone: +1234567; Contact note withheld",
   });
 });
 
@@ -235,7 +235,7 @@ test("checklist fallback preserves requirements and separates selected preparati
   );
   assert.equal(fallback.status, 200, fixture.logs());
   assert.deepEqual(fallback.data, {
-    text: "NMT Travel summary\n\nChecklist: Ahmed family\nItem: Charging adapters [outbound; essential]\nRequired: 4 adapters\nTask: Call hotel [outbound; normal]",
+    text: "Travel Companion summary\n\nChecklist: Ahmed family\nItem: Charging adapters [outbound; essential]\nRequired: 4 adapters\nTask: Call hotel [outbound; normal]",
   });
   const progress = await fixture.request(
     `${journey.path}/summary`,
@@ -249,7 +249,7 @@ test("checklist fallback preserves requirements and separates selected preparati
   );
   assert.equal(progress.status, 200);
   assert.deepEqual(progress.data, {
-    text: "NMT Travel summary\n\nChecklist: Ahmed family\nItem: Charging adapters [outbound; essential]\nRequired: 4 adapters\nPreparation: 2 adapters available; 1 adapters still to arrange; 1 adapters awaiting receipt; 2 adapters remaining to be ready\nTask: Call hotel [outbound; normal]\nTask progress: Done\nPreparation items selected: 1; physically available for requirement: 0; not needed: 0\nTasks selected: 1; To do: 0; In progress: 0; Done: 1; Not needed: 0\nPreparation quantities do not confirm packing.",
+    text: "Travel Companion summary\n\nChecklist: Ahmed family\nItem: Charging adapters [outbound; essential]\nRequired: 4 adapters\nPreparation: 2 adapters available; 1 adapters still to arrange; 1 adapters awaiting receipt; 2 adapters remaining to be ready\nTask: Call hotel [outbound; normal]\nTask progress: Done\nPreparation items selected: 1; physically available for requirement: 0; not needed: 0\nTasks selected: 1; To do: 0; In progress: 0; Done: 1; Not needed: 0\nPreparation quantities do not confirm packing.",
   });
   for (const hidden of [
     "Private note",
@@ -499,7 +499,7 @@ test("refresh returns current contents, rejects removed or revoked selections, a
   );
   assert.equal(
     displayed.data.text,
-    "NMT Travel summary\n\nTrip travel details\nMeeting point: Gate A",
+    "Travel Companion summary\n\nTrip travel details\nMeeting point: Gate A",
   );
   await fixture.request(
     `${journey.path}/itinerary`,
@@ -515,7 +515,7 @@ test("refresh returns current contents, rejects removed or revoked selections, a
   );
   assert.equal(
     refreshed.data.text,
-    "NMT Travel summary\n\nTrip travel details\nMeeting point: Gate B",
+    "Travel Companion summary\n\nTrip travel details\nMeeting point: Gate B",
   );
   fixture.providerAvailable(false);
   try {
@@ -642,7 +642,7 @@ test("fallback reports inactive requirements truthfully and counts all task stat
   assert.equal(required.status, 200);
   assert.equal(
     required.data.text,
-    "NMT Travel summary\n\nChecklist: Ahmed family\nItem: Charging adapters [outbound; essential]\nRequired: 0 adapters (Not needed; retained requirement: 4 adapters)",
+    "Travel Companion summary\n\nChecklist: Ahmed family\nItem: Charging adapters [outbound; essential]\nRequired: 0 adapters (Not needed; retained requirement: 4 adapters)",
   );
   const checklist = await fixture.request(list.path, owner.token);
   const categoryId = checklist.data.categories[0].id;

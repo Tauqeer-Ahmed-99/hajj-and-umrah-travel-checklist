@@ -14,7 +14,7 @@ import { useTripRequest } from "./use-trip-request";
 import { sharingApi } from "./sharing-api";
 import { tripApi } from "./trip-api";
 import { invitationApi } from "./invitation-api";
-import { onTripCacheRevoked } from "./trip-cache";
+import { onServerAccessRevoked } from "./server-data";
 import { AcquisitionForm, AcquisitionSummary } from "./acquisition-form";
 import { BagStateForm } from "./packing-forms";
 import {
@@ -58,7 +58,7 @@ export function SharedScreen({
   const [selectedId, setSelectedId] = useState(initialId);
   useEffect(
     () =>
-      onTripCacheRevoked((removal) => {
+      onServerAccessRevoked((removal) => {
         if (
           removal.tripId !== tripId ||
           removal.scope !== "records" ||
@@ -220,6 +220,9 @@ export function SharedScreen({
     <Screen>
       <Action title="Back to trip" secondary onPress={onBack} />
       <Heading>Shared with trip</Heading>
+      <Copy muted>
+        These are the items and bags families chose to share with this trip.
+      </Copy>
       <ChecklistChoices
         label="Shared travel leg"
         value={leg}

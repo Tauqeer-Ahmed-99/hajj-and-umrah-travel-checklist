@@ -9,7 +9,7 @@ import {
   type NotificationPreferences,
 } from "@nmt/contracts";
 import { apiOrigin } from "./api";
-import { travelFetch } from "./trip-cache";
+import { travelFetch } from "./server-data";
 import { TripError } from "./trip-api";
 
 async function request<T>(
@@ -22,7 +22,7 @@ async function request<T>(
 ): Promise<T> {
   const origin = apiOrigin();
   if (!origin)
-    throw new TripError("This build could not connect to NMT Travel.");
+    throw new TripError("This build could not connect to Travel Companion.");
   const response = await travelFetch(`${origin}/api${path}`, {
     method,
     signal,

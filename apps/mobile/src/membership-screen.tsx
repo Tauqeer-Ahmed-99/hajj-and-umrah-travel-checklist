@@ -185,6 +185,11 @@ export function MembershipScreen({
       <Heading>
         {familyId ? "Family access" : "Trip members & invitations"}
       </Heading>
+      <Copy muted>
+        {familyId
+          ? "Choose who can view or change this family's private records."
+          : "Invite people to this trip and manage their trip access."}
+      </Copy>
       {saved && <Notice>{saved}</Notice>}
       {created && data && (
         <AccessSection title="Invitation saved">

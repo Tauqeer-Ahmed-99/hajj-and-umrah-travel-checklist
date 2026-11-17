@@ -1,5 +1,7 @@
 import { DetailPage, OptionsMenu, RecordRow } from "./simple-ui";
 import { useForegroundRefresh } from "./use-foreground-refresh";
+import { useServerView } from "./use-server-view";
+import { TaskProgressForm } from "./task-progress-form";
 import { RefreshCw } from "lucide-react-native";
 import {
   ArrowLeft,
@@ -45,7 +47,7 @@ import { ChecklistChoices, ChecklistSection } from "./checklist-ui";
 import { AcquisitionForm, AcquisitionSummary } from "./acquisition-form";
 import { VisibilityForm } from "./sharing-forms";
 import type { ChecklistView } from "./trip-navigation";
-import { onTripCacheRevoked } from "./trip-cache";
+import { onServerAccessRevoked } from "./server-data";
 
 export function ChecklistDestination({
   families,
@@ -92,6 +94,7 @@ type Editor =
   | { mode: "entry"; initial: ChecklistEntry | null; kind: "item" | "task" }
   | { mode: "starter" }
   | { mode: "acquisition"; entry: ChecklistEntry }
+  | { mode: "taskProgress"; entry: ChecklistEntry }
   | {
       mode: "remove";
       kind: "entries" | "categories";
@@ -175,11 +178,13 @@ function ChecklistItemRow({
   data,
   edit,
   selected,
+  onPack,
 }: {
   entry: ChecklistEntry;
   data: Data;
   edit(value: Editor): void;
   selected: boolean;
+  onPack?: () => void;
 }) {
   const responsible = data.members.find(
     (m) => m.id === entry.responsibleMemberId,
@@ -218,19 +223,23 @@ function ChecklistItemRow({
             isItem
               ? entry.acquisition?.notNeededReason
                 ? "Restore item"
-                : "Update what I have"
+                : "Update item"
               : "Update task"
           }
           onPress={() =>
             edit(
               isItem
                 ? { mode: "acquisition", entry }
-                : { mode: "entry", initial: entry, kind: entry.kind },
+                : { mode: "taskProgress", entry },
             )
           }
         />
       )}
       {entry.notes && <Copy>{entry.notes}</Copy>}
+      {isItem &&
+        data.checklist.canEdit &&
+        (entry.acquisition?.available ?? 0) > 0 &&
+        onPack && <Action title="Pack this item" secondary onPress={onPack} />}
       <DetailRow title="Details" subtitle="People, dates and notes">
         <Copy>For: {beneficiaries(entry, data.travelers)}</Copy>
         <Copy>
@@ -311,6 +320,7 @@ export function ChecklistScreen({
   initialView,
   onRemember,
   onBack,
+  onPack,
 }: ChecklistScope & {
   memberId: string;
   defaultLeg?: "outbound" | "return";
@@ -318,16 +328,15 @@ export function ChecklistScreen({
   initialView?: ChecklistView;
   onRemember?: (view: ChecklistView, recordId?: string) => void;
   onBack: () => void;
+  onPack?: (entryId: string, leg: "outbound" | "return") => void;
 }) {
-  const api = useTripRequest();
-  const [data, setData] = useState<Data | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [saved, setSaved] = useState(false);
   const [view, setView] = useState<ChecklistView>(initialView ?? "all");
   const [selectedId, setSelectedId] = useState(initialId);
   useEffect(
     () =>
-      onTripCacheRevoked((removal) => {
+      onServerAccessRevoked((removal) => {
         if (
           removal.tripId !== tripId ||
           removal.scope !== "records" ||
@@ -358,6 +367,22 @@ export function ChecklistScreen({
                     (entry) => !removed(entry.id),
                   ),
                 },
+                views: {
+                  ...current.views,
+                  shopping: current.views.shopping.filter(
+                    (entry) => !removed(entry.id),
+                  ),
+                  expectedDelivery: current.views.expectedDelivery.filter(
+                    (entry) => !removed(entry.id),
+                  ),
+                  overdueReceipt: current.views.overdueReceipt.filter(
+                    (entry) => !removed(entry.id),
+                  ),
+                  essentialOutstanding:
+                    current.views.essentialOutstanding.filter(
+                      (entry) => !removed(entry.id),
+                    ),
+                },
               }
             : current,
         );
@@ -370,8 +395,10 @@ export function ChecklistScreen({
   const [kind, setKind] = useState<"item" | "task">("item");
   const [manage, setManage] = useState(false);
   const scope = { tripId, familyId };
-  const load = useCallback(async () => {
-    const result = await api.run(async (token, signal) => {
+  const api = useServerView<Data | null>(
+    `/api/trips/${tripId}/families/${familyId}/checklist`,
+    ["checklist", tripId, familyId],
+    async (token, signal) => {
       const [checklist, detail, roster, members, history, views] =
         await Promise.all([
           checklistApi.read({ tripId, familyId }, token, signal),
@@ -392,16 +419,10 @@ export function ChecklistScreen({
             views,
           }
         : null;
-    });
-    if (result) setData(result);
-  }, [api.run, tripId, familyId]);
-  useEffect(() => {
-    if (api.error && [401, 403, 404].includes(api.error.status)) setData(null);
-  }, [api.error]);
-  const refresh = useForegroundRefresh(
-    load,
-    !editor || editor.mode === "history",
+    },
+    { enabled: !editor || editor.mode === "history" },
   );
+  const { data, setData, refresh } = api;
   useScreenBackEffect(() => {
     if (editor && editor.mode !== "history") return;
     const listener = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -437,6 +458,8 @@ export function ChecklistScreen({
     if (editor.mode === "starter") return <ChecklistStarterForm {...props} />;
     if (editor.mode === "acquisition")
       return <AcquisitionForm {...props} entry={editor.entry} />;
+    if (editor.mode === "taskProgress")
+      return <TaskProgressForm {...props} entry={editor.entry} />;
     if (editor.mode === "remove")
       return (
         <ChecklistRemovalForm
@@ -598,6 +621,11 @@ export function ChecklistScreen({
         </View>
       </View>
       <PageHeader title="Checklist" subtitle={data?.family.name} />
+      <Copy muted>
+        {effectiveKind === "item"
+          ? "List what you need. Open an item to mark what you have or ordered."
+          : "Add jobs such as booking transport. Open a task to update its progress."}
+      </Copy>
       {saved && <Notice>Saved</Notice>}
       {!data && !api.error && <Loading message="Loading checklist" />}
       {api.error && (
@@ -715,6 +743,17 @@ export function ChecklistScreen({
                       .filter((entry) => entry.categoryId === group.id)
                       .map((entry) => (
                         <ChecklistItemRow
+                          onPack={
+                            onPack
+                              ? () =>
+                                  onPack(
+                                    entry.id,
+                                    entry.leg === "return"
+                                      ? "return"
+                                      : "outbound",
+                                  )
+                              : undefined
+                          }
                           key={entry.id}
                           entry={entry}
                           data={data}

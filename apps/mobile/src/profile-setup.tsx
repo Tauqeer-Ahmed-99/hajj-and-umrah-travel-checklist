@@ -213,7 +213,7 @@ export function ProfileRecovery({
   onRetry: () => void;
   onSignOut: () => void;
   onCheckRemoval: () => void;
-  cached?: { trips: () => void; guides: () => void };
+  cached?: { guides: () => void };
 }) {
   const { colors } = useTheme();
   return (
@@ -242,7 +242,6 @@ export function ProfileRecovery({
           )}
           {cached && (
             <>
-              <TextAction title="Open cached trips" onPress={cached.trips} />
               <TextAction title="Open saved guides" onPress={cached.guides} />
             </>
           )}
@@ -277,8 +276,7 @@ export function ProfileRecovery({
             {message && <Notice error>{message}</Notice>}
             {cached && (
               <AuthBody centered>
-                Your saved trips and guides are available to read on this
-                device.
+                You can open the files you saved on this device.
               </AuthBody>
             )}
           </>

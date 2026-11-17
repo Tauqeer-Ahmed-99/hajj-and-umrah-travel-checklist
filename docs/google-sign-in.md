@@ -61,7 +61,7 @@ Different email addresses are not automatically treated as the same account.
    [account-flow.md](account-flow.md): Native API enabled, public signup, verified
    email required, email-code login enabled, passwords/mandatory phone/MFA/session
    tasks disabled for this supported flow. Keep Clerk first/last name and username
-   optional; NMT Travel collects required application fields after authentication.
+   optional; Travel Companion collects required application fields after authentication.
 2. In Clerk SSO connections, enable Google for signup and sign-in with custom
    credentials. In one Google Cloud project configure the consent screen/audience
    and any test users needed for its publishing status. Create a **Web application**
@@ -208,7 +208,7 @@ verification. Merely enabling browser Google OAuth does not enable the native
 strategy. Clerk requires Google custom Web credentials for the native hook:
 [native Google setup](https://clerk.com/docs/expo/guides/configure/auth-strategies/sign-in-with-google).
 
-The selected NMT Travel development instance now passes the mobile provider
+The selected Travel Companion development instance now passes the mobile provider
 preflight: native API, passwordless email, and `google_one_tap`. An invalid-token
 probe progresses to `google_one_tap_token_invalid` rather than rejecting the
 strategy. This proves configuration acceptance, not successful Google identity

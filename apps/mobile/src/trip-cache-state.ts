@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { onlineManager } from "@tanstack/react-query";
 
 type Connection = {
   status: "checking" | "online" | "offline";
@@ -8,7 +9,7 @@ type Connection = {
 let connection: Connection = {
   status: "checking",
   refreshing: false,
-  message: "Connect to check current access before changing trip data.",
+  message: "",
 };
 const listeners = new Set<() => void>();
 let networkAvailable: boolean | null = null;
@@ -24,19 +25,19 @@ export function deviceNetworkAvailable() {
 export function setDeviceNetworkAvailable(value: boolean) {
   if (networkAvailable === value) return;
   networkAvailable = value;
+  onlineManager.setOnline(value);
   if (!value)
     setConnection({
       status: "offline",
       refreshing: false,
       message:
-        "Offline · trip data is read only. Open cached trips or saved guides. Reconnect to refresh access and resume editing.",
+        "You are offline. Connect to save changes. Saved files remain available.",
     });
   else if (connection.status !== "online")
     setConnection({
       status: "checking",
       refreshing: false,
-      message:
-        "Connection restored. Checking current access before enabling changes…",
+      message: "",
     });
 }
 // An HTTP reply is stronger evidence than an Android connectivity hint. It

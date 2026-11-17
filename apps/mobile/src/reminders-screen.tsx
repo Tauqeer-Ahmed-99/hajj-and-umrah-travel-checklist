@@ -174,6 +174,9 @@ export function RemindersScreen({
         onPress={onBack}
       />
       <Heading>Reminders</Heading>
+      <Copy muted>
+        Choose a time for a task or item. Your phone can remind you.
+      </Copy>
       <Copy>
         Keep travel checks in your checklist and itinerary. Notifications may be
         delayed or missed; they never confirm a delivery or that a bag is

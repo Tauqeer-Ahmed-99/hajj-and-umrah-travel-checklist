@@ -25,7 +25,7 @@ function useCreate<T, R>(
   create: (input: T, token: string, signal: AbortSignal) => Promise<R>,
   onSaved: (result: R) => void,
 ) {
-  const api = useTripRequest();
+  const api = useTripRequest(45_000);
   const [validation, setValidation] = useState<Record<string, string>>({});
   const [pending, setPending] = useState<T | null>(null);
   const uncertain =
@@ -326,8 +326,7 @@ export function TravelerForm({
     <Screen>
       <Heading>Add a traveler</Heading>
       <Copy>
-        Add an adult, child, or elder to this family’s roster. No email, phone,
-        or account is needed.
+        Add someone traveling with this family. They do not need an account.
       </Copy>
       <Field
         label="First name"

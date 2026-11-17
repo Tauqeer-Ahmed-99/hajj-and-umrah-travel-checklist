@@ -19,6 +19,6 @@ appId: in.nmtsolutions.travel
 - pressKey: Home
 - openNotifications
 - extendedWaitUntil:
-    visible: "A preparation reminder needs your attention. Open NMT Travel."
+    visible: "A preparation reminder needs your attention. Open Travel Companion."
     timeout: 180000
-- assertVisible: "NMT Travel"
+- assertVisible: "Travel Companion"

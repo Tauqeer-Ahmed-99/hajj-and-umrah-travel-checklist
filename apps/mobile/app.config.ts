@@ -10,15 +10,20 @@ if (process.env.EAS_BUILD === "true" && !projectId) {
 }
 
 const config: ExpoConfig = {
-  name: "NMT Travel",
+  name: "Travel Companion",
   slug: "nmt-travel",
-  version: "0.1.0",
+  version: "0.2.0",
+  icon: "./assets/journey-mascot.png",
   scheme: "nmttravel",
   platforms: ["android"],
   userInterfaceStyle: "automatic",
   android: {
     package: "in.nmtsolutions.travel",
-    versionCode: 7,
+    versionCode: 8,
+    adaptiveIcon: {
+      foregroundImage: "./assets/journey-mascot.png",
+      backgroundColor: "#F6F8FC",
+    },
     softwareKeyboardLayoutMode: "resize",
     ...(process.env.GOOGLE_SERVICES_JSON
       ? { googleServicesFile: process.env.GOOGLE_SERVICES_JSON }

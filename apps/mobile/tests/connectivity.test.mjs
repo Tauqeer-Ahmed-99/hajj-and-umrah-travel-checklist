@@ -70,46 +70,21 @@ test("an actual HTTP reply recovers from an obsolete disconnected hint", async (
   assert.equal(app.connectionState().status, "online");
   await app.travelFetch(origin + "/api/trips", { method: "POST" });
 });
-test("a background cached-view 503 does not disable unrelated online operations", async (t) => {
+test("a background JSON 503 does not disable unrelated online operations", async (t) => {
   const { app } = await client(t);
   const tripId = "11111111-1111-4111-8111-111111111111";
   const path = `/api/trips/${tripId}`;
-  app.seed(
-    `memory://owned-account/trip-cache/${path.replaceAll("/", "_")}.json`,
-    {
-      format: 1,
-      path,
-      refreshedAt: Date.now(),
-      data: {
-        trip: {
-          id: tripId,
-          name: "Owned fixture",
-          kind: "umrah",
-          startDate: "2026-12-01",
-          endDate: "2026-12-15",
-          destinations: ["Makkah"],
-          role: "organizer",
-        },
-        families: [],
-      },
-    },
-  );
   const origin = await service(t, (req, res) =>
     json(res, req.url === path ? 503 : 200, {}),
   );
-  await app.refreshTripCache(
-    origin,
-    async () => "owned-fixture",
-    new AbortController().signal,
-  );
+  await app.travelFetch(origin + path, {});
   assert.equal(app.connectionState().status, "online");
   assert.equal(
     (await app.travelFetch(origin + "/api/trips", { method: "POST" })).status,
     200,
   );
-  assert.equal(app.listTripSnapshots().length, 1);
 });
-test("a real transport failure blocks writes without queuing or replaying them", async (t) => {
+test("a failed request stays local and a subsequent explicit save attempts the network once", async (t) => {
   const { app } = await client(t);
   let requests = 0;
   const origin = await service(t, (req) => {
@@ -117,11 +92,11 @@ test("a real transport failure blocks writes without queuing or replaying them",
     req.socket.destroy();
   });
   await assert.rejects(app.travelFetch(origin + "/api/trips", {}));
-  assert.equal(app.connectionState().status, "offline");
+  assert.equal(app.connectionState().status, "online");
   await assert.rejects(
     app.travelFetch(origin + "/api/trips", { method: "POST" }),
   );
-  assert.equal(requests, 1);
+  assert.equal(requests, 3);
 });
 test("a confirmed expired session invalidates the private account gate", async (t) => {
   const { app, invalidated } = await client(t);

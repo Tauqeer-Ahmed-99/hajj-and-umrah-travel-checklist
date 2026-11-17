@@ -39,8 +39,7 @@ import {
   suspendGuideCopies,
 } from "./guide-copies";
 import { OfflineGuidesScreen } from "./guide-copy-ui";
-import { OfflineTripsScreen } from "./offline-trips-screen";
-import { refreshTripCache } from "./trip-cache";
+import { getServerQueryClient } from "./server-data";
 import {
   connectionState,
   deviceNetworkAvailable,
@@ -58,6 +57,7 @@ import {
   removalIntentChanged,
 } from "./account-lifecycle";
 import { ProfileRecovery, ProfileSetup } from "./profile-setup";
+import { AboutTravelCompanion } from "./company-brand";
 import { AccountRemovalForm } from "./account-removal-screen";
 import { accountRemovalRequest } from "./account-removal-api";
 import { clearAllTripNavigation, clearTripNavigation } from "./trip-navigation";
@@ -85,7 +85,6 @@ export function AccountScreen() {
   });
   const [saveUncertain, setSaveUncertain] = useState(false);
   const [showOffline, setShowOffline] = useState(false);
-  const [showCached, setShowCached] = useState(false);
   const [showRemoval, setShowRemoval] = useState(false);
   const [cleanupBlocked, setCleanupBlocked] = useState(false);
   const connection = useTripConnection();
@@ -110,7 +109,6 @@ export function AccountScreen() {
         if (!restored) {
           setAccount((previous) => (previous?.profile ? null : previous));
           setShowOffline(false);
-          setShowCached(false);
           void clearAllTripNavigation().catch(() => {
             setCleanupBlocked(true);
             setError(
@@ -160,7 +158,7 @@ export function AccountScreen() {
           "Loading took too long. Check your connection, then try again.",
         );
       }
-    }, 15_000);
+    }, 35_000);
     try {
       const token = await Promise.race([
         getToken(),
@@ -168,7 +166,7 @@ export function AccountScreen() {
           const aborted = () =>
             reject(
               new AccountError(
-                "Current access could not be refreshed. Open cached trips or saved guides, then reconnect and retry.",
+                "Your account could not refresh. Try again, or open the files saved on this device.",
               ),
             );
           if (controller.signal.aborted) aborted();
@@ -184,9 +182,8 @@ export function AccountScreen() {
         );
       const result = await accountRequest(token, controller.signal);
       if (current === generation.current && !controller.signal.aborted) {
-        // The profile deadline covers identity restoration. Cached resources
-        // have their own bounded reads below; a larger cache must not repeatedly
-        // time out the entire reconnect check before reaching its final scope.
+        // The profile deadline covers identity restoration. Saved-file access
+        // checks run separately and never hold up the account screen.
         clearTimeout(timeout);
         if (!result.profile && !initializedDraft.current) {
           initializedDraft.current = true;
@@ -204,10 +201,6 @@ export function AccountScreen() {
         if (result.profile) {
           rememberCopyProfile(copies, result.profile);
           setOfflineProfile(result.profile);
-          // Metadata checks only; this never obtains or downloads guide objects.
-          const origin = apiOrigin();
-          if (origin)
-            await refreshTripCache(origin, getToken, controller.signal);
           // Metadata checks only. No object downloads, exports or save retries.
           const copyToken = await getToken();
           if (
@@ -331,16 +324,10 @@ export function AccountScreen() {
       listener.remove();
     };
   }, [load, saving, hidden]);
-  useEffect(() => {
-    if (hidden || saving || connection.status === "online") return;
-    const timer = setInterval(() => {
-      if (AppState.currentState === "active" && !request.current) void load();
-    }, 15_000);
-    return () => clearInterval(timer);
-  }, [load, saving, hidden, connection.status]);
 
   async function logout() {
     if (leaving) return;
+    getServerQueryClient().clear();
     signedOut.current = true;
     ++generation.current;
     request.current?.abort();
@@ -361,7 +348,6 @@ export function AccountScreen() {
       );
       setOfflineProfile(null);
       setShowOffline(false);
-      setShowCached(false);
       await accountDeadline(signOut());
     } catch {
       setError(
@@ -492,14 +478,6 @@ export function AccountScreen() {
     return <AccountRemovalForm onBack={() => setShowRemoval(false)} />;
   if (showOffline && offlineProfile)
     return <OfflineGuidesScreen onBack={() => setShowOffline(false)} />;
-  if (showCached && offlineProfile)
-    return (
-      <OfflineTripsScreen
-        onBack={() => setShowCached(false)}
-        onGuides={() => setShowOffline(true)}
-        onRefresh={() => void load()}
-      />
-    );
   if (!account)
     return (
       <ProfileRecovery
@@ -550,7 +528,6 @@ export function AccountScreen() {
         cached={
           offlineProfile
             ? {
-                trips: () => setShowCached(true),
                 guides: () => setShowOffline(true),
               }
             : undefined
@@ -590,7 +567,6 @@ export function AccountScreen() {
     <TravelWorkspace
       profile={profile}
       onOffline={() => setShowOffline(true)}
-      onCached={() => setShowCached(true)}
       renderProfile={() => (
         <Screen>
           <PageHeader
@@ -632,12 +608,6 @@ export function AccountScreen() {
           </Surface>
           <Surface>
             <ListRow
-              title="Cached trips"
-              subtitle="Read saved travel plans offline"
-              icon={Download}
-              onPress={() => setShowCached(true)}
-            />
-            <ListRow
               title="Saved guides"
               subtitle="Copies stored on this device"
               icon={BookOpen}
@@ -647,7 +617,13 @@ export function AccountScreen() {
               title="Refresh profile"
 
               icon={RefreshCw}
-              onPress={() => load()}
+              onPress={async () => {
+                await getServerQueryClient().invalidateQueries({
+                  queryKey: ["server"],
+                  refetchType: "none",
+                });
+                await load();
+              }}
             />
             <ListRow
               title="Account & privacy"
@@ -668,6 +644,7 @@ export function AccountScreen() {
             />
           </Surface>
           {error && <Notice error>{error}</Notice>}
+          <AboutTravelCompanion />
           <Copy muted>
             Your email is private. Trip members see your name and username.
           </Copy>

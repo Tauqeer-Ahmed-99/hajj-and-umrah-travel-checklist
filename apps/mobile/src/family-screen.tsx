@@ -12,7 +12,7 @@ import type { Family, Traveler } from "@nmt/contracts";
 import { Action, Copy, Loading, Notice, Screen } from "./ui";
 import { IconButton, ListRow, PageHeader, Surface } from "./design-system";
 import { DetailPage, OptionsMenu } from "./simple-ui";
-import { useTripRequest } from "./use-trip-request";
+import { useServerView } from "./use-server-view";
 import { tripApi } from "./trip-api";
 import { useForegroundRefresh } from "./use-foreground-refresh";
 
@@ -34,12 +34,11 @@ export function FamilyScreen({
   onChecklist(): void;
   onBags(): void;
 }) {
-  const api = useTripRequest();
-  const [family, setFamily] = useState<Family | null>(null);
-  const [travelers, setTravelers] = useState<Traveler[] | null>(null);
   const [people, setPeople] = useState(false);
-  const load = useCallback(async () => {
-    const result = await api.run(async (token, signal) => {
+  const api = useServerView(
+    `/api/trips/${tripId}/families/${familyId}`,
+    ["family", tripId, familyId],
+    async (token, signal) => {
       const [detail, roster] = await Promise.all([
         tripApi.read(tripId, token, signal),
         tripApi.travelers(tripId, familyId, token, signal),
@@ -48,19 +47,11 @@ export function FamilyScreen({
         family: detail.families.find((f) => f.id === familyId),
         travelers: roster.travelers,
       };
-    });
-    if (result) {
-      setFamily(result.family ?? null);
-      setTravelers(result.travelers);
-    }
-  }, [api.run, tripId, familyId]);
-  useEffect(() => {
-    if (api.error && [401, 403, 404].includes(api.error.status)) {
-      setFamily(null);
-      setTravelers(null);
-    }
-  }, [api.error]);
-  const refresh = useForegroundRefresh(load);
+    },
+  );
+  const family = api.data?.family,
+    travelers = api.data?.travelers;
+  const refresh = api.refresh;
   return (
     <Screen>
       <View style={{ flexDirection: "row", justifyContent: "space-between" }}>

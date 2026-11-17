@@ -1,10 +1,10 @@
-# NMT Travel
+# Travel Companion
 
 Status: Approved by the user. The product design interview is complete.
 
 ## Product idea
 
-NMT Travel is an Android app built with React Native that helps families prepare for Hajj or Umrah, coordinate during the journey, and bring their belongings home. It combines shared checklists, purchase tracking, bag packing, travel details, and guide documents in one place.
+Travel Companion is an Android app built with React Native that helps families prepare for Hajj or Umrah, coordinate during the journey, and bring their belongings home. It combines shared checklists, purchase tracking, bag packing, travel details, and guide documents in one place.
 
 The first production release will accept public sign-ups, with the creator's upcoming family Umrah trip as the first real use case. The family should be able to answer four questions at any point: what remains to arrange, who is responsible, where an item is packed, and what needs attention before the next departure.
 
@@ -19,7 +19,7 @@ The product will focus on Hajj and Umrah for now. General travel support will be
 - Launch sign-in supports Google and email one-time codes. Sign-up collects first name, last name, username, and email through either route.
 - Initial public distribution uses APK downloads rather than Google Play. See [ADR-0005](adr/0005-distribute-public-apks-initially.md).
 - All described active launch features remain requested in the first usable APK, including uploads, in-app PDF and image guides, bag photos, attachments, and optional user-requested downloads. The storage restriction applies to Neon services, not to removing app features.
-- Shared trip data is editable only while online. Offline use is cached viewing and downloaded guides, with no offline edit queue. See [ADR-0006](adr/0006-online-edits-and-offline-viewing.md).
+- Shared trip data is editable only while online. JSON data uses an account-scoped memory cache. Only saved files remain available after an offline restart. There is no offline edit queue. See [ADR-0013](adr/0013-query-memory-and-explicit-file-copies.md).
 - A trip organizer needs explicit permission from another family to read or edit that family's private content. Organizer powers over the trip do not bypass family privacy. See [ADR-0004](adr/0004-private-trips-and-family-content.md).
 - Usernames are globally unique and case-insensitive, names are used for display, and emails remain private. Both sign-in methods for the same verified email resolve to one account and its existing memberships. See [ADR-0007](adr/0007-member-handles-and-linked-sign-in.md).
 - Use Neon PostgreSQL for application data and Clerk for hosted Google and email-code authentication. See [ADR-0008](adr/0008-neon-database-and-hosted-auth.md).
@@ -32,7 +32,7 @@ The product will focus on Hajj and Umrah for now. General travel support will be
 - Every trip member can read trip-shared content, members with edit access can update it, and only the owning family's coordinators can change its sharing permissions.
 - Invitations target a verified email or existing username. Trip admission requires organizer approval, and family access requires its coordinator's approval.
 - The selected production application domain for Clerk is `travel.nmtsolutions.in`. DNS and production service configuration are setup work, not completed resources.
-- The app name is `NMT Travel`, and its stable Android package ID is `in.nmtsolutions.travel`, matching `travel.nmtsolutions.in`. See [ADR-0011](adr/0011-stable-android-app-identity.md).
+- The app name is `Travel Companion`, and its stable Android package ID is `in.nmtsolutions.travel`, matching `travel.nmtsolutions.in`. See [ADR-0011](adr/0011-stable-android-app-identity.md).
 - Files use private Cloudflare R2 storage, with authorization through the Next.js API on Vercel and metadata in Neon. See [ADR-0012](adr/0012-private-file-storage.md).
 - Guide documents, PDFs, and images open inside the app by default. Persistent offline copies and downloads to device files are optional user actions; viewing never automatically saves a file to Android Downloads.
 
@@ -83,7 +83,7 @@ The user requested the complete active feature set at launch. File-related featu
 | Preparation | Editable templates, custom items, quantities, purchase progress, tasks | Add templates based on actual use |
 | Packing | Named bags and independent outbound and return checklists | Consider additional journey legs if needed |
 | Guides | PDFs, images, notes, and links viewed in the app; optional offline saving and device downloads | Consider audio, video, and richer authoring |
-| Connectivity | Online edits, shared updates, cached offline viewing, downloaded guides | Revisit offline editing separately if useful |
+| Connectivity | Online edits, JSON reads cached in memory, explicitly saved files | Revisit offline editing separately if useful |
 | Experience | Light and dark themes, accessible controls, purposeful animations | Expand visual options only when useful |
 
 Hajj-specific categories and editable journey milestones belong in the product. A complete Hajj ritual companion is outside the first release.
@@ -290,7 +290,7 @@ The first release is a guide library. A vault for identity documents and an AI-g
 
 ## Travel details and reminders
 
-Store a compact itinerary with departure and arrival dates, time zones, transport details, accommodation addresses, meeting points, and useful contacts. Support manual entry and optional attachments. Keep this information available offline after a successful sync.
+Store a compact itinerary with departure and arrival dates, time zones, transport details, accommodation addresses, meeting points, and useful contacts. Support manual entry and optional attachments. Keep this JSON in the active account's memory cache. Members can save a guide containing travel details if they need a file offline.
 
 Members can set reminders for an assignment, an expected delivery, departure preparation, and return packing. Each reminder needs an owner, a clear time zone, and a way to dismiss or reschedule it. Updating the itinerary should prompt a review of affected reminders.
 
@@ -298,7 +298,7 @@ Request Android notification permission when a member enables a reminder. The ch
 
 ## Online editing, offline viewing, and shared data reliability
 
-Offline viewing is required for the first family trip. Once a trip is on the device, members can read its cached details, checklists, and last confirmed bag contents. Guides are reliably available offline only when a member explicitly saved them inside the app. Shared data changes require a connection, including item updates, packing, invitations, and document uploads. Offline trip screens are read-only and explain how to resume editing after reconnecting.
+TanStack Query caches JSON in memory while the account is open. Trip details, checklists and bag contents need a connection after a restart. Members can open explicitly saved guide files offline. Shared data changes still require a connection.
 
 There is no offline write queue. A write can show `Saving` while online and `Saved` after the backend accepts it. If the connection fails, explain whether the change failed or its outcome needs checking. Keep unsaved form input visibly separate from confirmed shared data and offer an explicit retry after reconnecting. Do not silently submit offline changes later.
 
@@ -357,13 +357,13 @@ Distribute the initial app through public APK downloads. Compatible updates can 
 
 The public download must be a signed release APK. Development clients are for development and testing. Preserve the production package name and release signing identity across APK upgrades, and register the release package and signing-certificate fingerprint for Google sign-in. These requirements follow [Expo's build configuration](https://docs.expo.dev/eas/json/), [Android's signing rules](https://developer.android.com/studio/publish/app-signing), and [Google's client authentication requirements](https://developers.google.com/android/guides/client-auth).
 
-The app needs a persistent read cache, an authenticated shared backend, private file storage, and a consistent navigation and theme system. Shared writes go to the backend while online; do not build an offline edit queue for this release. Validate that two connected Android devices can update the same trip without corrupting quantities or bag assignments and can reopen cached content offline.
+The app needs an account-scoped JSON memory cache, an authenticated backend and private storage for explicitly saved files. Shared writes go to the backend while online; do not build an offline edit queue for this release. Validate that two connected Android devices can update the same trip without corrupting quantities or bag assignments and can reopen explicitly saved files offline.
 
 Use Neon for PostgreSQL only and Clerk for hosted authentication. The authenticated API uses a Next.js boilerplate deployed to Vercel, separate from the Expo Android app. Do not add Neon Functions or Neon Object Storage. Files use a private Cloudflare R2 bucket, with file metadata in Neon and access checked by the Next.js API. Provider choices must preserve verified identity linking, family access boundaries, private emails, and case-insensitive username uniqueness.
 
 Use `travel.nmtsolutions.in` as the selected Clerk production application domain. Clerk production setup for the Expo app still needs the instance's DNS configuration, even without a separate website. See [Clerk's Expo deployment guide](https://clerk.com/docs/guides/development/deployment/expo).
 
-The Android app name is `NMT Travel` and the application ID is `in.nmtsolutions.travel`, matching `travel.nmtsolutions.in`. Use the same package and production signing identity for Google OAuth registration and later APK upgrades.
+The Android app name is `Travel Companion` and the application ID is `in.nmtsolutions.travel`, matching `travel.nmtsolutions.in`. Use the same package and production signing identity for Google OAuth registration and later APK upgrades.
 
 Authorize direct R2 uploads rather than routing file bytes through a Next.js Function. Vercel Functions have a 4.5 MB request-body limit, so the 20 MB file limit needs direct storage uploads. Issue narrowly scoped, short-lived R2 authorization only after checking the relevant family/trip permission; keep R2 credentials server-side and public bucket access disabled. For reads, the app controls whether bytes are used only by the viewer, explicitly saved offline, or explicitly downloaded to device files. See [Vercel Function limits](https://vercel.com/docs/functions/limitations) and [R2 presigned URLs](https://developers.cloudflare.com/r2/api/s3/presigned-urls/).
 
@@ -398,7 +398,7 @@ This is an implementation order for the requested complete active launch scope, 
 These checks describe the requested first-production target, including file-dependent features. Detailed scenarios will be refined during implementation.
 
 - A new user can sign up publicly and start their own trip.
-- The installed app is named `NMT Travel` with package ID `in.nmtsolutions.travel`.
+- The installed app is named `Travel Companion` with package ID `in.nmtsolutions.travel`.
 - Google and email-code sign-up collect first name, last name, username, and email, including missing fields after Google sign-in.
 - A username cannot be registered twice with different casing, email addresses are not exposed to other members, and both sign-in methods for the same verified email retain the same account and memberships.
 - A signed public APK can be installed, and the first distributed build receives a compatible EAS Update without reinstalling it.
@@ -413,9 +413,9 @@ These checks describe the requested first-production target, including file-depe
 - Return preparation starts unverified. It accounts for reusable items, consumed quantities, gifts, missing items, and new destination purchases without changing outbound history.
 - A permitted member can add a PDF or image guide, choose its audience, and let another authorized member open it inside the app. An unauthorized family cannot fetch a family-only file.
 - Opening a guide, refreshing the library, or starting the app does not automatically save files to device folders or mark guides available offline. The viewer is the default action, with optional saving and download actions.
-- An explicitly saved app-private guide and cached itinerary open in airplane mode after the app restarts. Failed saves remain visibly incomplete, and a temporary viewing cache alone does not mark a guide available offline.
+- An explicitly saved app-private guide file opens in airplane mode after the app restarts. Trip JSON needs a connection to load again. Failed saves remain visibly incomplete, and a temporary viewing cache alone does not mark a guide available offline.
 - A member can explicitly download a permitted guide to a chosen device location when needed.
-- Trip data is read-only offline, no offline write queue exists, and cached content remains readable after an app restart. Online edits show confirmed success or a clear failure. Valid competing edits follow the agreed latest-edit-wins policy while preserving permission, quantity, and allocation constraints.
+- JSON already in memory can remain readable offline. JSON is not persisted across restarts, and no offline write queue exists. Online edits show confirmed success or a clear failure. Valid competing edits follow the agreed latest-edit-wins policy while preserving permission, quantity, and allocation constraints.
 - Concurrent changes to different fields are both retained. The latest server-accepted valid change wins on an overlapping field, and only family coordinators can change content visibility.
 - Each family has a coordinator, and adding a family-only item to a trip-shared bag requires explicit sharing first.
 - An OTA update does not interrupt an active packing or guide-reading session and can be applied on the next start or a requested restart.

@@ -1,4 +1,4 @@
-import { View, StyleSheet } from "react-native";
+import { Image, View, StyleSheet } from "react-native";
 import Svg, { Path, G } from "react-native-svg";
 import { Text } from "./typography";
 import { useTheme } from "./theme";
@@ -7,20 +7,31 @@ export function Brand() {
   const { colors } = useTheme();
   return (
     <View
-      style={styles.row}
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+        flexShrink: 1,
+      }}
       accessible
-      accessibilityLabel="NMT Travel, a product of NMT Solutions"
+      accessibilityLabel="Travel Companion, a product by NMT Solutions"
     >
-      <Svg width={34} height={34} viewBox="0 0 32 32" accessible={false}>
-        <G fill={colors.brand}>
-          <Path d="M4.029 14.362L14.362 4.028l.707.707L4.736 15.07zM17.135 27.47L27.47 17.135l.707.707-10.333 10.333zM4.029 17.841l.707-.707 10.333 10.334-.707.707zM17.135 4.735l.708-.707L28.176 14.36l-.707.707z" />
-          <Path d="M16 1.414l1.683 1.683L16 4.779l-1.683-1.683L16 1.414M16 0l-3.097 3.097L16 6.194l3.097-3.097L16 0zM16 27.221l1.683 1.683L16 30.586l-1.683-1.683L16 27.221m0-1.415l-3.097 3.097L16 32l3.097-3.097L16 25.806zM3.097 14.317L4.779 16l-1.683 1.683L1.414 16l1.683-1.683m0-1.414L0 16l3.097 3.097L6.194 16l-3.097-3.097zM28.903 14.317L30.586 16l-1.683 1.683L27.221 16l1.682-1.683m0-1.414L25.806 16l3.097 3.097L32 16l-3.097-3.097z" />
-        </G>
-      </Svg>
-      <View style={[styles.badge, { backgroundColor: colors.action }]}>
-        <Text style={[styles.nmt, { color: colors.onBrand }]}>NMT</Text>
-      </View>
-      <Text style={[styles.travel, { color: colors.ink }]}>Travel</Text>
+      <Image
+        source={require("../assets/journey-mascot.png")}
+        style={{ width: 42, height: 42 }}
+        accessible={false}
+      />
+      <Text
+        style={{
+          fontSize: 20,
+          lineHeight: 27,
+          fontWeight: "600",
+          color: colors.ink,
+          flexShrink: 1,
+        }}
+      >
+        Travel Companion
+      </Text>
     </View>
   );
 }

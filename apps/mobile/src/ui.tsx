@@ -89,7 +89,8 @@ export function Action({
   const connection = useTripConnection();
   const [pressed, setPressed] = useState(false);
   const reducedMotion = useReducedMotion();
-  disabled = disabled || (requiresConnection && connection.status !== "online");
+  disabled =
+    disabled || (requiresConnection && deviceNetworkAvailable() === false);
   return (
     <Pressable
       accessibilityRole="button"
@@ -303,7 +304,7 @@ export function Screen({
         >
           <View style={styles.content}>
             <View style={styles.body}>
-              {!auth && connection.status === "offline" && (
+              {!auth && deviceNetworkAvailable() === false && (
                 <View
                   style={{
                     backgroundColor: colors.tint,
@@ -312,9 +313,8 @@ export function Screen({
                   }}
                 >
                   <Notice>
-                    {deviceNetworkAvailable() === false
-                      ? "You’re offline. Saved copies are in Profile."
-                      : "NMT Travel is unreachable. Reconnecting… Saved copies are in Profile."}
+                    You are offline. Saved files are in Profile. Connect to save
+                    changes.
                   </Notice>
                 </View>
               )}

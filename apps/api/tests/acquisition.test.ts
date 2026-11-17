@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { randomUUID } from "node:crypto";
 import { startFixture } from "./support/fixture";
+import { quickItemUpdate } from "../../mobile/src/quick-item-update";
 
 let fixture: Awaited<ReturnType<typeof startFixture>>;
 before(
@@ -103,6 +104,87 @@ function item(categoryId: string, memberId: string) {
     requestId: randomUUID(),
   };
 }
+
+test("simple item updates keep partial orders, receipts and packing separate, and task progress edits only its status", async () => {
+  const owner = await member("simple_updates_owner"),
+    journey = await trip(owner);
+  const group = await category(journey.checklist, owner.token);
+  const created = await fixture.request(
+    `${journey.checklist}/entries`,
+    owner.token,
+    item(group.id, owner.id),
+    "POST",
+  );
+  assert.equal(created.status, 201, fixture.logs());
+  const path = `${journey.checklist}/entries/${created.data.entry.id}`;
+  const update = async (
+    action: "have" | "order",
+    source: "remaining" | "ordered" | "delivered",
+    quantity: number,
+    checked: boolean,
+    requestId = randomUUID(),
+  ) => {
+    const input = quickItemUpdate({
+      requestId,
+      action,
+      source,
+      quantity,
+      checked,
+    });
+    return fixture.request(path + "/acquisition", owner.token, input, "POST");
+  };
+  const ordered = await update("order", "remaining", 2, false);
+  assert.equal(ordered.status, 200, fixture.logs());
+  assert.equal(ordered.data.entry.acquisition.available, 0);
+  assert.equal(ordered.data.entry.acquisition.awaitingReceipt, 2);
+  const id = randomUUID();
+  const received = await update("have", "ordered", 1, true, id);
+  assert.equal(received.status, 200, fixture.logs());
+  assert.equal(received.data.entry.acquisition.available, 1);
+  assert.equal(received.data.entry.acquisition.awaitingReceipt, 1);
+  const replay = await update("have", "ordered", 1, true, id);
+  assert.equal(replay.data.entry.acquisition.available, 1);
+  const held = await update("have", "remaining", 2, true);
+  assert.equal(held.status, 200, fixture.logs());
+  assert.equal(held.data.entry.acquisition.available, 3);
+  const unchecked = await update("have", "ordered", 1, false);
+  assert.equal(unchecked.status, 422, fixture.logs());
+  const packed = await fixture.request(
+    `${journey.path}/families/${journey.familyId}/packing?leg=outbound`,
+    owner.token,
+  );
+  assert.equal(packed.status, 200, fixture.logs());
+  const packingItem = packed.data.items.find(
+    (row: { entryId: string }) => row.entryId === created.data.entry.id,
+  );
+  assert.equal(packingItem.notPacked, 3);
+  assert.deepEqual(packingItem.allocations, []);
+  const task = await fixture.request(
+    `${journey.checklist}/entries`,
+    owner.token,
+    {
+      requestId: randomUUID(),
+      kind: "task",
+      taskStatus: "to_do",
+      categoryId: group.id,
+      title: "Call the hotel",
+      beneficiaries: { kind: "family" },
+      responsibleMemberId: owner.id,
+    },
+    "POST",
+  );
+  assert.equal(task.status, 201, fixture.logs());
+  const done = await fixture.request(
+    `${journey.checklist}/entries/${task.data.entry.id}`,
+    owner.token,
+    { requestId: randomUUID(), taskStatus: "done" },
+    "PATCH",
+  );
+  assert.equal(done.status, 200, fixture.logs());
+  assert.equal(done.data.entry.taskStatus, "done");
+  assert.equal(done.data.entry.title, "Call the hotel");
+  assert.equal(done.data.entry.responsibleMemberId, owner.id);
+});
 
 test("four adapters distinguish physical availability from ordering and unchecked delivery", async () => {
   const owner = await member("acquisition_owner");

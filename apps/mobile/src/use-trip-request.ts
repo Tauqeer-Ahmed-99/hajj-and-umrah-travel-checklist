@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSessionAuth } from "./session-auth";
 import { TripError } from "./trip-api";
 
-export function useTripRequest(timeoutMs = 15_000, requestScope?: string) {
+export function useTripRequest(timeoutMs = 35_000, requestScope?: string) {
   const { getToken } = useSessionAuth();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<TripError | null>(null);
@@ -39,7 +39,7 @@ export function useTripRequest(timeoutMs = 15_000, requestScope?: string) {
             () =>
               reject(
                 new TripError(
-                  "The request took too long. Check your connection, then retry.",
+                  "This request took too long. Your details are still here. Try again.",
                 ),
               ),
             { once: true },
@@ -71,7 +71,7 @@ export function useTripRequest(timeoutMs = 15_000, requestScope?: string) {
             failure instanceof TripError
               ? failure
               : new TripError(
-                  "Could not reach NMT Travel. Check your connection and retry.",
+                  "This request could not reach the server. Try again.",
                 ),
           );
       } finally {

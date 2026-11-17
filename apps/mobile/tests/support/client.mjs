@@ -33,7 +33,7 @@ export async function client(t) {
   const root = fileURLToPath(new URL("../../", import.meta.url));
   const result = await build({
     stdin: {
-      contents: `export * from './src/trip-cache.ts';export * from './src/trip-cache-state.ts';export {Directory,seed} from 'expo-file-system';`,
+      contents: `export * from './src/server-data.ts';export * from './src/trip-cache-state.ts';export {Directory,seed} from 'expo-file-system';`,
       resolveDir: root,
       sourcefile: "mobile-transport-test.ts",
     },
@@ -63,16 +63,27 @@ export async function client(t) {
   const app = await import(pathToFileURL(path).href);
   const controller = new AbortController();
   let invalidated = false;
-  const stop = app.startTripCache({
-    directory: new app.Directory("memory://owned-account"),
-    current: () => controller,
-    completed: () => true,
-    clearAccount: () => {
-      invalidated = true;
-      controller.abort();
-    },
+  const queryClient = app.createServerQueryClient();
+  queryClient.setDefaultOptions({
+    ...queryClient.getDefaultOptions(),
+    queries: { ...queryClient.getDefaultOptions().queries, gcTime: Infinity },
   });
-  t.after(stop);
+  const stop = app.startServerData(
+    {
+      directory: new app.Directory("memory://owned-account"),
+      current: () => controller,
+      completed: () => true,
+      clearAccount: () => {
+        invalidated = true;
+        controller.abort();
+      },
+    },
+    queryClient,
+  );
+  t.after(() => {
+    controller.abort();
+    stop();
+  });
   app.setDeviceNetworkAvailable(true);
   app.setConnection({ status: "online", refreshing: false, message: "" });
   return { app, invalidated: () => invalidated };

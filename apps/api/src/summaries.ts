@@ -219,7 +219,7 @@ export function previewSummary(
     }
     return {
       text: sections.length
-        ? ["NMT Travel summary", ...sections].join("\n\n")
+        ? ["Travel Companion summary", ...sections].join("\n\n")
         : "",
     };
   });

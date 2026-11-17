@@ -117,10 +117,12 @@ export function SaveActions({
   save,
   title,
   onSave,
+  disabled = false,
 }: {
   save: ReturnType<typeof useSave>;
   title: string;
   onSave: () => void;
+  disabled?: boolean;
 }) {
   return (
     <>
@@ -138,6 +140,7 @@ export function SaveActions({
           save.busy ? "Saving…" : save.uncertain ? "Retry same save" : title
         }
         busy={save.busy}
+        disabled={disabled}
         onPress={onSave}
       />
       <Action

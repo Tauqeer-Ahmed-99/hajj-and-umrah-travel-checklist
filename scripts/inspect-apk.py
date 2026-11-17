@@ -49,7 +49,7 @@ def main():
     require(sha1 == ["0288616a602fac032b2a0ff1cd37f0324b66bcf2"], "APK SHA-1 differs from the registered Google Android client.")
     badging = run(str(tools / f"aapt2{executable}"), "dump", "badging", str(args.apk))
     require("package: name='in.nmtsolutions.travel'" in badging, "Wrong Android package.")
-    require("application-label:'NMT Travel'" in badging, "Wrong application label.")
+    require("application-label:'Travel Companion'" in badging, "Wrong application label.")
     require("application-debuggable" not in badging, "Development/debug APK is not a signed release preview.")
     manifest = run(
         str(tools / f"aapt2{executable}"), "dump", "xmltree", str(args.apk),

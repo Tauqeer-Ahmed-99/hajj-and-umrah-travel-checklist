@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-export const metadata = { title: "NMT Travel API" };
+export const metadata = { title: "Travel Companion API" };
 
 export default function Layout({ children }: { children: ReactNode }) {
   return (

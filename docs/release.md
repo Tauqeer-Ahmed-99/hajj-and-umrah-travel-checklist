@@ -15,7 +15,7 @@ reproduction changed from HTTP 503 to 200 at `https://nmt-travel-api.vercel.app`
 Live checks passed profile load/save/retry, read-back from a new session,
 protected Trips, username immutability and rejection of missing authentication.
 The disposable account was removed through the application. These checks use
-the supplied Neon endpoint and the selected NMT Travel Clerk development app.
+the supplied Neon endpoint and the selected Travel Companion Clerk development app.
 They do not establish production Google, DNS, cron/push or physical-device gates.
 
 Native onboarding was rebuilt in `bc88bd8`; its source CI and the subsequent
@@ -394,7 +394,7 @@ The failing preview used a different Clerk development instance, requiring a
 password after email verification and rejecting `google_one_tap`. At the owner's
 direction, the mobile Preview environment and local API now select the existing
 `nmt-travel` Clerk app. Public preflight rejects the failing instance and accepts
-NMT Travel. Real development-email HTTP verification now reaches `complete`;
+Travel Companion. Real development-email HTTP verification now reaches `complete`;
 the Google invalid-token probe reaches token validation instead of rejecting the
 strategy. Actual Google account authentication and real mailbox delivery remain
 separate, unrun acceptance checks.
@@ -452,7 +452,7 @@ It **finished** on November 16 at 15:54:33 UTC. Download the
   without Metro, retained Dark, and omitted appearance controls on auth.
 - Google native UI launched and canceled cleanly. Email-code verification then
   reached the account gate; Clerk independently confirmed a verified email and
-  active native session in the selected NMT Travel instance. The synthetic test
+  active native session in the selected Travel Companion instance. The synthetic test
   identity was deleted after checking it. Actual Google identity login and real
   mailbox delivery remain unverified.
 - The signed app's valid session still receives **503** from the public API.

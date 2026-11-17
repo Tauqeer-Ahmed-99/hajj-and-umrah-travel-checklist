@@ -229,8 +229,8 @@ export function synchronizeNotifications(
           await Notifications.scheduleNotificationAsync({
             identifier,
             content: {
-              title: "NMT Travel",
-              body: "A preparation reminder needs your attention. Open NMT Travel.",
+              title: "Travel Companion",
+              body: "A preparation reminder needs your attention. Open Travel Companion.",
             },
             trigger: {
               type: Notifications.SchedulableTriggerInputTypes.DATE,

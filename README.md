@@ -1,14 +1,16 @@
-<img src="assets/icon.svg" width="64" height="64" alt="">
+<img src="apps/mobile/assets/journey-mascot.png" width="72" height="72" alt="Travel Companion passport icon">
 
-# NMT Travel
+# Travel Companion
 
-An Android family travel helper focused on Hajj and Umrah for its first release.
+A product by [NMT Solutions](https://nmtsolutions.in). Android version 0.2.0, build 8.
+
+<img src="apps/mobile/assets/nmt-solutions-logo.svg" width="32" height="32" alt="NMT Solutions logo">
+
+Travel Companion helps families prepare for Hajj and Umrah. Add travelers, list what each family needs, mark what you have, and choose where to pack it. The app also keeps travel details, guides and reminders for the trip.
 
 Planned application domain: `travel.nmtsolutions.in`. Android application ID: `in.nmtsolutions.travel`.
 
-The first implemented slice is public email-code signup, required member profile
-completion, session restoration, and logout. It uses Expo Android, a Next.js API,
-PostgreSQL through Drizzle ORM, and Clerk. This is an account-flow foundation, not the full launch app.
+The Android app uses Expo and TanStack Query. The API uses Next.js, PostgreSQL through Drizzle ORM, Clerk and private R2 storage. JSON reads stay in the active account's memory cache. Only files saved by the user remain available after an offline restart. See [the data policy](docs/adr/0013-query-memory-and-explicit-file-copies.md).
 
 Use Node 22.13 or newer and npm workspaces:
 

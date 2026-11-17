@@ -7,10 +7,12 @@ import { clerkClient } from "./identity";
 import { HttpError } from "./response";
 
 const messages = {
-  assignments: "An important assignment needs your attention. Open NMT Travel.",
-  deadlines: "A preparation deadline needs your attention. Open NMT Travel.",
+  assignments:
+    "An important assignment needs your attention. Open Travel Companion.",
+  deadlines:
+    "A preparation deadline needs your attention. Open Travel Companion.",
   tripChanges:
-    "Your trip changed. Review your travel details and reminders in NMT Travel.",
+    "Your trip changed. Review your travel details and reminders in Travel Companion.",
 };
 type DispatchRow = NotificationScope & {
   kind: keyof typeof messages;
@@ -152,7 +154,7 @@ export async function dispatchNotifications() {
               "send",
               {
                 to: row.token,
-                title: "NMT Travel",
+                title: "Travel Companion",
                 body: messages[row.kind as keyof typeof messages],
                 channelId: "travel",
                 ttl: 3600,

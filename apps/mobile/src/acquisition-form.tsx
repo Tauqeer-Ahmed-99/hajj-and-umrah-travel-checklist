@@ -10,10 +10,16 @@ import {
   type AcquisitionInput,
   type ChecklistEntry,
 } from "@nmt/contracts";
-import { Copy, Field, Heading, Notice, Screen } from "./ui";
+import { Action, Copy, Field, Heading, Notice, Screen } from "./ui";
 import { ChecklistChoices, ChecklistSection } from "./checklist-ui";
 import { checklistApi } from "./checklist-api";
 import { useSave, SaveActions, type FormProps } from "./checklist-forms";
+import {
+  quickItemSources,
+  quickItemUpdate,
+  type QuickItemAction,
+  type QuickItemSource,
+} from "./quick-item-update";
 
 type AcquisitionEntry = Pick<
   ChecklistEntry,
@@ -54,6 +60,168 @@ export function AcquisitionSummary({ entry }: { entry: AcquisitionEntry }) {
   );
 }
 export function AcquisitionForm(
+  props: FormProps & { entry: AcquisitionEntry; acquire?: Acquire },
+) {
+  const [details, setDetails] = useState(false);
+  return details || props.entry.acquisition?.notNeededReason ? (
+    <DetailedAcquisitionForm {...props} />
+  ) : (
+    <QuickAcquisitionForm {...props} onDetails={() => setDetails(true)} />
+  );
+}
+function QuickAcquisitionForm(
+  props: FormProps & {
+    entry: AcquisitionEntry;
+    acquire?: Acquire;
+    onDetails(): void;
+  },
+) {
+  const { entry } = props,
+    stock = entry.acquisition!;
+  const [requestId] = useState(randomUUID),
+    [action, setAction] = useState<QuickItemAction>("have");
+  const sources = quickItemSources(stock, action);
+  const [source, setSource] = useState<QuickItemSource>(
+    quickItemSources(stock, "have")[0] ?? "remaining",
+  );
+  const [quantity, setQuantity] = useState(String(stock[source] || 1)),
+    [checked, setChecked] = useState(false);
+  const save = useSave<AcquisitionInput>(
+    acquisitionInput,
+    (input, token, signal) =>
+      props.acquire
+        ? props.acquire(input, token, signal)
+        : checklistApi.acquire(props.scope, entry.id, input, token, signal),
+    props,
+  );
+  const selectSource = (next: QuickItemSource) => {
+    setSource(next);
+    setQuantity(String(stock[next]));
+    setChecked(false);
+  };
+  return (
+    <Screen>
+      <PageHeader
+        title="Update item"
+        subtitle={entry.title}
+        action={
+          <OptionsMenu
+            title="Item update options"
+            disabled={save.locked}
+            actions={[
+              {
+                label: "Change an earlier update or delivery date",
+                onPress: props.onDetails,
+              },
+            ]}
+          />
+        }
+      />
+      <Surface>
+        <Copy>
+          You have {stock.available} of {entry.requiredQuantity} {entry.unit}.
+        </Copy>
+        {stock.awaitingReceipt > 0 && (
+          <Copy muted>
+            {stock.awaitingReceipt} {entry.unit} are on the way.
+          </Copy>
+        )}
+      </Surface>
+      <ChecklistChoices
+        label="What changed?"
+        options={[
+          { value: "have", label: "I have it" },
+          { value: "order", label: "I ordered it" },
+        ]}
+        value={action}
+        locked={save.locked}
+        onChange={(next) => {
+          setAction(next);
+          selectSource(quickItemSources(stock, next)[0] ?? "remaining");
+        }}
+      />
+      {sources.length === 0 ? (
+        <Copy>
+          {action === "have"
+            ? "You have marked all the items as ready. Use the menu to change an earlier update."
+            : "There are no remaining items to order. Use the menu to change an earlier update."}
+        </Copy>
+      ) : (
+        <>
+          {sources.length > 1 && (
+            <SelectField
+              label="Which items?"
+              value={source}
+              options={sources.map((value) => ({
+                value,
+                label:
+                  {
+                    remaining: "Still to get",
+                    ordered: "Ordered",
+                    delivered: "Delivered",
+                  }[value] +
+                  ": " +
+                  stock[value] +
+                  " " +
+                  entry.unit,
+              }))}
+              onChange={selectSource}
+              disabled={save.locked}
+            />
+          )}
+          <Field
+            label="How many?"
+            value={quantity}
+            onChangeText={(next) => {
+              setQuantity(next);
+              setChecked(false);
+            }}
+            keyboardType="decimal-pad"
+            editable={!save.locked}
+            error={save.fields.quantity}
+            hint={"Up to " + stock[source] + " " + entry.unit}
+          />
+          {action === "have" && (
+            <ChecklistChoices
+              label="Check before saving"
+              multiple
+              options={[
+                {
+                  value: "checked",
+                  label: "I checked these items and have them with me",
+                },
+              ]}
+              value={checked ? ["checked"] : []}
+              onChange={() => setChecked(!checked)}
+              locked={save.locked}
+            />
+          )}
+          <SaveActions
+            save={save}
+            title={action === "have" ? "Save what I have" : "Save order"}
+            disabled={action === "have" && !checked && !save.uncertain}
+            onSave={() =>
+              void save.submit(
+                quickItemUpdate({
+                  requestId,
+                  action,
+                  source,
+                  quantity: Number(quantity),
+                  checked,
+                }),
+              )
+            }
+          />
+        </>
+      )}
+      {sources.length === 0 && (
+        <Action title="Back to checklist" secondary onPress={save.cancel} />
+      )}
+      <Copy muted>Next, open Bags to choose where these items go.</Copy>
+    </Screen>
+  );
+}
+function DetailedAcquisitionForm(
   props: FormProps & { entry: AcquisitionEntry; acquire?: Acquire },
 ) {
   const { entry } = props;

@@ -51,7 +51,6 @@ const Tab = createBottomTabNavigator<Tabs>();
 type Workspace = {
   profile: MemberProfile;
   onOffline(): void;
-  onCached(): void;
   renderProfile(openTrips: () => void): ReactNode;
   request?: TripOpenRequest;
   open(request: Omit<TripOpenRequest, "nonce">): void;
@@ -347,7 +346,6 @@ function TripsPage({
       request={state.request}
       onAccount={() => navigation.navigate("Profile")}
       onOffline={state.onOffline}
-      onCached={state.onCached}
     />
   );
 }

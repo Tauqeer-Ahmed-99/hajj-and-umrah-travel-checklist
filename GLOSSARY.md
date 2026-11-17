@@ -1,4 +1,4 @@
-# NMT Travel
+# Travel Companion
 
 The language for organizing family participation and preparation for Hajj and Umrah trips.
 
