@@ -4,9 +4,15 @@ The full-size onboarding image was also used as the adaptive launcher foreground
 
 Build 9 uses the separate transparent `apps/mobile/assets/launcher-foreground.png` for the launcher. The onboarding image, `journey-mascot.png`, is unchanged. The light tile background remains `#F6F8FC`.
 
-The new foreground's visible mascot is centered with padding on every side. Pixel inspection at alpha 32 or greater found no pixels outside Android's centered 66/108 safe circle. Android prebuild generated the padded foreground in each launcher density; both adaptive launcher XML resources reference that foreground. Mobile TypeScript and formatting passed. App version remains 0.2.0; Android version code increases to 9. Package ID, EAS project and signing credentials are retained.
+The new foreground's visible mascot is centered with padding on every side. Pixel inspection at alpha 32 or greater found no pixels outside Android's centered 66/108 safe circle, including the generated 432-pixel Android foreground. Android prebuild generated the padded foreground in each launcher density; both adaptive launcher XML resources reference that foreground. Android `:app:processDebugResources`, mobile TypeScript and formatting passed. App version remains 0.2.0; Android version code increases to 9. Package ID, EAS project and signing credentials are retained.
 
 Launcher resources are part of the Android binary. An EAS JavaScript update cannot replace an installed launcher icon; install the new APK over the existing app to receive it.
+
+## Preview build status
+
+The build 9 archive contains the new foreground and the unchanged onboarding image. Cloud preview public configuration and Clerk native/passwordless settings passed preflight. Archive inspection found 525 application files, with no local environment, signing, private-helper or dependency files; the EAS shallow-clone Git metadata is expected.
+
+EAS rejected the build submission after archive upload because account `tauqeerahmed` has exhausted its monthly Free Android build allowance. No build 9 APK was produced or advertised as available. No billing plan, Expo project owner, package ID or signing credentials were changed. The prepared build can be submitted when that account has allowance or an authorized destination workspace is selected. WSL is not installed on this Windows machine, so EAS's documented Linux local-build path is not currently available here.
 
 ## Asset edit
 
