@@ -25,7 +25,9 @@ The requested destination is [Wafa-Khan-05/hajj-and-umrah-travel-checklist](http
 
 The pre-transfer inventory contains repository ID `1456773800`, 22 issues, 14 labels, five branch refs, no pull requests and no release assets. There are no repository Actions secrets, variables, milestones or webhooks to recreate. Wiki is disabled. Issue IDs, numbers, states, comment counts, labels and exact branch heads were recorded privately for comparison after acceptance. GitHub Project boards could not be inventoried because the existing token lacks `read:project`; an enabled repository Projects setting alone does not establish that a board exists.
 
-After acceptance, verify the repository ID, issues and refs against that inventory, update the local Git remote and issue-tracker instructions, publish the latest local integration commits to the transferred repository, and reconnect Vercel. The acceptance step is pending, so those dependent changes are not recorded as completed here.
+The latest local integration work was published to the source repository with a normal fast-forward push from `b071291` to `9ae34d54fa68338646caf0e208a7735f9c8aca86` while acceptance was pending. Those commits therefore accompany the repository transfer. The recorded pre-transfer branch head for this branch predates that intentional push.
+
+After acceptance, verify the repository ID, issues and refs against that inventory and the intentional integration-branch update, update the local Git remote and issue-tracker instructions, and reconnect Vercel. The acceptance step is pending, so those dependent changes are not recorded as completed here.
 
 ## Connected providers and verification
 
@@ -33,6 +35,6 @@ Vercel's hosting ownership changed. The existing paid Neon database, Clerk insta
 
 After transfer, an explicitly disposable Clerk account completed 18 successful authenticated API calls: profile save, trip creation, seven read paths in two rounds, pending guide metadata and private upload authorization. A database lookup confirmed the API writes still reached the configured paid Neon endpoint. File authorization still selected Cloudflare account `0d2ad4278f04cbbfd3123a756c9683c1`, bucket `nmt-travel-private`; no object bytes were uploaded. Unauthenticated `/api/me` returned 401 and the home page returned 200. Authenticated function responses reported `bom1::bom1`. The disposable trip and account were removed through the app's API afterward.
 
-These checks verify continuity of the existing deployed API. A fresh deployment and automatic Git deployment from the destination repository remain pending GitHub acceptance and reconnection.
+The fresh manual deployment [5E9W5hko5Boyu1BxaMQ2tTebiMFP](https://vercel.com/nmt-solutions/nmt-travel-api/5E9W5hko5Boyu1BxaMQ2tTebiMFP) also completed under NMT Solutions, from source `9ae34d54fa68338646caf0e208a7735f9c8aca86`. The public API alias points to this READY deployment. The same 18-call authenticated check passed again against this deployment, including live paid-database correlation and the unchanged Clerk/R2 identities; its disposable trip and account were removed afterward. An accidentally submitted duplicate deployment was cancelled; it did not replace the serving alias. Automatic Git deployment from the destination repository remains pending GitHub acceptance and reconnection.
 
 References: [Vercel project transfer](https://vercel.com/docs/projects/transferring-projects), [cross-account project claims](https://vercel.com/docs/deployments/claim-deployments).
