@@ -8,7 +8,7 @@ npm run build:android:local -w @nmt/mobile
 
 This uses the installed Android SDK, JDK 17, Node, Python 3.11 or newer and Gradle wrapper. It builds a standalone release APK for ARM64 phones and x86_64 emulators, with the existing release certificate and the `preview` update channel. It uses no EAS cloud build allowance. The Windows Hermes compiler was successfully tested on November 18, 2026; WSL installation or a security-policy change is not needed for this build.
 
-The APK is written to `.local/travel-companion-local-v9.apk` for the current version code. Logs and the source commit, native runtime, certificate fingerprint and APK hash are recorded in `.local/android-local-build/`. These generated files are ignored by Git.
+The APK is written to `.local/travel-companion-local-v9.apk` for the current version code. Logs and the source commit, native runtime, certificate fingerprint and APK hash are recorded in `.local/android-local-build/`. Preparation writes `preparation.json`; `build.json` is updated only after a successful build and inspection, so a preparation or failed retry retains the previous successful artifact record. These generated files are ignored by Git.
 
 ## Local inputs
 
@@ -39,5 +39,20 @@ The local command uses a single-use Gradle JVM with a 4 GiB heap limit and runs 
 Before copying the APK to the output path, the command runs `scripts/inspect-apk.py` against the actual artifact. It verifies the signing certificate, package/name, non-debug release mode, embedded Hermes bundle, runtime, channel and public build configuration, and checks for credential files, signing passwords and generic server-secret patterns. Its secret-file argument reads the existing signing JSON; no server configuration is needed. Supplying known server files to the inspector separately adds an exact-value leak scan. Preserve the previous installed APK to verify certificate continuity and an in-place upgrade. Do not distribute a debug build as a substitute for the standalone signed APK.
 
 This command produces an internal preview. The production and physical-device acceptance gates in [the release record](release.md) remain separate.
+
+## Build 9 verification, November 18, 2026
+
+The completed command built and inspected a standalone, non-debug APK locally on Windows from source `fa4ef611c2ead730c5ddd9a84082053aa56f2546`, with no uncommitted source changes. The repeat build passed the previously failing Expo JAR task, and the JAR was unlocked after the single-use JVM exited.
+
+- APK: `.local/travel-companion-local-v9.apk`, 0.2.0, version code 9.
+- SHA256: `8ee7441138eb9c69531e17829ca5365c6e1c145205fc67878589ac1d3c517099`.
+- Native runtime: `d4113c31c19405907b1f0a0af934f0a7f625ade4`; channel: `preview`.
+- Certificate: the original SHA256 above and registered Google SHA1 `0288616a602fac032b2a0ff1cd37f0324b66bcf2`.
+- Native libraries: ARM64 and x86_64. Embedded Hermes bytecode, update metadata, intended public API/Clerk configuration and absence of shared-storage permissions passed inspection.
+- A separate scan checked 17 known server/signing credential values plus generic credential patterns across 77,876,263 uncompressed artifact bytes. No credential or environment files were found.
+- All five packaged launcher foreground densities, 108 through 432 pixels, keep the mascot inside the safe circle. A launcher screenshot also showed both hands and feet without clipping.
+- The isolated emulator accepted an in-place upgrade from signed build 8 without uninstalling; Android's original `firstInstallTime` remained unchanged. The final APK was reinstalled and opened its onboarding and Google/email choice screens with no Metro server or runtime error. No real account was used for this check.
+
+Physical-device, live Google/mailbox and full production acceptance were not rerun for this build. TypeScript, formatting, Python inspector compilation, native resource compilation, release builds and actual artifact/emulator checks were used for this build-tool change; the unrelated API suite was not repeated.
 
 Reference: [Expo's local production build guide](https://docs.expo.dev/guides/local-app-production/).

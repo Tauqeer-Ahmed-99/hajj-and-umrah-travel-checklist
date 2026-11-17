@@ -255,7 +255,10 @@ try {
     sourceDirty,
     prepared: true,
   };
-  writeFileSync(join(state, "build.json"), JSON.stringify(report, null, 2));
+  writeFileSync(
+    join(state, "preparation.json"),
+    JSON.stringify(report, null, 2),
+  );
   if (prepareOnly) {
     console.log(`Local release preparation passed. Runtime: ${runtime}`);
   } else {

@@ -10,9 +10,11 @@ Launcher resources are part of the Android binary. An EAS JavaScript update cann
 
 ## Preview build status
 
+November 18 update: signed local build 9 is now available and has passed packaged-icon, signature, embedded-runtime and emulator upgrade/startup checks. See [the local build record](local-android-build.md) for the APK hash and repeatable command. The cloud-quota rejection below describes the earlier EAS attempt.
+
 The build 9 archive contains the new foreground and the unchanged onboarding image. Cloud preview public configuration and Clerk native/passwordless settings passed preflight. Archive inspection found 525 application files, with no local environment, signing, private-helper or dependency files; the EAS shallow-clone Git metadata is expected.
 
-EAS rejected the build submission after archive upload because account `tauqeerahmed` has exhausted its monthly Free Android build allowance. No build 9 APK was produced or advertised as available. No billing plan, Expo project owner, package ID or signing credentials were changed. The prepared build can be submitted when that account has allowance or an authorized destination workspace is selected. WSL is not installed on this Windows machine, so EAS's documented Linux local-build path is not currently available here.
+EAS rejected the cloud build submission after archive upload because account `tauqeerahmed` had exhausted its monthly Free Android build allowance. That attempt produced no APK. No billing plan, Expo project owner, package ID or signing credentials were changed. The later local build uses Windows Gradle directly, so WSL and EAS cloud allowance are not needed.
 
 ## Asset edit
 
