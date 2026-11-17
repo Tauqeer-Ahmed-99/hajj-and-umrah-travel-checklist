@@ -260,9 +260,13 @@ try {
     console.log(`Local release preparation passed. Runtime: ${runtime}`);
   } else {
     const space = statfsSync(root);
+    const cachedRelease = existsSync(
+      join(app, "android/app/build/outputs/apk/release/app-release.apk"),
+    );
+    const minimumFreeGiB = cachedRelease ? 4 : 8;
     assert.ok(
-      space.bavail * space.bsize > 8 * 1024 ** 3,
-      "At least 8 GiB of free workspace disk space is required for the local native build.",
+      space.bavail * space.bsize > minimumFreeGiB * 1024 ** 3,
+      `At least ${minimumFreeGiB} GiB of free workspace disk space is required for this local native build.`,
     );
     const gradle = [
       "-classpath",
@@ -271,6 +275,10 @@ try {
       ":app:assembleRelease",
       "--console=plain",
       "--max-workers=2",
+      // Windows retains dependency JAR handles in a reused build JVM.
+      "--no-daemon",
+      "-Pkotlin.compiler.execution.strategy=in-process",
+      "-Dorg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m",
       "-PreactNativeArchitectures=arm64-v8a,x86_64",
       `-PtravelCompanionCredentialsFile=${credentialsFile}`,
       "-I",
