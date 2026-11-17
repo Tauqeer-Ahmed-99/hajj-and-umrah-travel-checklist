@@ -6,7 +6,7 @@ From the repository root:
 npm run build:android:local -w @nmt/mobile
 ```
 
-This uses the installed Android SDK, JDK 17, Node and Gradle wrapper. It builds a standalone release APK for ARM64 phones and x86_64 emulators, with the existing release certificate and the `preview` update channel. It uses no EAS cloud build allowance. The Windows Hermes compiler was successfully tested on November 18, 2026; WSL installation or a security-policy change is not needed for this build.
+This uses the installed Android SDK, JDK 17, Node, Python 3.11 or newer and Gradle wrapper. It builds a standalone release APK for ARM64 phones and x86_64 emulators, with the existing release certificate and the `preview` update channel. It uses no EAS cloud build allowance. The Windows Hermes compiler was successfully tested on November 18, 2026; WSL installation or a security-policy change is not needed for this build.
 
 The APK is written to `.local/travel-companion-local-v9.apk` for the current version code. Logs and the source commit, native runtime, certificate fingerprint and APK hash are recorded in `.local/android-local-build/`. These generated files are ignored by Git.
 
@@ -34,7 +34,7 @@ npm run build:android:local -w @nmt/mobile -- --prepare-only
 
 Preparation checks the certificate, compiles a small Hermes bytecode probe, validates the mobile/Firebase and current Clerk settings, runs Android prebuild without deleting the existing native directory, checks the preview channel and resolves the native runtime. The full command then builds `assembleRelease` with two Gradle workers, the repository's Windows CMake path support and explicit release signing. It requires at least 8 GiB of free workspace disk space before the native build. Add `--offline` only after the required Gradle dependencies are cached; provider preflight still requires a connection.
 
-The release artifact should be inspected with `scripts/inspect-apk.py` using its actual runtime and public build configuration. Its secret-file arguments supply known server or signing secrets for an additional leak scan; server files are not mobile build inputs. Preserve the previous installed APK to verify certificate continuity and an in-place upgrade. Do not distribute a debug build as a substitute for the standalone signed APK.
+Before copying the APK to the output path, the command runs `scripts/inspect-apk.py` against the actual artifact. It verifies the signing certificate, package/name, non-debug release mode, embedded Hermes bundle, runtime, channel and public build configuration, and checks for credential files, signing passwords and generic server-secret patterns. Its secret-file argument reads the existing signing JSON; no server configuration is needed. Supplying known server files to the inspector separately adds an exact-value leak scan. Preserve the previous installed APK to verify certificate continuity and an in-place upgrade. Do not distribute a debug build as a substitute for the standalone signed APK.
 
 This command produces an internal preview. The production and physical-device acceptance gates in [the release record](release.md) remain separate.
 

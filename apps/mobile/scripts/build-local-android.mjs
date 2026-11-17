@@ -8,6 +8,7 @@ import {
   writeFileSync,
   copyFileSync,
   statfsSync,
+  readdirSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -28,7 +29,14 @@ assert.ok(
   existsSync(credentialsFile),
   "Download the existing Android credentials with eas credentials; see docs/local-android-build.md.",
 );
-const key = JSON.parse(readFileSync(credentialsFile, "utf8")).android?.keystore;
+function readCredentials() {
+  try {
+    return JSON.parse(readFileSync(credentialsFile, "utf8")).android?.keystore;
+  } catch {
+    throw new Error("Could not read valid Android credentials.json.");
+  }
+}
+const key = readCredentials();
 assert.ok(
   key?.keystorePath && key.keystorePassword && key.keyAlias && key.keyPassword,
   "Incomplete Android credentials.json.",
@@ -277,6 +285,32 @@ try {
       "android/app/build/outputs/apk/release/app-release.apk",
     );
     assert.ok(existsSync(apk), "Release APK was not produced.");
+    const toolsVersion = readdirSync(join(sdk, "build-tools"))
+      .filter((name) => /^\d+\.\d+\.\d+$/.test(name))
+      .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))[0];
+    assert.ok(toolsVersion, "Install an Android SDK build-tools release.");
+    await run(
+      "Inspect signed release artifact",
+      process.platform === "win32" ? "python" : "python3",
+      [
+        join(root, "scripts/inspect-apk.py"),
+        apk,
+        "--build-tools",
+        join(sdk, "build-tools", toolsVersion),
+        "--channel",
+        "preview",
+        "--runtime",
+        runtime,
+        "--api",
+        env.EXPO_PUBLIC_API_URL,
+        "--clerk-key",
+        env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY,
+        "--secret-file",
+        credentialsFile,
+        "--output",
+        join(state, "artifact-inspection.json"),
+      ],
+    );
     const destination = join(
       root,
       ".local",

@@ -33,7 +33,7 @@ def main():
     parser.add_argument("--secret-file", action="append", default=[], type=Path)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
-    require(args.secret_file, "Supply the actual server secret files to scan against.")
+    require(args.secret_file, "Supply actual server or signing secret files to scan against.")
     require(args.api.startswith("https://"), "Distributed preview must use an HTTPS API.")
     tools = args.build_tools
     executable = ".exe" if sys.platform == "win32" else ""
@@ -92,7 +92,7 @@ def main():
                     password = urlparse(value).password
                     if password:
                         secrets.append(unquote(password))
-    require(secrets, "No populated server secret values were supplied.")
+    require(secrets, "No populated server or signing secret values were supplied.")
     patterns = [rb"sk_(?:test|live)_[A-Za-z0-9]{15,}", rb"GOCSPX-[A-Za-z0-9_-]{15,}", rb"postgres(?:ql)?://[^\s\x00]+:[^\s\x00]+@", rb"-----BEGIN (?:RSA |EC )?PRIVATE KEY-----"]
     expected_public = {"api": args.api.encode(), "clerk": args.clerk_key.encode()}
     found_public = set()
