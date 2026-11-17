@@ -48,6 +48,7 @@ import { AcquisitionForm, AcquisitionSummary } from "./acquisition-form";
 import { VisibilityForm } from "./sharing-forms";
 import type { ChecklistView } from "./trip-navigation";
 import { onServerAccessRevoked } from "./server-data";
+import { ChecklistBulkRemoval } from "./checklist-bulk-removal";
 
 export function ChecklistDestination({
   families,
@@ -89,6 +90,7 @@ type Data = {
   views: AcquisitionViews;
 };
 type Editor =
+  | { mode: "bulkRemoval"; initialGroup?: "item" | "task" | "category" }
   | { mode: "visibility"; entry: ChecklistEntry }
   | { mode: "category"; initial: ChecklistCategory | null }
   | { mode: "entry"; initial: ChecklistEntry | null; kind: "item" | "task" }
@@ -442,6 +444,43 @@ export function ChecklistScreen({
   };
   if (data && editor && editor.mode !== "history") {
     const props = { scope, onSaved, onCancel };
+    if (editor.mode === "bulkRemoval")
+      return (
+        <ChecklistBulkRemoval
+          {...props}
+          checklist={data.checklist}
+          initialGroup={editor.initialGroup}
+          onRemoved={(selection) => {
+            const kept = (entry: ChecklistEntry) =>
+              !selection.entryIds.includes(entry.id);
+            setData((current) =>
+              current
+                ? {
+                    ...current,
+                    checklist: {
+                      ...current.checklist,
+                      entries: current.checklist.entries.filter(kept),
+                      categories: current.checklist.categories.filter(
+                        (category) =>
+                          !selection.categoryIds.includes(category.id),
+                      ),
+                    },
+                    views: {
+                      ...current.views,
+                      shopping: current.views.shopping.filter(kept),
+                      expectedDelivery:
+                        current.views.expectedDelivery.filter(kept),
+                      overdueReceipt: current.views.overdueReceipt.filter(kept),
+                      essentialOutstanding:
+                        current.views.essentialOutstanding.filter(kept),
+                    },
+                  }
+                : current,
+            );
+            void refresh();
+          }}
+        />
+      );
     if (editor.mode === "visibility")
       return (
         <VisibilityForm
@@ -609,6 +648,15 @@ export function ChecklistScreen({
                         label: "Manage sections",
                         onPress: () => setManage(true),
                       },
+                      {
+                        label: "Select and delete",
+                        destructive: true,
+                        onPress: () =>
+                          edit({
+                            mode: "bulkRemoval",
+                            initialGroup: effectiveKind,
+                          }),
+                      },
                     ]
                   : []),
                 {
@@ -773,6 +821,14 @@ export function ChecklistScreen({
             open={manage}
             onClose={() => setManage(false)}
           >
+            <Action
+              title="Select and delete sections"
+              secondary
+              onPress={() => {
+                setManage(false);
+                edit({ mode: "bulkRemoval", initialGroup: "category" });
+              }}
+            />
             <Action
               title="Add section"
               onPress={() => {

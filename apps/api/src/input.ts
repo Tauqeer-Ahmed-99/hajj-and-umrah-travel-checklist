@@ -7,6 +7,7 @@ export async function profileJson(request: Request): Promise<unknown> {
 export async function readJson(
   request: Request,
   subject: string,
+  maxBytes = 8192,
 ): Promise<unknown> {
   if (
     request.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !==
@@ -32,7 +33,7 @@ export async function readJson(
       const { done, value } = await reader.read();
       if (done) break;
       size += value.byteLength;
-      if (size > 8192) {
+      if (size > maxBytes) {
         await reader.cancel();
         throw new HttpError(
           413,

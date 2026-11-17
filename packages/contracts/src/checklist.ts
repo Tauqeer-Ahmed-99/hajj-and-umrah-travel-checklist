@@ -147,6 +147,34 @@ export const checklistCategoryResponse = z.object({
   category: checklistCategory,
 });
 export const checklistSavedResponse = z.object({ saved: z.literal(true) });
+export const MAX_BULK_CHECKLIST_RECORDS = 500;
+const selectedIds = z
+  .array(z.uuid())
+  .max(MAX_BULK_CHECKLIST_RECORDS)
+  .refine(
+    (ids) => new Set(ids).size === ids.length,
+    "Choose each record once.",
+  );
+export const checklistBulkRemovalInput = z
+  .strictObject({
+    requestId: z.uuid(),
+    entryIds: selectedIds,
+    categoryIds: selectedIds,
+    reason: note.optional(),
+  })
+  .refine(
+    (value) => value.entryIds.length + value.categoryIds.length > 0,
+    "Choose at least one entry or section.",
+  )
+  .refine(
+    (value) =>
+      value.entryIds.length + value.categoryIds.length <=
+      MAX_BULK_CHECKLIST_RECORDS,
+    `Choose up to ${MAX_BULK_CHECKLIST_RECORDS} entries and sections at once.`,
+  );
+export type ChecklistBulkRemovalInput = z.infer<
+  typeof checklistBulkRemovalInput
+>;
 export const checklistCategoryPatch = z.strictObject({ name: title });
 export const checklistStarterInput = z.strictObject({
   kind: z.enum(["hajj", "umrah"]),

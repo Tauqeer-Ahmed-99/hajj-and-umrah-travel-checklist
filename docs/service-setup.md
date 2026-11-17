@@ -1,5 +1,7 @@
 # Current service setup
 
+The [November 17 live account audit](service-account-audit.md) supersedes the historical resource and deployment notes below. The active database is the user's paid endpoint, and local R2 configuration differs from the deployed bucket.
+
 These resources were created on November 14, 2026. Their existence does not
 establish production or native acceptance. Use Vercel account
 `tauqeer-ahmed-99`, team `tauqeerahmed99s-projects`; the default CLI account is

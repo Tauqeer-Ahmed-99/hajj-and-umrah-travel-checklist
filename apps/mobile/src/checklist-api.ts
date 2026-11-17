@@ -13,6 +13,7 @@ import {
   type ChecklistEntryPatch,
   type ChecklistStarterInput,
   type AcquisitionInput,
+  type ChecklistBulkRemovalInput,
 } from "@nmt/contracts";
 import { apiOrigin } from "./api";
 import { travelFetch } from "./server-data";
@@ -66,6 +67,21 @@ async function request<T>(
   }
 }
 export const checklistApi = {
+  removeSelection: (
+    scope: ChecklistScope,
+    body: ChecklistBulkRemovalInput,
+    token: string,
+    signal: AbortSignal,
+  ) =>
+    request(
+      scope,
+      "/bulk-removal",
+      token,
+      signal,
+      checklistSavedResponse,
+      "POST",
+      body,
+    ),
   acquisitionViews: (
     scope: ChecklistScope,
     token: string,

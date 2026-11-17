@@ -14,8 +14,11 @@ export type ChecklistContext = {
 export async function checklistInput<T>(
   request: Request,
   schema: z.ZodType<T>,
+  maxBytes = 8192,
 ): Promise<T> {
-  const parsed = schema.safeParse(await readJson(request, "checklist"));
+  const parsed = schema.safeParse(
+    await readJson(request, "checklist", maxBytes),
+  );
   if (!parsed.success)
     throw new HttpError(
       422,
