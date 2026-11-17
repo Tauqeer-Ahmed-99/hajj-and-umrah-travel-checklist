@@ -208,7 +208,7 @@ verification. Merely enabling browser Google OAuth does not enable the native
 strategy. Clerk requires Google custom Web credentials for the native hook:
 [native Google setup](https://clerk.com/docs/expo/guides/configure/auth-strategies/sign-in-with-google).
 
-The selected Travel Companion development instance now passes the mobile provider
+The selected development instance now passes the mobile provider
 preflight: native API, passwordless email, and `google_one_tap`. An invalid-token
 probe progresses to `google_one_tap_token_invalid` rather than rejecting the
 strategy. This proves configuration acceptance, not successful Google identity
