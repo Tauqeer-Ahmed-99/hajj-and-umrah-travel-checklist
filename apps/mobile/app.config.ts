@@ -1,7 +1,13 @@
 import type { ExpoConfig } from "expo/config";
 import project from "./eas-project.json";
+import eas from "./eas.json";
 
 const projectId: string | null = project.projectId;
+const profile: string | undefined = process.env.EAS_BUILD_PROFILE;
+const channel =
+  profile === "preview" || profile === "development"
+    ? eas.build[profile].channel
+    : undefined;
 // EAS cannot produce a distributed binary until a real update project is linked.
 if (process.env.EAS_BUILD === "true" && !projectId) {
   throw new Error(
@@ -52,6 +58,7 @@ const config: ExpoConfig = {
   updates: {
     enabled: Boolean(projectId),
     ...(projectId ? { url: `https://u.expo.dev/${projectId}` } : {}),
+    ...(channel ? { requestHeaders: { "expo-channel-name": channel } } : {}),
     checkAutomatically: "ON_LOAD",
     fallbackToCacheTimeout: 0,
   },

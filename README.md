@@ -12,6 +12,8 @@ Travel Companion helps families prepare for Hajj and Umrah. Add travelers, list 
 
 Planned application domain: `travel.nmtsolutions.in`. Android application ID: `in.nmtsolutions.travel`.
 
+Build the signed Android preview locally with `npm run build:android:local -w @nmt/mobile`. See [local build setup](docs/local-android-build.md) for credentials, prerequisites and verification.
+
 The Android app uses Expo and TanStack Query. The API uses Next.js, PostgreSQL through Drizzle ORM, Clerk and private R2 storage. JSON reads stay in the active account's memory cache. Only files saved by the user remain available after an offline restart. See [the data policy](docs/adr/0013-query-memory-and-explicit-file-copies.md).
 
 Use Node 22.13 or newer and npm workspaces:

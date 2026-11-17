@@ -1,0 +1,26 @@
+import groovy.json.JsonSlurper
+
+// Used only by the local release command. Secrets stay in the ignored credentials
+// file, rather than Gradle properties, command arguments or generated source.
+gradle.beforeProject { project ->
+    project.plugins.withId('com.android.application') {
+        project.androidComponents.finalizeDsl { android ->
+            def supplied = project.findProperty('travelCompanionCredentialsFile')
+            if (!supplied) throw new GradleException('Pass the local signing credentials file.')
+            def credentialsFile = new File(supplied.toString()).canonicalFile
+            def credentials = new JsonSlurper().parse(credentialsFile).android.keystore
+            if (!credentials) throw new GradleException('Missing Android keystore credentials.')
+            def keystoreFile = new File(credentials.keystorePath.toString())
+            if (!keystoreFile.isAbsolute()) {
+                keystoreFile = new File(credentialsFile.parentFile, credentials.keystorePath.toString())
+            }
+            if (!keystoreFile.isFile()) throw new GradleException('Android keystore file not found.')
+            def signing = android.signingConfigs.maybeCreate('localPreview')
+            signing.storeFile = keystoreFile.canonicalFile
+            signing.storePassword = credentials.keystorePassword
+            signing.keyAlias = credentials.keyAlias
+            signing.keyPassword = credentials.keyPassword
+            android.buildTypes.getByName('release').signingConfig = signing
+        }
+    }
+}

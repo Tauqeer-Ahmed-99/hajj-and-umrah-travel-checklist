@@ -76,7 +76,8 @@ def main():
         content = file.read_text(encoding="utf-8-sig")
         if file.suffix == ".json":
             data = json.loads(content)
-            for value in [data.get("private_key"), data.get("client_secret"), data.get("web", {}).get("client_secret")]:
+            keystore = data.get("android", {}).get("keystore", {})
+            for value in [data.get("private_key"), data.get("client_secret"), data.get("web", {}).get("client_secret"), keystore.get("keystorePassword"), keystore.get("keyPassword")]:
                 if value:
                     secrets.extend([value, value.replace("\n", "\\n")])
             continue
@@ -114,7 +115,7 @@ def main():
             require(entry.file_size < 256 * 1024 * 1024, "Unexpectedly large APK entry; inspect manually.")
             if entry.is_dir():
                 continue
-            require(not re.search(r"(?:^|/)\.env(?:\.|$)|\.(?:jks|keystore|p12)$", entry.filename), "Credential file embedded in APK.")
+            require(not re.search(r"(?:^|/)(?:\.env(?:\.|$)|credentials\.json$)|\.(?:jks|keystore|p12)$", entry.filename), "Credential file embedded in APK.")
             data = archive.read(entry)
             scanned_bytes += len(data)
             for secret in secrets:

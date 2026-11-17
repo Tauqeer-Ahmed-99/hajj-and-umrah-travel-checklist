@@ -9,6 +9,7 @@
     "check:auth-provider": "node scripts/check-auth-provider.mjs",
     "start": "expo start --dev-client",
     "android": "expo run:android",
+    "build:android:local": "node scripts/build-local-android.mjs",
     "typecheck": "tsc --noEmit",
     "export:android": "expo export --platform android"
   },

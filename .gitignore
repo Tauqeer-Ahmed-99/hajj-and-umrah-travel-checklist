@@ -14,6 +14,7 @@ apps/mobile/ios/
 *.aab
 *.jks
 *.keystore
+apps/mobile/credentials.json
 .test-data/
 .local/
 
