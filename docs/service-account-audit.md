@@ -1,5 +1,7 @@
 # Service account audit, November 17, 2026
 
+Ownership update: the Vercel project has since moved to account `wafakhan`, email `wafa.khan@nmtsolutions.in`, team `nmt-solutions`. Use the [ownership transfer record](ownership-transfer.md) for current deployment instructions and GitHub transfer status. The provider identities and pre-transfer findings below remain the audit evidence.
+
 The active database is already on the correct paid plan, as confirmed by the user. Keep it. The older Free Neon resource in the Vercel Marketplace is a separate resource, not evidence that this API uses a free database.
 
 ## Active services

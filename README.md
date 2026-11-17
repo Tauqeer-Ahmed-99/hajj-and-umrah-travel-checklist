@@ -4,6 +4,8 @@
 
 A product by [NMT Solutions](https://nmtsolutions.in). Android version 0.2.0, build 8.
 
+See [NMT Solutions ownership and deployment](docs/ownership-transfer.md) for the current hosting account and repository transfer status.
+
 <img src="apps/mobile/assets/nmt-solutions-logo.svg" width="32" height="32" alt="NMT Solutions logo">
 
 Travel Companion helps families prepare for Hajj and Umrah. Add travelers, list what each family needs, mark what you have, and choose where to pack it. The app also keeps travel details, guides and reminders for the trip.

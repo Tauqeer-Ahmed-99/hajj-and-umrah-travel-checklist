@@ -17,3 +17,7 @@ Use the five default triage labels. Before triaging, read `docs/agents/triage-la
 ### Domain docs
 
 This is a single-context project with a root `GLOSSARY.md` and `docs/adr/`. Before exploring the codebase, read `docs/agents/domain.md`.
+
+### Hosting ownership
+
+Before deploying or changing service-account configuration, read `docs/ownership-transfer.md` for the current account and transfer status.

@@ -1,5 +1,7 @@
 # Current service setup
 
+Use the [NMT Solutions ownership record](ownership-transfer.md) for the current Vercel account and repository transfer status. The old account restrictions below are historical.
+
 The [November 17 live account audit](service-account-audit.md) supersedes the historical resource and deployment notes below. The active database is the user's paid endpoint, and local R2 configuration differs from the deployed bucket.
 
 These resources were created on November 14, 2026. Their existence does not

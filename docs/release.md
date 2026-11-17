@@ -1,5 +1,7 @@
 # Release acceptance (#22)
 
+For current deployment accounts and repository ownership, use [the NMT Solutions ownership record](ownership-transfer.md). It supersedes historical account restrictions in this runbook; release acceptance gates still apply.
+
 The first full public release is **blocked**. Do not publish a GitHub release,
 production APK or production OTA until every launch gate below and the parent's
 fresh Standards + Spec review/fixes pass. An internal signed preview is not the

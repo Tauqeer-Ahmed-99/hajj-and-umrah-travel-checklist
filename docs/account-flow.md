@@ -1,5 +1,7 @@
 # Account flow (#2)
 
+For current deployment accounts and repository ownership, use [the NMT Solutions ownership record](ownership-transfer.md). It supersedes historical account restrictions in this runbook.
+
 The November 2026 mobile refresh uses bundled Geist fonts and NMT Solutions'
 indigo brand, with scalable controls and reduced-motion-aware press feedback.
 Appearance is changed from the signed-in Account screen using System, Light, or
