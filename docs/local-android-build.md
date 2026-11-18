@@ -8,7 +8,7 @@ npm run build:android:local -w @nmt/mobile
 
 This uses the installed Android SDK, JDK 17, Node, Python 3.11 or newer and Gradle wrapper. It builds a standalone release APK for ARM64 phones and x86_64 emulators, with the existing release certificate and the `preview` update channel. It uses no EAS cloud build allowance. The Windows Hermes compiler was successfully tested on November 18, 2026; WSL installation or a security-policy change is not needed for this build.
 
-The APK is written to `.local/travel-companion-local-v9.apk` for the current version code. Logs and the source commit, native runtime, certificate fingerprint and APK hash are recorded in `.local/android-local-build/`. Preparation writes `preparation.json`; `build.json` is updated only after a successful build and inspection, so a preparation or failed retry retains the previous successful artifact record. These generated files are ignored by Git.
+The APK is written to `.local/travel-companion-local-v<versionCode>.apk`, using the version code in `apps/mobile/app.config.ts`. The verified build 9 artifact below remains available; the next version code is now 10. Logs and the source commit, native runtime, certificate fingerprint and APK hash are recorded in `.local/android-local-build/`. Preparation writes `preparation.json`; `build.json` is updated only after a successful build and inspection, so a preparation or failed retry retains the previous successful artifact record. These generated files are ignored by Git.
 
 ## Local inputs
 

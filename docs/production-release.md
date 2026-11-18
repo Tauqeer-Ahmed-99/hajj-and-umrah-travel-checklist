@@ -50,5 +50,6 @@ Download the actual resulting APK before advertising it. Inspect its release cer
 
 - All **41 mobile tests** passed, including production rejection of development keys and missing native configuration, wrong-package Firebase rejection, and preview compatibility.
 - Mobile TypeScript passed.
+- EAS CLI resolved the production profile as APK, version code 10, with the production environment/channel. Its local source archive from `1293713c0407f1f63a287db798e746772c4a96b4` contained 530 application files, 4,583,017 bytes. Archive inspection found no environment, signing, local-helper or binary files, and no matches for seven known server/signing secret values. EAS's shallow Git metadata was excluded from this application-file count. No cloud build job was created.
 - The four production-input tests use synthetic public configuration; they do not establish live production login.
 - Live Clerk production settings, a production APK, production device journeys and public release remain pending. No backend code changed; the unrelated API/PostgreSQL suite was not repeated.
