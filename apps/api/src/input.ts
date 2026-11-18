@@ -8,9 +8,7 @@ export async function editJson<T>(
   request: Request,
   subject: string,
   schema: {
-    safeParse(
-      value: unknown,
-    ):
+    safeParse(value: unknown):
       | { success: true; data: T }
       | {
           success: false;
