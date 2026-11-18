@@ -25,7 +25,7 @@ export function GET(request: Request, context: ChecklistContext) {
           "invalid_request",
           "Choose the save to check.",
         );
-      return readChecklistSave(member, tripId, familyId, query.data.requestId);
+      return readChecklistSave(member, tripId, familyId, query.data);
     },
   );
 }

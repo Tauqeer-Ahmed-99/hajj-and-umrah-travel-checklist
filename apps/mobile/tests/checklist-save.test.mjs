@@ -38,7 +38,7 @@ async function fixture(t, outcome) {
     checks = 0;
   let finish;
   const server = createServer(async (req, res) => {
-    if (req.method === "POST") {
+    if (req.method !== "GET") {
       posts++;
       for await (const _ of req) {
       }
@@ -114,6 +114,39 @@ test("a rejected save does not run an uncertainty check", async (t) => {
     (e) => e.status === 422,
   );
   assert.deepEqual(f.counts(), { posts: 1, checks: 0 });
+});
+
+test("updating item details recovers its committed reply without repeating the PATCH", async (t) => {
+  const f = await fixture(t, "saved");
+  const result = await f.app.checklistApi.edit(
+    scope,
+    entry.id,
+    { requestId, title: "Updated passport check" },
+    "token",
+    new AbortController().signal,
+  );
+  assert.equal(result.entry.id, entry.id);
+  assert.deepEqual(f.counts(), { posts: 1, checks: 1 });
+});
+
+test("updating quantities recovers its committed reply without moving stock twice", async (t) => {
+  const f = await fixture(t, "saved");
+  const result = await f.app.checklistApi.acquire(
+    scope,
+    entry.id,
+    {
+      requestId,
+      kind: "move",
+      from: "remaining",
+      to: "alreadyAvailable",
+      quantity: 1,
+      physicalConfirmed: true,
+    },
+    "token",
+    new AbortController().signal,
+  );
+  assert.equal(result.entry.id, entry.id);
+  assert.deepEqual(f.counts(), { posts: 1, checks: 1 });
 });
 
 test("a lost reply after an account switch cannot check the previous account's save in the new cache", async (t) => {

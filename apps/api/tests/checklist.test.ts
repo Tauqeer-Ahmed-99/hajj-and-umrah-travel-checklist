@@ -156,6 +156,49 @@ test("a lost item-save reply can be checked by its member and family without rep
     "POST",
   );
   assert.equal(editorSaved.status, 201);
+  for (const operation of ["edit", "acquisition"] as const) {
+    const requestId = randomUUID();
+    const query = new URLSearchParams({
+      requestId,
+      operation,
+      entryId: saved.data.entry.id,
+    });
+    const check = `${journey.checklist}/entries?${query}`;
+    assert.equal((await fixture.request(check, owner.token)).data.entry, null);
+    const updated = await fixture.request(
+      `${journey.checklist}/entries/${saved.data.entry.id}${operation === "acquisition" ? "/acquisition" : ""}`,
+      owner.token,
+      operation === "edit"
+        ? { requestId, notes: "Confirmed item update" }
+        : {
+            requestId,
+            kind: "move",
+            from: "remaining",
+            to: "alreadyAvailable",
+            quantity: 1,
+            physicalConfirmed: true,
+          },
+      operation === "edit" ? "PATCH" : "POST",
+    );
+    assert.equal(updated.status, 200, fixture.logs());
+    const recovered = await fixture.request(check, owner.token);
+    assert.equal(recovered.status, 200);
+    assert.equal(recovered.data.entry.id, saved.data.entry.id);
+    assert.equal((await fixture.request(check, editor.token)).data.entry, null);
+    assert.equal(
+      (
+        await fixture.request(
+          `${check.replace(saved.data.entry.id, editorSaved.data.entry.id)}`,
+          owner.token,
+        )
+      ).data.entry,
+      null,
+    );
+    assert.equal(
+      recovered.data.entry.acquisition.available,
+      operation === "acquisition" ? 1 : 0,
+    );
+  }
   const editorLookup = `${journey.checklist}/entries?requestId=${editorInput.requestId}`;
   assert.equal(
     (await fixture.request(editorLookup, editor.token)).data.entry.id,

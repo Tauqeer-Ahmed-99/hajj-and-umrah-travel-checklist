@@ -67,6 +67,58 @@ async function request<T>(
     );
   }
 }
+async function saveEntry(
+  scope: ChecklistScope,
+  path: string,
+  token: string,
+  signal: AbortSignal,
+  method: "POST" | "PATCH",
+  body: { requestId?: string },
+  operation: "create" | "edit" | "acquisition",
+  entryId?: string,
+) {
+  try {
+    return await request(
+      scope,
+      path,
+      token,
+      signal,
+      checklistEntryResponse,
+      method,
+      body,
+    );
+  } catch (error) {
+    if (
+      signal.aborted ||
+      !body.requestId ||
+      (error instanceof TripError && error.code === "request_cancelled") ||
+      (error instanceof TripError && error.status > 0 && error.status < 500)
+    )
+      throw error;
+    // Only read the result of this exact save. Never automatically POST again,
+    // match by title, or trust a stale cached "not saved" result.
+    try {
+      const saved = await request(
+        scope,
+        `/entries?${new URLSearchParams({ requestId: body.requestId, operation, ...(entryId ? { entryId } : {}) })}`,
+        token,
+        signal,
+        checklistSaveResponse,
+      );
+      if (saved.entry) {
+        acceptedTravelChange();
+        return { entry: saved.entry };
+      }
+    } catch (checkError) {
+      if (
+        checkError instanceof TripError &&
+        [401, 403, 404].includes(checkError.status)
+      )
+        throw checkError;
+    }
+    throw error;
+  }
+}
 export const checklistApi = {
   removeSelection: (
     scope: ChecklistScope,
@@ -95,14 +147,15 @@ export const checklistApi = {
     token: string,
     signal: AbortSignal,
   ) =>
-    request(
+    saveEntry(
       scope,
       `/entries/${id}/acquisition`,
       token,
       signal,
-      checklistEntryResponse,
       "POST",
       body,
+      "acquisition",
+      id,
     ),
   read: (scope: ChecklistScope, token: string, signal: AbortSignal) =>
     request(scope, "", token, signal, checklistResponse),
@@ -124,54 +177,12 @@ export const checklistApi = {
       id ? "PATCH" : "POST",
       body,
     ),
-  create: async (
+  create: (
     scope: ChecklistScope,
     body: ChecklistEntryInput,
     token: string,
     signal: AbortSignal,
-  ) => {
-    try {
-      return await request(
-        scope,
-        "/entries",
-        token,
-        signal,
-        checklistEntryResponse,
-        "POST",
-        body,
-      );
-    } catch (error) {
-      if (
-        signal.aborted ||
-        !body.requestId ||
-        (error instanceof TripError && error.code === "request_cancelled") ||
-        (error instanceof TripError && error.status > 0 && error.status < 500)
-      )
-        throw error;
-      // Only read the result of this exact save. Never automatically POST again,
-      // match by title, or trust a stale cached "not saved" result.
-      try {
-        const saved = await request(
-          scope,
-          `/entries?requestId=${body.requestId}`,
-          token,
-          signal,
-          checklistSaveResponse,
-        );
-        if (saved.entry) {
-          acceptedTravelChange();
-          return { entry: saved.entry };
-        }
-      } catch (checkError) {
-        if (
-          checkError instanceof TripError &&
-          [401, 403, 404].includes(checkError.status)
-        )
-          throw checkError;
-      }
-      throw error;
-    }
-  },
+  ) => saveEntry(scope, "/entries", token, signal, "POST", body, "create"),
   edit: (
     scope: ChecklistScope,
     id: string,
@@ -179,14 +190,15 @@ export const checklistApi = {
     token: string,
     signal: AbortSignal,
   ) =>
-    request(
+    saveEntry(
       scope,
       `/entries/${id}`,
       token,
       signal,
-      checklistEntryResponse,
       "PATCH",
       body,
+      "edit",
+      id,
     ),
   remove: (
     scope: ChecklistScope,

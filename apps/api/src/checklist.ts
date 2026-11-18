@@ -13,6 +13,7 @@ import {
   type ChecklistHistory,
   type ChecklistStarterInput,
   type AcquisitionInput,
+  type ChecklistSaveQuery,
 } from "@nmt/contracts";
 import {
   acquisitionColumns,
@@ -308,16 +309,21 @@ export function readChecklistSave(
   memberId: string,
   tripId: string,
   familyId: string,
-  requestId: string,
+  query: ChecklistSaveQuery,
 ) {
   return transaction(async (db) => {
     await requireFamilyAccess(db, memberId, tripId, familyId);
+    const scope =
+      query.operation === "create"
+        ? `checklist-entry:${tripId}:${familyId}`
+        : `${query.operation === "edit" ? "checklist-edit" : "acquisition"}:${tripId}:${familyId}:${query.entryId}`;
     const result = await db.execute<ChecklistEntry>(sql`
-      SELECT ${sql.raw(entryColumns)} FROM checklist_entries
+      WITH saved AS (SELECT resource_id FROM creation_requests
+        WHERE member_id = ${sql.param(memberId)} AND request_id = ${sql.param(query.requestId)}
+          AND scope = ${sql.param(scope)})
+      SELECT ${sql.raw(entryColumns)} FROM checklist_entries, saved
       WHERE family_id = ${sql.param(familyId)} AND removed_at IS NULL
-        AND id = (SELECT resource_id FROM creation_requests
-          WHERE member_id = ${sql.param(memberId)} AND request_id = ${sql.param(requestId)}
-            AND scope = ${sql.param(`checklist-entry:${tripId}:${familyId}`)})`);
+        AND id = ${query.operation === "create" ? sql`saved.resource_id` : sql.param(query.entryId)}`);
     return { entry: result.rows[0] ?? null };
   });
 }

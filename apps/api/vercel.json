@@ -1,4 +1,4 @@
 {
-  "regions": ["bom1"],
+  "regions": ["sin1"],
   "crons": [{ "path": "/api/notifications/dispatch", "schedule": "0 0 * * *" }]
 }

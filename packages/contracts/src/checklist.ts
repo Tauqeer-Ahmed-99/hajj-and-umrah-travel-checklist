@@ -126,7 +126,17 @@ export const checklistEntry = checklistEntryFields.extend({
   kind: z.enum(["item", "task"]),
 });
 export const checklistEntryResponse = z.object({ entry: checklistEntry });
-export const checklistSaveQuery = z.strictObject({ requestId: z.uuid() });
+export const checklistSaveQuery = z
+  .strictObject({
+    requestId: z.uuid(),
+    operation: z.enum(["create", "edit", "acquisition"]).default("create"),
+    entryId: z.uuid().optional(),
+  })
+  .refine(
+    (value) => value.operation === "create" || !!value.entryId,
+    "Choose the item whose update should be checked.",
+  );
+export type ChecklistSaveQuery = z.infer<typeof checklistSaveQuery>;
 export const checklistSaveResponse = z.object({
   entry: checklistEntry.nullable(),
 });
