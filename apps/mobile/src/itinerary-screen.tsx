@@ -7,9 +7,10 @@ import {
   Surface,
 } from "./design-system";
 import { OptionsMenu, RecordRow } from "./simple-ui";
+import { TripLink } from "./trip-link";
 import { useForegroundRefresh } from "./use-foreground-refresh";
 import { useServerView } from "./use-server-view";
-import { pickerDate } from "./date-values";
+import { formatCalendarDate, formatZonedDateTime } from "./date-values";
 import { useScreenBackEffect } from "./screen-back";
 import { Text } from "./typography";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
@@ -50,17 +51,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 function Time({ value }: { value: ItineraryEntry["startsAt"] }) {
   if (!value) return <Copy muted>No date set</Copy>;
-  const offset = value.dateTime.endsWith("Z")
-    ? "+00:00"
-    : value.dateTime.slice(-6);
-  const local = value.dateTime
-    .replace(/(?:Z|[+-]\d{2}:\d{2})$/, "")
-    .replace("T", " ");
-  return (
-    <Copy>
-      {local} UTC{offset}, {value.timeZone}
-    </Copy>
-  );
+  return <Copy>{formatZonedDateTime(value)}</Copy>;
 }
 function References({ value }: { value: TravelReferences }) {
   return (
@@ -141,10 +132,12 @@ export function ItineraryScreen({
   tripId,
   onBack,
   onCompletion,
+  onEditTrip,
 }: {
   tripId: string;
   onBack: () => void;
   onCompletion: () => void;
+  onEditTrip?: (trip: Trip) => void;
 }) {
   const [editor, setEditor] = useState<Editor | null>(null);
   const [saved, setSaved] = useState(false);
@@ -210,13 +203,7 @@ export function ItineraryScreen({
     [order[index], order[index + delta]] = [order[index + delta], order[index]];
     setEditor({ mode: "action", entry, order });
   };
-  const dateLabel = (value: string) =>
-    pickerDate(value).toLocaleDateString(undefined, {
-      timeZone: "UTC",
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
+  const dateLabel = formatCalendarDate;
   return (
     <Screen>
       <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
@@ -258,6 +245,12 @@ export function ItineraryScreen({
         </View>
       </View>
       <PageHeader title="Journey details" subtitle={data?.trip.name} />
+      {data?.trip.role === "organizer" && onEditTrip && (
+        <TripLink
+          title="Edit journey name & dates"
+          onPress={() => onEditTrip(data.trip)}
+        />
+      )}
       <Copy muted>Add stops, hotel details and contacts for this trip.</Copy>
       {saved && <Notice>Saved</Notice>}
       {!data && !api.error && <Loading message="Loading journey details" />}
@@ -286,11 +279,7 @@ export function ItineraryScreen({
                 title={entry.title}
                 subtitle={
                   entry.startsAt
-                    ? dateLabel(entry.startsAt.dateTime) +
-                      " · " +
-                      entry.startsAt.dateTime.slice(11, 16) +
-                      " · " +
-                      entry.startsAt.timeZone
+                    ? formatZonedDateTime(entry.startsAt)
                     : "Time not set"
                 }
               >

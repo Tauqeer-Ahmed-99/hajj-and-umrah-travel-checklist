@@ -4,6 +4,36 @@ export async function profileJson(request: Request): Promise<unknown> {
   return readJson(request, "profile");
 }
 
+export async function editJson<T>(
+  request: Request,
+  subject: string,
+  schema: {
+    safeParse(
+      value: unknown,
+    ):
+      | { success: true; data: T }
+      | {
+          success: false;
+          error: { issues: { path: PropertyKey[]; message: string }[] };
+        };
+  },
+): Promise<T> {
+  const result = schema.safeParse(await readJson(request, subject));
+  if (!result.success)
+    throw new HttpError(
+      422,
+      `invalid_${subject}`,
+      `Check the highlighted ${subject} fields.`,
+      Object.fromEntries(
+        result.error.issues.map((issue) => [
+          String(issue.path[0] ?? subject),
+          issue.message,
+        ]),
+      ),
+    );
+  return result.data;
+}
+
 export async function readJson(
   request: Request,
   subject: string,

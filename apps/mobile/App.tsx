@@ -24,6 +24,7 @@ import {
   Urbanist_700Bold,
 } from "@expo-google-fonts/urbanist";
 import { ThemeProvider, useTheme } from "./src/theme";
+import { UpdateProvider } from "./src/update-banner";
 import { Action, Copy, Heading, Loading, Notice, Screen } from "./src/ui";
 import { AuthScreen } from "./src/auth-screen";
 import { AccountScreen } from "./src/account-screen";
@@ -255,33 +256,35 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        {!fontsLoaded && !fontError ? (
-          <Screen auth>
-            <Loading kind="screen" message="Opening Travel Companion…" />
-          </Screen>
-        ) : (
-          <AuthBoundary>
-            {!publishableKey ||
-            !/^pk_(test|live)_/.test(publishableKey) ||
-            !apiOrigin() ? (
-              <Screen auth>
-                <Heading>This build needs setup</Heading>
-                <Copy>
-                  Travel Companion is not ready to sign in on this build.
-                  Contact the person who shared it.
-                </Copy>
-              </Screen>
-            ) : (
-              <ClerkProvider
-                publishableKey={publishableKey}
-                tokenCache={tokenCache}
-                __experimental_resourceCache={resourceCache}
-              >
-                <Session />
-              </ClerkProvider>
-            )}
-          </AuthBoundary>
-        )}
+        <UpdateProvider>
+          {!fontsLoaded && !fontError ? (
+            <Screen auth>
+              <Loading kind="screen" message="Opening Travel Companion…" />
+            </Screen>
+          ) : (
+            <AuthBoundary>
+              {!publishableKey ||
+              !/^pk_(test|live)_/.test(publishableKey) ||
+              !apiOrigin() ? (
+                <Screen auth>
+                  <Heading>This build needs setup</Heading>
+                  <Copy>
+                    Travel Companion is not ready to sign in on this build.
+                    Contact the person who shared it.
+                  </Copy>
+                </Screen>
+              ) : (
+                <ClerkProvider
+                  publishableKey={publishableKey}
+                  tokenCache={tokenCache}
+                  __experimental_resourceCache={resourceCache}
+                >
+                  <Session />
+                </ClerkProvider>
+              )}
+            </AuthBoundary>
+          )}
+        </UpdateProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

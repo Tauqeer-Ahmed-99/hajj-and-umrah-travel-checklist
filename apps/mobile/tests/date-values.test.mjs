@@ -21,9 +21,51 @@ const compiled = await build({
 const path = join(tmpdir(), `nmt-picker-${randomUUID()}.mjs`);
 await writeFile(path, compiled.outputFiles[0].text);
 after(() => unlink(path));
-const { calendarValue, pickerDate, zonedChoices, zonedDateTime } = await import(
-  pathToFileURL(path).href
-);
+const {
+  calendarValue,
+  pickerDate,
+  zonedChoices,
+  zonedDateTime,
+  formatCalendarDate,
+  formatWallTime,
+  formatZonedDateTime,
+} = await import(pathToFileURL(path).href);
+test("calendar dates follow the selected locale without shifting the saved day", () => {
+  const prior = process.env.TZ;
+  try {
+    for (const zone of [
+      "Pacific/Honolulu",
+      "Asia/Kolkata",
+      "Pacific/Kiritimati",
+    ]) {
+      process.env.TZ = zone;
+      assert.equal(formatCalendarDate("2026-11-20", "en-GB"), "20 Nov 2026");
+      assert.equal(formatCalendarDate("2026-11-20", "en-US"), "Nov 20, 2026");
+    }
+  } finally {
+    if (prior === undefined) delete process.env.TZ;
+    else process.env.TZ = prior;
+  }
+});
+test("localized times preserve the destination and distinguish daylight-saving overlaps", () => {
+  assert.equal(formatWallTime("2026-11-20T21:30:00+03:00", "en-GB"), "21:30");
+  assert.match(
+    formatWallTime("2026-11-20T21:30:00+03:00", "en-US"),
+    /9:30\s*PM/,
+  );
+  const early = formatZonedDateTime(
+    { dateTime: "2026-11-01T01:30:00-04:00", timeZone: "America/New_York" },
+    "en-US",
+  );
+  const late = formatZonedDateTime(
+    { dateTime: "2026-11-01T01:30:00-05:00", timeZone: "America/New_York" },
+    "en-US",
+  );
+  assert.match(early, /GMT-4/);
+  assert.match(late, /GMT-5/);
+  assert.match(early, /America\/New_York/);
+  assert.notEqual(early, late);
+});
 test("native calendar selection retains its calendar day without a device-zone shift", () => {
   for (const zone of [
     "Pacific/Honolulu",

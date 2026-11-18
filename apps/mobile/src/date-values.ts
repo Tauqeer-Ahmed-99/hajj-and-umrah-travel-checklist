@@ -22,6 +22,35 @@ export function pickerDate(value: string) {
         ),
       );
 }
+export function formatCalendarDate(value: string, locale?: string | string[]) {
+  return new Intl.DateTimeFormat(locale, {
+    timeZone: "UTC",
+    dateStyle: "medium",
+  }).format(pickerDate(value));
+}
+export function formatWallTime(value: string, locale?: string | string[]) {
+  return new Intl.DateTimeFormat(locale, {
+    timeZone: "UTC",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(pickerDate(value));
+}
+export function formatZonedDateTime(
+  value: { dateTime: string; timeZone: string },
+  locale?: string | string[],
+) {
+  return (
+    new Intl.DateTimeFormat(locale, {
+      timeZone: value.timeZone,
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZoneName: "shortOffset",
+    }).format(new Date(value.dateTime)) + ` · ${value.timeZone}`
+  );
+}
 function wallParts(instant: number, timeZone: string) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone,

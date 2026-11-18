@@ -63,11 +63,17 @@ export async function renderFamily(t, origin, props) {
             path: "api",
             namespace: "fixture",
           }));
+          b.onResolve({ filter: /^\.\/trip-forms$/ }, () => ({
+            path: "forms",
+            namespace: "fixture",
+          }));
           b.onLoad({ filter: /.*/, namespace: "fixture" }, (a) => ({
             contents: {
               native,
               filesystem,
               ui,
+              forms:
+                "import React from 'react';export const FamilyForm=p=>React.createElement('family-form',p);export const TravelerForm=p=>React.createElement('traveler-form',p);",
               icons:
                 "export const ArrowLeft=()=>null,ListChecks=()=>null,Luggage=()=>null,Plus=()=>null,RefreshCw=()=>null,Users=()=>null;",
               navigation:

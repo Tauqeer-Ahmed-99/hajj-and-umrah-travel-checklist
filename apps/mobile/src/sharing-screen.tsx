@@ -1,3 +1,4 @@
+import { formatCalendarDate } from "./date-values";
 import { useScreenBackEffect } from "./screen-back";
 import { useCallback, useEffect, useState } from "react";
 import { AppState, BackHandler } from "react-native";
@@ -343,7 +344,9 @@ export function SharedScreen({
                         </Copy>
                       )}
                       {!!entry.notes && <Copy>{entry.notes}</Copy>}
-                      {entry.dueDate && <Copy>Due: {entry.dueDate}</Copy>}
+                      {entry.dueDate && (
+                        <Copy>Due: {formatCalendarDate(entry.dueDate)}</Copy>
+                      )}
                       {item.packing && (
                         <>
                           {leg === "return" && (

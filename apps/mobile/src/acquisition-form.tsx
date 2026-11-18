@@ -1,3 +1,4 @@
+import { formatCalendarDate } from "./date-values";
 import { OptionsMenu, SelectField } from "./simple-ui";
 import { PageHeader, Surface } from "./design-system";
 import { DateField } from "./date-field";
@@ -54,7 +55,9 @@ export function AcquisitionSummary({ entry }: { entry: AcquisitionEntry }) {
         Remaining to be ready: {stock.remainingToBeReady} {entry.unit}
       </Copy>
       {stock.expectedDeliveryDate && (
-        <Copy>Expected delivery: {stock.expectedDeliveryDate}</Copy>
+        <Copy>
+          Expected delivery: {formatCalendarDate(stock.expectedDeliveryDate)}
+        </Copy>
       )}
     </>
   );

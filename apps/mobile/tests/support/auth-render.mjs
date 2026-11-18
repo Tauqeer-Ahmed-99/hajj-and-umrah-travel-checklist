@@ -38,7 +38,10 @@ export async function renderCodeInput(t, props) {
             (a) => ({ path: a.path, namespace: "native" }),
           );
           b.onResolve(
-            { filter: /^\.\/(theme|brand|company-brand|design-system)$/ },
+            {
+              filter:
+                /^\.\/(theme|brand|company-brand|design-system|update-banner)$/,
+            },
             (a) => ({ path: a.path, namespace: "native" }),
           );
           b.onLoad({ filter: /.*/, namespace: "native" }, (a) => ({
@@ -57,6 +60,7 @@ export async function renderCodeInput(t, props) {
               "./brand": "export const Brand=()=>null;",
               "./company-brand": "export const CompanyCredit=()=>null;",
               "./design-system": "export const JourneyMascot=()=>null;",
+              "./update-banner": "export const UpdateBanner=()=>null;",
             }[a.path],
             loader: "js",
             resolveDir: root,

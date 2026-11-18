@@ -8,6 +8,9 @@ import {
   type FamilyInput,
   type TravelerInput,
   type TripInput,
+  type TripPatch,
+  type FamilyPatch,
+  type TravelerPatch,
 } from "@nmt/contracts";
 import { apiOrigin } from "./api";
 import { TripError } from "./request-error";
@@ -20,12 +23,13 @@ async function request<T>(
   signal: AbortSignal,
   schema: { parse: (value: unknown) => T },
   body?: unknown,
+  method = body ? "POST" : "GET",
 ): Promise<T> {
   const origin = apiOrigin();
   if (!origin)
     throw new TripError("This build could not connect to Travel Companion.");
   const response = await travelFetch(`${origin}/api/trips${path}`, {
-    method: body ? "POST" : "GET",
+    method,
     signal,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -61,6 +65,39 @@ export const tripApi = {
     request(`/${id}`, token, signal, tripResponse),
   create: (body: TripInput, token: string, signal: AbortSignal) =>
     request("", token, signal, tripResponse, body),
+  edit: (id: string, body: TripPatch, token: string, signal: AbortSignal) =>
+    request(`/${id}`, token, signal, tripResponse, body, "PATCH"),
+  editFamily: (
+    tripId: string,
+    familyId: string,
+    body: FamilyPatch,
+    token: string,
+    signal: AbortSignal,
+  ) =>
+    request(
+      `/${tripId}/families/${familyId}`,
+      token,
+      signal,
+      familyResponse,
+      body,
+      "PATCH",
+    ),
+  editTraveler: (
+    tripId: string,
+    familyId: string,
+    travelerId: string,
+    body: TravelerPatch,
+    token: string,
+    signal: AbortSignal,
+  ) =>
+    request(
+      `/${tripId}/families/${familyId}/travelers/${travelerId}`,
+      token,
+      signal,
+      travelerResponse,
+      body,
+      "PATCH",
+    ),
   addFamily: (
     tripId: string,
     body: FamilyInput,

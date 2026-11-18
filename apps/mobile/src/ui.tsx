@@ -19,6 +19,7 @@ import { ChevronRight, Monitor, Moon, Sun } from "lucide-react-native";
 import { useTheme, type Appearance } from "./theme";
 import { deviceNetworkAvailable, useTripConnection } from "./trip-cache-state";
 import { Text } from "./typography";
+import { UpdateBanner } from "./update-banner";
 
 export function Copy({
   children,
@@ -292,6 +293,7 @@ export function Screen({
       style={[styles.safe, { backgroundColor: colors.canvas }]}
     >
       <StatusBar style={dark ? "light" : "dark"} />
+      <UpdateBanner />
       <KeyboardAvoidingView
         style={styles.safe}
         behavior={Platform.OS === "ios" ? "padding" : "height"}

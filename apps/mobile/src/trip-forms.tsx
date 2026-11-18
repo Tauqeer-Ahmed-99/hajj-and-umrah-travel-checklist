@@ -4,7 +4,18 @@ import { Text } from "./typography";
 import { useEffect, useState } from "react";
 import { Alert, BackHandler, Pressable, StyleSheet, View } from "react-native";
 import { randomUUID } from "expo-crypto";
-import { familyInput, travelerInput, tripInput } from "@nmt/contracts";
+import {
+  familyInput,
+  travelerInput,
+  tripInput,
+  tripPatch,
+  type Trip,
+  type TripInput,
+  type TripPatch,
+  type TripDetail,
+  type Family,
+  type Traveler,
+} from "@nmt/contracts";
 import { Action, Copy, Field, Heading, Notice, Screen } from "./ui";
 import { useTheme } from "./theme";
 import { tripApi } from "./trip-api";
@@ -100,6 +111,7 @@ function SaveActions({
   error,
   onSave,
   onCancel,
+  disabled = false,
 }: {
   title: string;
   busy: boolean;
@@ -107,6 +119,7 @@ function SaveActions({
   error: string | undefined;
   onSave: () => void;
   onCancel: () => void;
+  disabled?: boolean;
 }) {
   return (
     <>
@@ -121,6 +134,7 @@ function SaveActions({
         requiresConnection
         title={busy ? "Saving…" : uncertain ? "Retry same save" : title}
         busy={busy}
+        disabled={disabled}
         onPress={onSave}
       />
       <Action
@@ -136,26 +150,55 @@ function SaveActions({
 export function TripForm({
   onCancel,
   onSaved,
+  initial,
 }: {
   onCancel: () => void;
   onSaved: (tripId: string) => void;
+  initial?: Trip;
 }) {
   const { colors } = useTheme();
   const [requestId] = useState(() => randomUUID());
-  const [name, setName] = useState("");
-  const [kind, setKind] = useState<"umrah" | "hajj">("umrah");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [destinations, setDestinations] = useState("");
+  const [name, setName] = useState(initial?.name ?? "");
+  const [kind, setKind] = useState<"umrah" | "hajj">(initial?.kind ?? "umrah");
+  const [startDate, setStartDate] = useState(initial?.startDate ?? "");
+  const [endDate, setEndDate] = useState(initial?.endDate ?? "");
+  const [destinations, setDestinations] = useState(
+    initial?.destinations.join("\n") ?? "",
+  );
   const [familyName, setFamilyName] = useState("");
-  const save = useCreate(tripInput, tripApi.create, (result) =>
-    onSaved(result.trip.id),
+  const changed: TripPatch = initial
+    ? {
+        ...(name !== initial.name ? { name } : {}),
+        ...(kind !== initial.kind ? { kind } : {}),
+        ...(startDate !== initial.startDate ? { startDate } : {}),
+        ...(endDate !== initial.endDate ? { endDate } : {}),
+        ...(destinations !== initial.destinations.join("\n")
+          ? {
+              destinations: destinations
+                .split("\n")
+                .map((value) => value.trim())
+                .filter(Boolean),
+            }
+          : {}),
+      }
+    : {};
+  const save = useCreate<TripInput | TripPatch, TripDetail>(
+    initial ? tripPatch : tripInput,
+    (input, token, signal) =>
+      initial
+        ? tripApi.edit(initial.id, tripPatch.parse(input), token, signal)
+        : tripApi.create(tripInput.parse(input), token, signal),
+    (result) => onSaved(result.trip.id),
   );
   const cancel = useDiscard(onCancel, save.busy, save.uncertain);
   return (
     <Screen>
-      <Heading>Create a private trip</Heading>
-      <Copy>A private space for your journey and family.</Copy>
+      <Heading>{initial ? "Edit journey" : "Create a private trip"}</Heading>
+      <Copy>
+        {initial
+          ? "Correct the name, dates or destinations for this journey."
+          : "A private space for your journey and family."}
+      </Copy>
       <Field
         label="Trip name"
         testID="trip-name-input"
@@ -223,34 +266,41 @@ export function TripForm({
         error={save.fields.destinations}
         style={styles.multiline}
       />
-      <Field
-        label="First family group"
-        testID="trip-family-input"
-        value={familyName}
-        onChangeText={setFamilyName}
-        placeholder="e.g. Ahmed family"
-        maxLength={120}
-        editable={!save.locked}
-        error={save.fields.familyName}
-      />
+      {!initial && (
+        <Field
+          label="First family group"
+          testID="trip-family-input"
+          value={familyName}
+          onChangeText={setFamilyName}
+          placeholder="e.g. Ahmed family"
+          maxLength={120}
+          editable={!save.locked}
+          error={save.fields.familyName}
+        />
+      )}
       <SaveActions
-        title="Save trip"
+        title={initial ? "Save changes" : "Save trip"}
+        disabled={!!initial && !Object.keys(changed).length}
         {...save}
         error={save.error?.message}
         onCancel={cancel}
         onSave={() =>
-          void save.submit({
-            requestId,
-            name,
-            kind,
-            startDate,
-            endDate,
-            destinations: destinations
-              .split("\n")
-              .map((value) => value.trim())
-              .filter(Boolean),
-            familyName,
-          })
+          void save.submit(
+            initial
+              ? changed
+              : {
+                  requestId,
+                  name,
+                  kind,
+                  startDate,
+                  endDate,
+                  destinations: destinations
+                    .split("\n")
+                    .map((value) => value.trim())
+                    .filter(Boolean),
+                  familyName,
+                },
+          )
         }
       />
     </Screen>
@@ -261,25 +311,37 @@ export function FamilyForm({
   tripId,
   onCancel,
   onSaved,
+  initial,
 }: {
   tripId: string;
   onCancel: () => void;
   onSaved: (familyId: string) => void;
+  initial?: Family;
 }) {
   const [requestId] = useState(() => randomUUID());
-  const [name, setName] = useState("");
+  const [name, setName] = useState(initial?.name ?? "");
   const save = useCreate(
     familyInput,
-    (input, token, signal) => tripApi.addFamily(tripId, input, token, signal),
+    (input, token, signal) =>
+      initial
+        ? tripApi.editFamily(
+            tripId,
+            initial.id,
+            { name: input.name },
+            token,
+            signal,
+          )
+        : tripApi.addFamily(tripId, input, token, signal),
     (result) => onSaved(result.family.id),
   );
   const cancel = useDiscard(onCancel, save.busy, save.uncertain);
   return (
     <Screen>
-      <Heading>Add a family group</Heading>
+      <Heading>{initial ? "Edit family name" : "Add a family group"}</Heading>
       <Copy>
-        You’ll coordinate this new group. Creating it gives you no access to
-        another family’s records.
+        {initial
+          ? "Correct the name your family sees in this journey."
+          : "You’ll coordinate this new group. Creating it gives you no access to another family’s records."}
       </Copy>
       <Field
         label="Family group name"
@@ -291,7 +353,8 @@ export function FamilyForm({
         error={save.fields.name}
       />
       <SaveActions
-        title="Save family group"
+        title={initial ? "Save changes" : "Save family group"}
+        disabled={!!initial && name === initial.name}
         {...save}
         error={save.error?.message}
         onCancel={cancel}
@@ -306,27 +369,47 @@ export function TravelerForm({
   familyId,
   onCancel,
   onSaved,
+  initial,
 }: {
   tripId: string;
   familyId: string;
   onCancel: () => void;
   onSaved: () => void;
+  initial?: Traveler;
 }) {
   const [requestId] = useState(() => randomUUID());
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
+  const [firstName, setFirstName] = useState(initial?.firstName ?? "");
+  const [lastName, setLastName] = useState(initial?.lastName ?? "");
   const save = useCreate(
     travelerInput,
     (input, token, signal) =>
-      tripApi.addTraveler(tripId, familyId, input, token, signal),
+      initial
+        ? tripApi.editTraveler(
+            tripId,
+            familyId,
+            initial.id,
+            {
+              ...(input.firstName !== initial.firstName
+                ? { firstName: input.firstName }
+                : {}),
+              ...(input.lastName !== initial.lastName
+                ? { lastName: input.lastName }
+                : {}),
+            },
+            token,
+            signal,
+          )
+        : tripApi.addTraveler(tripId, familyId, input, token, signal),
     onSaved,
   );
   const cancel = useDiscard(onCancel, save.busy, save.uncertain);
   return (
     <Screen>
-      <Heading>Add a traveler</Heading>
+      <Heading>{initial ? "Edit traveler" : "Add a traveler"}</Heading>
       <Copy>
-        Add someone traveling with this family. They do not need an account.
+        {initial
+          ? "Correct this traveler’s name."
+          : "Add someone traveling with this family. They do not need an account."}
       </Copy>
       <Field
         label="First name"
@@ -349,7 +432,12 @@ export function TravelerForm({
         error={save.fields.lastName}
       />
       <SaveActions
-        title="Save traveler"
+        title={initial ? "Save changes" : "Save traveler"}
+        disabled={
+          !!initial &&
+          firstName === initial.firstName &&
+          lastName === initial.lastName
+        }
         {...save}
         error={save.error?.message}
         onCancel={cancel}

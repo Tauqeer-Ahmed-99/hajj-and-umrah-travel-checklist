@@ -104,6 +104,22 @@ const refreshButton = (page) =>
     .findAllByType("button")
     .find((b) => b.props.label === "Refresh family");
 
+test("family-name editing is visible and opens the existing family's prefilled form", async (t) => {
+  const server = await fixture(t),
+    page = await renderFamily(t, server.origin, props);
+  await page.until(() => page.text().includes("Owned family"));
+  const edit = page.renderer.root
+    .findAllByType("button")
+    .find((button) => button.props.title === "Edit family");
+  assert.ok(edit, "A coordinator must see a named Edit family action.");
+  await page.act(async () => edit.props.onPress());
+  const form = page.renderer.root.findByType("family-form");
+  assert.equal(form.props.initial.id, familyId);
+  assert.equal(form.props.initial.name, "Owned family");
+  await page.act(async () => form.props.onCancel());
+  assert.ok(page.text().includes("Owned family"));
+});
+
 test("a stale foreground refresh keeps the family visible while actual HTTP reads finish", async (t) => {
   const server = await fixture(t),
     page = await renderFamily(t, server.origin, props);

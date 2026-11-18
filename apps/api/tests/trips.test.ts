@@ -34,6 +34,256 @@ const umrah = {
   familyName: "Ahmed family",
 };
 
+test("metadata edits correct family, traveler and journey names in place and preserve other fields", async () => {
+  const owner = await member("metadata_owner");
+  const created = await fixture.request(
+    "/api/trips",
+    owner.token,
+    umrah,
+    "POST",
+  );
+  const tripPath = `/api/trips/${created.data.trip.id}`,
+    family = created.data.families[0],
+    familyPath = `${tripPath}/families/${family.id}`;
+  const person = await fixture.request(
+    `${familyPath}/travelers`,
+    owner.token,
+    { firstName: "Aishaa", lastName: "Ahmed" },
+    "POST",
+  );
+  const renamed = await fixture.request(
+    familyPath,
+    owner.token,
+    { name: "Ahmed family corrected" },
+    "PATCH",
+  );
+  assert.equal(renamed.status, 200, fixture.logs());
+  assert.equal(renamed.data.family.id, family.id);
+  assert.equal(renamed.data.family.name, "Ahmed family corrected");
+  const corrected = await fixture.request(
+    `${familyPath}/travelers/${person.data.traveler.id}`,
+    owner.token,
+    { firstName: "Aisha" },
+    "PATCH",
+  );
+  assert.equal(corrected.status, 200, fixture.logs());
+  assert.deepEqual(corrected.data.traveler, {
+    ...person.data.traveler,
+    firstName: "Aisha",
+  });
+  const journey = await fixture.request(
+    tripPath,
+    owner.token,
+    { name: "Family Umrah" },
+    "PATCH",
+  );
+  assert.equal(journey.status, 200, fixture.logs());
+  assert.deepEqual(journey.data.trip, {
+    ...created.data.trip,
+    name: "Family Umrah",
+  });
+  assert.equal(journey.data.families[0].name, "Ahmed family corrected");
+  await fixture.restartApi();
+  assert.equal(
+    (await fixture.request(tripPath, owner.token)).data.families[0].name,
+    "Ahmed family corrected",
+  );
+  assert.deepEqual(
+    (await fixture.request(`${familyPath}/travelers`, owner.token)).data
+      .travelers,
+    [corrected.data.traveler],
+  );
+  assert.equal(
+    (await fixture.request("/api/trips", owner.token)).data.trips[0].name,
+    "Family Umrah",
+  );
+});
+
+test("metadata edits enforce organizer and family coordinator authority and reject invalid dates or blank names", async () => {
+  const owner = await member("metadata_scope"),
+    other = await member("metadata_other"),
+    editor = await member("metadata_editor"),
+    outsider = await member("metadata_outside");
+  const created = await fixture.request(
+    "/api/trips",
+    owner.token,
+    umrah,
+    "POST",
+  );
+  const tripId = created.data.trip.id,
+    familyId = created.data.families[0].id,
+    path = `/api/trips/${tripId}`,
+    familyPath = `${path}/families/${familyId}`;
+  const person = await fixture.request(
+    `${familyPath}/travelers`,
+    owner.token,
+    { firstName: "Test", lastName: "Traveler" },
+    "POST",
+  );
+  await access(tripId, other.id, "organizer");
+  await access(tripId, editor.id, "member", familyId, "editor");
+  assert.equal(
+    (
+      await fixture.request(
+        familyPath,
+        other.token,
+        { name: "Unauthorized" },
+        "PATCH",
+      )
+    ).status,
+    404,
+  );
+  assert.equal(
+    (
+      await fixture.request(
+        familyPath,
+        editor.token,
+        { name: "Unauthorized" },
+        "PATCH",
+      )
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await fixture.request(
+        `${familyPath}/travelers/${person.data.traveler.id}`,
+        editor.token,
+        { firstName: "Unauthorized" },
+        "PATCH",
+      )
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await fixture.request(
+        path,
+        editor.token,
+        { name: "Unauthorized" },
+        "PATCH",
+      )
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await fixture.request(
+        path,
+        outsider.token,
+        { name: "Unauthorized" },
+        "PATCH",
+      )
+    ).status,
+    404,
+  );
+  assert.equal(
+    (
+      await fixture.request(
+        familyPath,
+        undefined,
+        { name: "Unauthorized" },
+        "PATCH",
+      )
+    ).status,
+    401,
+  );
+  for (const input of [{ name: " " }, { name: "Correct", role: "coordinator" }])
+    assert.equal(
+      (await fixture.request(familyPath, owner.token, input, "PATCH")).status,
+      422,
+    );
+  for (const input of [
+    { startDate: "2026-12-10" },
+    { endDate: "2026-11-01" },
+    { startDate: "2026-02-30" },
+    {},
+  ])
+    assert.equal(
+      (await fixture.request(path, owner.token, input, "PATCH")).status,
+      422,
+    );
+  assert.equal(
+    (await fixture.request(path, owner.token)).data.trip.name,
+    umrah.name,
+  );
+});
+
+test("metadata edits merge concurrent partial changes, respect traveler scope, and keep archived trips read-only", async () => {
+  const owner = await member("metadata_partial");
+  const created = await fixture.request(
+    "/api/trips",
+    owner.token,
+    umrah,
+    "POST",
+  );
+  const tripId = created.data.trip.id,
+    path = `/api/trips/${tripId}`,
+    familyPath = `${path}/families/${created.data.families[0].id}`;
+  const person = await fixture.request(
+    `${familyPath}/travelers`,
+    owner.token,
+    { firstName: "Wrong", lastName: "Name" },
+    "POST",
+  );
+  const travelerPath = `${familyPath}/travelers/${person.data.traveler.id}`;
+  const replies = await Promise.all([
+    fixture.request(travelerPath, owner.token, { firstName: "Aisha" }, "PATCH"),
+    fixture.request(travelerPath, owner.token, { lastName: "Khan" }, "PATCH"),
+    fixture.request(path, owner.token, { name: "Correct name" }, "PATCH"),
+    fixture.request(
+      path,
+      owner.token,
+      { destinations: ["Madinah", "Makkah"] },
+      "PATCH",
+    ),
+  ]);
+  for (const reply of replies) assert.equal(reply.status, 200, fixture.logs());
+  assert.deepEqual(
+    (await fixture.request(`${familyPath}/travelers`, owner.token)).data
+      .travelers[0],
+    { ...person.data.traveler, firstName: "Aisha", lastName: "Khan" },
+  );
+  const saved = await fixture.request(path, owner.token);
+  assert.equal(saved.data.trip.name, "Correct name");
+  assert.deepEqual(saved.data.trip.destinations, ["Madinah", "Makkah"]);
+  const other = await fixture.request(
+    `${path}/families`,
+    owner.token,
+    { name: "Other family" },
+    "POST",
+  );
+  assert.equal(
+    (
+      await fixture.request(
+        `${path}/families/${other.data.family.id}/travelers/${person.data.traveler.id}`,
+        owner.token,
+        { firstName: "Wrong family" },
+        "PATCH",
+      )
+    ).status,
+    404,
+  );
+  const pool = new Pool({ connectionString: fixture.databaseUrl });
+  try {
+    await pool.query(
+      "INSERT INTO trip_completion(trip_id,archived_at,archived_by) VALUES($1,now(),$2)",
+      [tripId, owner.id],
+    );
+  } finally {
+    await pool.end();
+  }
+  for (const [target, input] of [
+    [path, { name: "Archived edit" }],
+    [familyPath, { name: "Archived edit" }],
+    [travelerPath, { firstName: "Archived edit" }],
+  ] as const) {
+    const denied = await fixture.request(target, owner.token, input, "PATCH");
+    assert.equal(denied.status, 409);
+    assert.equal(denied.data.error.code, "trip_archived");
+  }
+});
+
 test("a completed member creates and reopens a private trip with organizer and initial family coordinator authority", async () => {
   const owner = await member("trip_owner");
   const created = await fixture.request(

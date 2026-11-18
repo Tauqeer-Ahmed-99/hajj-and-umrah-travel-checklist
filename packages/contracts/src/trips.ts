@@ -15,23 +15,40 @@ export const travelerInput = z.strictObject({
   firstName: z.string().trim().min(1, "Enter a first name.").max(80),
   lastName: z.string().trim().min(1, "Enter a last name.").max(80),
 });
-export const tripInput = z
-  .strictObject({
-    requestId: z.uuid().optional(),
-    name,
-    kind: z.enum(["hajj", "umrah"]),
-    startDate: date,
-    endDate: date,
-    destinations: z
-      .array(name)
-      .min(1, "Add a destination.")
-      .max(20, "Use up to 20 destinations."),
-    familyName: name,
-  })
-  .refine((input) => input.endDate >= input.startDate, {
+const tripFields = z.strictObject({
+  requestId: z.uuid().optional(),
+  name,
+  kind: z.enum(["hajj", "umrah"]),
+  startDate: date,
+  endDate: date,
+  destinations: z
+    .array(name)
+    .min(1, "Add a destination.")
+    .max(20, "Use up to 20 destinations."),
+  familyName: name,
+});
+export const tripInput = tripFields.refine(
+  (input) => input.endDate >= input.startDate,
+  {
     path: ["endDate"],
     message: "Return date must be on or after departure.",
-  });
+  },
+);
+export const familyPatch = familyInput.omit({ requestId: true });
+export const travelerPatch = travelerInput
+  .omit({ requestId: true })
+  .partial()
+  .refine(
+    (input) => Object.keys(input).length > 0,
+    "Change a traveler name before saving.",
+  );
+export const tripPatch = tripFields
+  .omit({ requestId: true, familyName: true })
+  .partial()
+  .refine(
+    (input) => Object.keys(input).length > 0,
+    "Change a journey detail before saving.",
+  );
 
 export const tripRole = z.enum(["organizer", "member", "viewer"]);
 export const familyRole = z.enum(["coordinator", "editor", "viewer"]);
@@ -67,6 +84,9 @@ export type TravelerInput = z.infer<typeof travelerInput>;
 export type Traveler = z.infer<typeof traveler>;
 export type FamilyInput = z.infer<typeof familyInput>;
 export type TripInput = z.infer<typeof tripInput>;
+export type TripPatch = z.infer<typeof tripPatch>;
+export type FamilyPatch = z.infer<typeof familyPatch>;
+export type TravelerPatch = z.infer<typeof travelerPatch>;
 export type Trip = z.infer<typeof trip>;
 export type Family = z.infer<typeof family>;
 export type TripDetail = z.infer<typeof tripResponse>;

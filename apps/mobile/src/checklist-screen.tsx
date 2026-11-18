@@ -1,4 +1,6 @@
+import { formatCalendarDate } from "./date-values";
 import { DetailPage, OptionsMenu, RecordRow } from "./simple-ui";
+import { TripLink } from "./trip-link";
 import { useForegroundRefresh } from "./use-foreground-refresh";
 import { useServerView } from "./use-server-view";
 import { TaskProgressForm } from "./task-progress-form";
@@ -149,6 +151,11 @@ const fieldLabels: Record<string, string> = {
 };
 function historyValue(field: string, value: unknown, data: Data): string {
   if (value === null || value === "") return "None";
+  if (
+    ["dueDate", "lastReviewedOn", "expectedDeliveryDate"].includes(field) &&
+    typeof value === "string"
+  )
+    return formatCalendarDate(value);
   if (field === "responsibleMemberId") {
     const member = data.members.find((member) => member.id === value);
     return member
@@ -251,7 +258,7 @@ function ChecklistItemRow({
             : "Choose someone to arrange this"}
         </Copy>
         <Copy>Priority: {entry.priority}</Copy>
-        {entry.dueDate && <Copy>Due: {entry.dueDate}</Copy>}
+        {entry.dueDate && <Copy>Due: {formatCalendarDate(entry.dueDate)}</Copy>}
         <Copy>
           {entry.leg === "both"
             ? "For both journeys"
@@ -261,22 +268,23 @@ function ChecklistItemRow({
         </Copy>
         {entry.source && <Copy muted>Source: {entry.source}</Copy>}
         {entry.lastReviewedOn && (
-          <Copy muted>Last reviewed: {entry.lastReviewedOn}</Copy>
+          <Copy muted>
+            Last reviewed: {formatCalendarDate(entry.lastReviewedOn)}
+          </Copy>
         )}
       </DetailRow>
+      {data.checklist.canEdit && (
+        <TripLink
+          title="Edit details"
+          onPress={() =>
+            edit({ mode: "entry", initial: entry, kind: entry.kind })
+          }
+        />
+      )}
       <OptionsMenu
         title="Item options"
         triggerLabel="More"
         actions={[
-          ...(data.checklist.canEdit
-            ? [
-                {
-                  label: "Edit details",
-                  onPress: () =>
-                    edit({ mode: "entry", initial: entry, kind: entry.kind }),
-                },
-              ]
-            : []),
           { label: "History", onPress: () => edit({ mode: "history", entry }) },
           ...(data.family.canCoordinate
             ? [
@@ -787,6 +795,14 @@ export function ChecklistScreen({
                 )
                 .map((group) => (
                   <ChecklistSection key={group.id} title={group.name}>
+                    {data.checklist.canEdit && (
+                      <TripLink
+                        title="Edit person / category"
+                        onPress={() =>
+                          edit({ mode: "category", initial: group })
+                        }
+                      />
+                    )}
                     {entries
                       .filter((entry) => entry.categoryId === group.id)
                       .map((entry) => (

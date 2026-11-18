@@ -5,6 +5,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { formatCalendarDate } from "./date-values";
 import { Keyboard, Pressable, StyleSheet, View } from "react-native";
 import {
   createBottomTabNavigator,
@@ -270,7 +271,7 @@ function HomePage({
         <JourneyCard
           eyebrow={`${trip.kind.toUpperCase()} · YOUR JOURNEY`}
           title={trip.name}
-          subtitle={`${trip.startDate} — ${trip.endDate}\n${trip.destinations.join(" → ")}`}
+          subtitle={`${formatCalendarDate(trip.startDate)} — ${formatCalendarDate(trip.endDate)}\n${trip.destinations.join(" → ")}`}
           label={`Open ${trip.name}`}
           onPress={() => go({ tripId: trip.id })}
         />
@@ -313,7 +314,7 @@ function HomePage({
           <ListRow
             key={item.id}
             title={item.name}
-            subtitle={`${item.kind === "hajj" ? "Hajj" : "Umrah"} · ${item.startDate}`}
+            subtitle={`${item.kind === "hajj" ? "Hajj" : "Umrah"} · ${formatCalendarDate(item.startDate)}`}
             icon={Luggage}
             onPress={() => go({ tripId: item.id })}
           />

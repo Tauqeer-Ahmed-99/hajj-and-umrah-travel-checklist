@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { View } from "react-native";
 import {
   ArrowLeft,
@@ -14,7 +14,8 @@ import { IconButton, ListRow, PageHeader, Surface } from "./design-system";
 import { DetailPage, OptionsMenu } from "./simple-ui";
 import { useServerView } from "./use-server-view";
 import { tripApi } from "./trip-api";
-import { useForegroundRefresh } from "./use-foreground-refresh";
+import { FamilyForm, TravelerForm } from "./trip-forms";
+import { TripLink } from "./trip-link";
 
 export function FamilyScreen({
   tripId,
@@ -35,6 +36,11 @@ export function FamilyScreen({
   onBags(): void;
 }) {
   const [people, setPeople] = useState(false);
+  const [editor, setEditor] = useState<
+    | { kind: "family"; initial: Family }
+    | { kind: "traveler"; initial: Traveler }
+    | null
+  >(null);
   const api = useServerView(
     `/api/trips/${tripId}/families/${familyId}`,
     ["family", tripId, familyId],
@@ -48,10 +54,37 @@ export function FamilyScreen({
         travelers: roster.travelers,
       };
     },
+    { enabled: !editor },
   );
   const family = api.data?.family,
     travelers = api.data?.travelers;
   const refresh = api.refresh;
+  if (editor) {
+    const close = () => {
+      setEditor(null);
+      if (editor.kind === "traveler") setPeople(true);
+    };
+    const saved = () => {
+      close();
+      void refresh();
+    };
+    return editor.kind === "family" ? (
+      <FamilyForm
+        tripId={tripId}
+        initial={editor.initial}
+        onCancel={close}
+        onSaved={saved}
+      />
+    ) : (
+      <TravelerForm
+        tripId={tripId}
+        familyId={familyId}
+        initial={editor.initial}
+        onCancel={close}
+        onSaved={saved}
+      />
+    );
+  }
   return (
     <Screen>
       <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
@@ -81,6 +114,12 @@ export function FamilyScreen({
               />
             }
           />
+          {family.canCoordinate && (
+            <TripLink
+              title="Edit family"
+              onPress={() => setEditor({ kind: "family", initial: family })}
+            />
+          )}
           {travelers.length === 0 && family.canCoordinate && (
             <Surface>
               <Copy>
@@ -130,9 +169,30 @@ export function FamilyScreen({
                 </Copy>
               ) : (
                 travelers.map((person) => (
-                  <Copy key={person.id}>
-                    {person.firstName} {person.lastName}
-                  </Copy>
+                  <View
+                    key={person.id}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 12,
+                    }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Copy>
+                        {person.firstName} {person.lastName}
+                      </Copy>
+                    </View>
+                    {family.canCoordinate && (
+                      <TripLink
+                        title="Edit"
+                        accessibilityLabel={`Edit ${person.firstName} ${person.lastName}`}
+                        onPress={() => {
+                          setPeople(false);
+                          setEditor({ kind: "traveler", initial: person });
+                        }}
+                      />
+                    )}
+                  </View>
                 ))
               )}
             </Surface>

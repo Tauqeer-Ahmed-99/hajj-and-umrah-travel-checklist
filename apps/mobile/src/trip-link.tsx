@@ -6,11 +6,13 @@ export function TripLink({
   title,
   onPress,
   testID,
+  accessibilityLabel = title,
   busy = false,
 }: {
   title: string;
   onPress: () => void;
   testID?: string;
+  accessibilityLabel?: string;
   busy?: boolean;
 }) {
   const { colors } = useTheme();
@@ -21,7 +23,7 @@ export function TripLink({
     <Pressable
       testID={testID}
       accessibilityRole="button"
-      accessibilityLabel={title}
+      accessibilityLabel={accessibilityLabel}
       accessibilityState={{ busy, disabled: busy }}
       disabled={busy}
       onPress={onPress}

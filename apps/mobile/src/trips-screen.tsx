@@ -1,4 +1,5 @@
 import { OptionsMenu } from "./simple-ui";
+import { formatCalendarDate } from "./date-values";
 import { FamilyScreen } from "./family-screen";
 import { TripLink } from "./trip-link";
 export { TripLink } from "./trip-link";
@@ -99,6 +100,12 @@ import { CompletionScreen, ArchivesScreen } from "./completion-screen";
 type Route =
   | { screen: "list" }
   | { screen: "new-trip" }
+  | {
+      screen: "edit-trip";
+      tripId: string;
+      initial: Trip;
+      returnTo?: "itinerary";
+    }
   | { screen: "invitations" }
   | { screen: "archives" }
   | { screen: "completion"; tripId: string }
@@ -482,6 +489,14 @@ export function TripsScreen({
       <ItineraryScreen
         key={route.tripId}
         tripId={route.tripId}
+        onEditTrip={(trip) =>
+          setRoute({
+            screen: "edit-trip",
+            tripId: trip.id,
+            initial: trip,
+            returnTo: "itinerary",
+          })
+        }
         onCompletion={() => openCompletion(route.tripId)}
         onBack={() => openTrip(route.tripId)}
       />
@@ -549,6 +564,22 @@ export function TripsScreen({
             tripId: route.tripId,
             familyId: route.familyId,
           })
+        }
+      />
+    );
+  if (route.screen === "edit-trip")
+    return (
+      <TripForm
+        initial={route.initial}
+        onCancel={() =>
+          route.returnTo
+            ? setRoute({ screen: "itinerary", tripId: route.tripId })
+            : openTrip(route.tripId)
+        }
+        onSaved={() =>
+          route.returnTo
+            ? setRoute({ screen: "itinerary", tripId: route.tripId })
+            : openTrip(route.tripId)
         }
       />
     );
@@ -638,6 +669,9 @@ export function TripsScreen({
       }
       onAddFamily={() =>
         setRoute({ screen: "new-family", tripId: route.tripId })
+      }
+      onEdit={(trip) =>
+        setRoute({ screen: "edit-trip", tripId: trip.id, initial: trip })
       }
       onAccount={onAccount}
       onAccess={() => setRoute({ screen: "access", tripId: route.tripId })}
@@ -794,9 +828,9 @@ function TripList({
           eyebrow={trip.kind.toUpperCase()}
           title={trip.name}
           subtitle={
-            trip.startDate +
+            formatCalendarDate(trip.startDate) +
             " — " +
-            trip.endDate +
+            formatCalendarDate(trip.endDate) +
             "\n" +
             trip.destinations.join(" → ")
           }
@@ -835,6 +869,7 @@ function TripHome({
   onChecklist,
   onBags,
   onFind,
+  onEdit,
 }: {
   tripId: string;
   destination: Destination;
@@ -853,6 +888,7 @@ function TripHome({
   onChecklist: (familyId: string) => void;
   onBags: (familyId: string) => void;
   onFind: (query: OverviewQuery) => void;
+  onEdit: (trip: Trip) => void;
 }) {
   const api = useServerView(
     `/api/trips/${tripId}`,
@@ -910,6 +946,12 @@ function TripHome({
             title={detail.trip.name}
             subtitle={detail.trip.destinations.join(" → ")}
           />
+          {detail.trip.role === "organizer" && (
+            <TripLink
+              title="Edit journey"
+              onPress={() => onEdit(detail.trip)}
+            />
+          )}
           {destination === "Overview" ? (
             <>
               <SectionLabel>Prepare with your family</SectionLabel>
@@ -940,7 +982,11 @@ function TripHome({
               <Surface>
                 <ListRow
                   title="Journey details"
-                  subtitle={detail.trip.startDate + " — " + detail.trip.endDate}
+                  subtitle={
+                    formatCalendarDate(detail.trip.startDate) +
+                    " — " +
+                    formatCalendarDate(detail.trip.endDate)
+                  }
                   icon={CalendarDays}
                   onPress={onItinerary}
                 />

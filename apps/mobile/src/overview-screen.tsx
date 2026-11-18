@@ -1,3 +1,4 @@
+import { formatCalendarDate, formatZonedDateTime } from "./date-values";
 import { ListRow, Metric } from "./design-system";
 import { useScreenBackEffect } from "./screen-back";
 import {
@@ -230,8 +231,8 @@ function Departure({ data }: { data: Overview }) {
     <Copy>
       Next scheduled departure: {data.nextDeparture.label} ·{" "}
       {data.nextDeparture.at
-        ? `${data.nextDeparture.at.dateTime} (${data.nextDeparture.at.timeZone})`
-        : `${data.nextDeparture.date} (time unknown)`}
+        ? formatZonedDateTime(data.nextDeparture.at)
+        : `${formatCalendarDate(data.nextDeparture.date)} (time unknown)`}
       . Schedule only; actual departure is not confirmed.
     </Copy>
   ) : (

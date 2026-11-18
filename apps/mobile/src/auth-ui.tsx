@@ -1,4 +1,5 @@
 import { useButtonAction } from "./use-button-action";
+import { UpdateBanner } from "./update-banner";
 import {
   useCallback,
   useRef,
@@ -49,6 +50,7 @@ export function AuthPage({
       style={{ flex: 1, backgroundColor: colors.canvas }}
     >
       <StatusBar style={dark ? "light" : "dark"} />
+      <UpdateBanner />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}

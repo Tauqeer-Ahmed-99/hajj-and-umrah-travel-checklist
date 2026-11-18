@@ -5,7 +5,13 @@ import { CalendarDays, Clock3, X } from "lucide-react-native";
 import { useTheme } from "./theme";
 import { Text } from "./typography";
 import { Notice } from "./ui";
-import { calendarValue, pickerDate, zonedChoices } from "./date-values";
+import {
+  calendarValue,
+  pickerDate,
+  zonedChoices,
+  formatCalendarDate,
+  formatWallTime,
+} from "./date-values";
 
 type Props = {
   label: string;
@@ -111,16 +117,7 @@ export function DateField({
         <DateControl
           label={label}
           testID={testID}
-          value={
-            value
-              ? pickerDate(value).toLocaleDateString(undefined, {
-                  timeZone: "UTC",
-                  day: "numeric",
-                  month: "short",
-                  year: "numeric",
-                })
-              : "Choose date"
-          }
+          value={value ? formatCalendarDate(value) : "Choose date"}
           icon={CalendarDays}
           disabled={!editable}
           onPress={open}
@@ -188,7 +185,6 @@ export function DateTimeField({
       value: pickerDate(value),
       mode,
       timeZoneName: "UTC",
-      is24Hour: true,
       onChange: (event, picked) => {
         if (event.type !== "set" || !picked) return;
         const wall = pickerDate(value);
@@ -210,16 +206,7 @@ export function DateTimeField({
         <DateControl
           label={`${label}: date`}
           testID={testID}
-          value={
-            value
-              ? pickerDate(value).toLocaleDateString(undefined, {
-                  timeZone: "UTC",
-                  day: "numeric",
-                  month: "short",
-                  year: "numeric",
-                })
-              : "Choose date"
-          }
+          value={value ? formatCalendarDate(value) : "Choose date"}
           icon={CalendarDays}
           disabled={!editable}
           onPress={() => open("date")}
@@ -227,7 +214,7 @@ export function DateTimeField({
         <DateControl
           label={`${label}: time`}
           testID={testID ? `${testID}-clock` : undefined}
-          value={value ? value.slice(11, 16) : "Choose time"}
+          value={value ? formatWallTime(value) : "Choose time"}
           icon={Clock3}
           disabled={!editable}
           onPress={() => open("time")}

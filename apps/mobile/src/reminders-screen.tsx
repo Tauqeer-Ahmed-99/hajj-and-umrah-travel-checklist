@@ -1,3 +1,4 @@
+import { formatZonedDateTime } from "./date-values";
 import { DateTimeField } from "./date-field";
 import { useScreenBackEffect } from "./screen-back";
 import { useCallback, useEffect, useState } from "react";
@@ -216,9 +217,7 @@ export function RemindersScreen({
                   : (data.members.find((m) => m.id === r.ownerMemberId)
                       ?.username ?? "Trip member")}
               </Copy>
-              <Copy>
-                {r.dueAt.dateTime.replace("T", " ")} · {r.dueAt.timeZone}
-              </Copy>
+              <Copy>{formatZonedDateTime(r.dueAt)}</Copy>
               {r.familyId && <Copy muted>Family checklist reference</Copy>}
               {data.uncertainSchedules.includes(r.id) && (
                 <Notice error>
