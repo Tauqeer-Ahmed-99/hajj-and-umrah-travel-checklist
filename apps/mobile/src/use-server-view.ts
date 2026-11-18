@@ -83,11 +83,15 @@ export function useServerView<T>(
   });
   const setData = useCallback(
     (change: SetStateAction<T | null>) =>
-      client.setQueryData<T | null>(latestKey.current, (previous) =>
-        typeof change === "function"
-          ? (change as (value: T | null) => T | null)(previous ?? null)
-          : change,
-      ),
+      client.setQueryData<T | null>(latestKey.current, (previous) => {
+        const next =
+          typeof change === "function"
+            ? (change as (value: T | null) => T | null)(previous ?? null)
+            : change;
+        // A revocation listener must not recreate a removed query as a fresh
+        // null result; returning to an authorized page still needs a real read.
+        return previous === undefined && next === null ? undefined : next;
+      }),
     [client],
   );
   const refresh = useCallback(async () => {

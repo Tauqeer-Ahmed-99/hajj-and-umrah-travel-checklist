@@ -29,11 +29,11 @@ export class File {
 export function seed(path, record) { directories.add(path.slice(0,path.lastIndexOf('/'))); files.set(path,JSON.stringify(record)); }
 `;
 
-export async function client(t) {
+export async function client(t, origin = "") {
   const root = fileURLToPath(new URL("../../", import.meta.url));
   const result = await build({
     stdin: {
-      contents: `export * from './src/server-data.ts';export * from './src/trip-cache-state.ts';export {Directory,seed} from 'expo-file-system';`,
+      contents: `export * from './src/server-data.ts';export * from './src/trip-cache-state.ts';export {checklistApi} from './src/checklist-api';export {Directory,seed} from 'expo-file-system';`,
       resolveDir: root,
       sourcefile: "mobile-transport-test.ts",
     },
@@ -41,6 +41,10 @@ export async function client(t) {
     write: false,
     platform: "node",
     format: "esm",
+    define: {
+      __DEV__: "true",
+      "process.env.EXPO_PUBLIC_API_URL": JSON.stringify(origin),
+    },
     plugins: [
       {
         name: "native-filesystem",

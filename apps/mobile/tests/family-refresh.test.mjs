@@ -37,15 +37,45 @@ const props = {
   onChecklist() {},
   onBags() {},
 };
+const overview = {
+  query: { scope: "family", familyId, leg: "outbound", q: "" },
+  asOf: "2026-11-18T12:00:00.000Z",
+  phase: "planning",
+  nextDeparture: null,
+  preparation: { activeItems: 0, availableItems: 0, openTasks: 0 },
+  readiness: {
+    verification: "not_verified",
+    confirmedBags: 0,
+    totalBags: 0,
+    unknownOrReviewBags: 0,
+  },
+  actions: [],
+  records: [],
+};
 async function fixture(t) {
   let hold = false,
     status = 200,
     travelers = [];
+  let progress = structuredClone(overview);
   const pending = [];
   let requests = 0;
   const server = createServer((req, res) => {
     requests++;
     const send = () => {
+      if (req.url.includes("/overview")) {
+        assert.equal(
+          new URL(req.url, "http://localhost").searchParams.get("familyId"),
+          familyId,
+        );
+        assert.equal(
+          new URL(req.url, "http://localhost").searchParams.get("scope"),
+          "family",
+        );
+        res
+          .writeHead(200, { "Content-Type": "application/json" })
+          .end(JSON.stringify(progress));
+        return;
+      }
       const roster = req.url.endsWith("/travelers");
       const code = roster ? status : 200;
       res.writeHead(code, { "Content-Type": "application/json" }).end(
@@ -94,6 +124,9 @@ async function fixture(t) {
     travelers(value) {
       travelers = value;
     },
+    progress(records) {
+      progress = { ...progress, records };
+    },
     count() {
       return requests;
     },
@@ -104,15 +137,99 @@ const refreshButton = (page) =>
     .findAllByType("button")
     .find((b) => b.props.label === "Refresh family");
 
-test("family-name editing is visible and opens the existing family's prefilled form", async (t) => {
+function record(index, patch = {}) {
+  return {
+    id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+    kind: "item",
+    familyId,
+    familyName: "Owned family",
+    access: "family",
+    shared: false,
+    assignedToMe: false,
+    title: `Preparation ${index}`,
+    leg: "outbound",
+    priority: "normal",
+    status: "Still needed",
+    requiredQuantity: 1,
+    available: 0,
+    remainingToPrepare: 1,
+    remainingToPlace: 1,
+    unaccounted: null,
+    unit: "pieces",
+    locations: [],
+    confirmedAt: null,
+    needsReview: false,
+    attention: ["preparation"],
+    ...patch,
+  };
+}
+test("family progress counts ready items and completed tasks separately and keeps those counts during refresh", async (t) => {
+  const server = await fixture(t);
+  const records = [
+    record(1, { available: 1, remainingToPrepare: 0 }),
+    record(2),
+    record(3, { requiredQuantity: 0 }),
+    record(4, { kind: "task", status: "Done", attention: [] }),
+    record(5, { kind: "task", status: "In progress", attention: ["tasks"] }),
+    record(6, { kind: "task", status: "Not needed", attention: [] }),
+  ];
+  server.progress(records);
+  const page = await renderFamily(t, server.origin, props);
+  const values = () =>
+    page.renderer.root.findAllByType("metric").map((m) => m.props.value);
+  await page.until(() => values().length === 2);
+  assert.deepEqual(values(), ["1/2", "1/2"]);
+  assert.ok(page.text().includes("1 item still needed"));
+  assert.ok(page.text().includes("1 task pending"));
+  server.hold();
+  let refresh;
+  await page.act(async () => {
+    refresh = refreshButton(page).props.onPress();
+    await new Promise(setImmediate);
+  });
+  assert.deepEqual(values(), ["1/2", "1/2"]);
+  assert.equal(page.renderer.root.findAllByType("skeleton").length, 0);
+  server.progress(
+    records.map((r) =>
+      r.id === records[1].id
+        ? { ...r, available: 1, remainingToPrepare: 0 }
+        : r,
+    ),
+  );
+  await page.act(async () => {
+    server.release();
+    await refresh;
+  });
+  await page.until(() => values()[0] === "2/2");
+  assert.deepEqual(values(), ["2/2", "1/2"]);
+});
+
+test("family editing is in the heading menu and opens the existing family's prefilled form", async (t) => {
   const server = await fixture(t),
     page = await renderFamily(t, server.origin, props);
-  await page.until(() => page.text().includes("Owned family"));
-  const edit = page.renderer.root
-    .findAllByType("button")
-    .find((button) => button.props.title === "Edit family");
-  assert.ok(edit, "A coordinator must see a named Edit family action.");
-  await page.act(async () => edit.props.onPress());
+  await page.until(
+    () =>
+      page.text().includes("Owned family") &&
+      page.renderer.root.findAllByType("metric").length === 2,
+  );
+  const menu = page.renderer.root
+    .findAllByType("menu")
+    .find((m) => m.props.title === "Family options");
+  assert.ok(menu);
+  const edit = menu.props.actions.find(
+    (action) => action.label === "Edit family",
+  );
+  assert.ok(edit, "A coordinator must see Edit family inside Family options.");
+  assert.ok(
+    menu.props.actions.some((action) => action.label === "Members & access"),
+  );
+  assert.equal(
+    page.renderer.root
+      .findAllByType("button")
+      .some((b) => b.props.title === "Edit family"),
+    false,
+  );
+  await page.act(async () => edit.onPress());
   const form = page.renderer.root.findByType("family-form");
   assert.equal(form.props.initial.id, familyId);
   assert.equal(form.props.initial.name, "Owned family");
@@ -123,14 +240,18 @@ test("family-name editing is visible and opens the existing family's prefilled f
 test("a stale foreground refresh keeps the family visible while actual HTTP reads finish", async (t) => {
   const server = await fixture(t),
     page = await renderFamily(t, server.origin, props);
-  await page.until(() => page.text().includes("Owned family"));
+  await page.until(
+    () =>
+      page.text().includes("Owned family") &&
+      page.renderer.root.findAllByType("metric").length === 2,
+  );
   const count = server.count();
   server.hold();
   await page.act(async () => {
     await page.stale();
     page.app.foreground();
   });
-  await page.until(() => server.count() === count + 2);
+  await page.until(() => server.count() === count + 3);
   assert.ok(page.text().includes("Owned family"));
   assert.equal(page.renderer.root.findAllByType("skeleton").length, 0);
   await page.act(async () => {
@@ -141,7 +262,11 @@ test("a stale foreground refresh keeps the family visible while actual HTTP read
 test("fresh family data is reused when a tab is opened again", async (t) => {
   const server = await fixture(t),
     page = await renderFamily(t, server.origin, props);
-  await page.until(() => page.text().includes("Owned family"));
+  await page.until(
+    () =>
+      page.text().includes("Owned family") &&
+      page.renderer.root.findAllByType("metric").length === 2,
+  );
   const count = server.count();
   await page.act(async () => page.app.setFocused(false));
   await page.act(async () => page.app.foreground());
@@ -152,7 +277,11 @@ test("fresh family data is reused when a tab is opened again", async (t) => {
 test("inactive tabs do not refresh stale data until focused", async (t) => {
   const server = await fixture(t),
     page = await renderFamily(t, server.origin, props);
-  await page.until(() => page.text().includes("Owned family"));
+  await page.until(
+    () =>
+      page.text().includes("Owned family") &&
+      page.renderer.root.findAllByType("metric").length === 2,
+  );
   const count = server.count();
   await page.act(async () => {
     page.app.setFocused(false);
@@ -164,13 +293,17 @@ test("inactive tabs do not refresh stale data until focused", async (t) => {
   });
   assert.equal(server.count(), count);
   await page.act(async () => page.app.setFocused(true));
-  await page.until(() => server.count() === count + 2);
+  await page.until(() => server.count() === count + 3);
   assert.ok(page.text().includes("Owned family"));
 });
 test("switching travel legs cannot publish a held response into the other leg", async (t) => {
   const server = await fixture(t),
     page = await renderFamily(t, server.origin, props);
-  await page.until(() => page.text().includes("Owned family"));
+  await page.until(
+    () =>
+      page.text().includes("Owned family") &&
+      page.renderer.root.findAllByType("metric").length === 2,
+  );
   let holdOutbound = false,
     finishOutbound,
     finishReturn,
@@ -238,7 +371,11 @@ test("switching travel legs cannot publish a held response into the other leg", 
 test("automatic reads retain the manual refresh control without its busy state", async (t) => {
   const server = await fixture(t),
     page = await renderFamily(t, server.origin, props);
-  await page.until(() => page.text().includes("Owned family"));
+  await page.until(
+    () =>
+      page.text().includes("Owned family") &&
+      page.renderer.root.findAllByType("metric").length === 2,
+  );
   server.hold();
   await page.act(async () => {
     await page.stale();
@@ -254,14 +391,18 @@ test("automatic reads retain the manual refresh control without its busy state",
 test("manual refresh joins an active Query read and waits for its HTTP response", async (t) => {
   const server = await fixture(t),
     page = await renderFamily(t, server.origin, props);
-  await page.until(() => page.text().includes("Owned family"));
+  await page.until(
+    () =>
+      page.text().includes("Owned family") &&
+      page.renderer.root.findAllByType("metric").length === 2,
+  );
   const count = server.count();
   server.hold();
   await page.act(async () => {
     await page.stale();
     page.app.foreground();
   });
-  await page.until(() => server.count() === count + 2);
+  await page.until(() => server.count() === count + 3);
   let finished = false;
   const read = refreshButton(page)
     .props.onPress()
@@ -272,7 +413,7 @@ test("manual refresh joins an active Query read and waits for its HTTP response"
     await new Promise(setImmediate);
   });
   assert.equal(finished, false);
-  assert.equal(server.count(), count + 2);
+  assert.equal(server.count(), count + 3);
   await page.act(async () => {
     server.release();
     await read;
@@ -282,7 +423,11 @@ test("manual refresh joins an active Query read and waits for its HTTP response"
 test("temporary failure leaves family content readable and a later refresh accepts new data", async (t) => {
   const server = await fixture(t),
     page = await renderFamily(t, server.origin, props);
-  await page.until(() => page.text().includes("Owned family"));
+  await page.until(
+    () =>
+      page.text().includes("Owned family") &&
+      page.renderer.root.findAllByType("metric").length === 2,
+  );
   server.status(503);
   await page.act(async () => {
     await refreshButton(page).props.onPress();
@@ -308,7 +453,11 @@ test("temporary failure leaves family content readable and a later refresh accep
 test("definitive family denial removes private content, and only an accepted fresh read can restore it", async (t) => {
   const server = await fixture(t),
     page = await renderFamily(t, server.origin, props);
-  await page.until(() => page.text().includes("Owned family"));
+  await page.until(
+    () =>
+      page.text().includes("Owned family") &&
+      page.renderer.root.findAllByType("metric").length === 2,
+  );
   server.status(403);
   await page.act(async () => {
     await refreshButton(page).props.onPress();
@@ -319,6 +468,10 @@ test("definitive family denial removes private content, and only an accepted fre
   await page.act(async () => {
     await refreshButton(page).props.onPress();
   });
-  await page.until(() => page.text().includes("Owned family"));
+  await page.until(
+    () =>
+      page.text().includes("Owned family") &&
+      page.renderer.root.findAllByType("metric").length === 2,
+  );
   assert.ok(!page.text().includes("Family access removed"));
 });

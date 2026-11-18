@@ -1,5 +1,4 @@
 import { OptionsMenu, RecordRow } from "./simple-ui";
-import { TripLink } from "./trip-link";
 import { useForegroundRefresh } from "./use-foreground-refresh";
 import { useServerView } from "./use-server-view";
 import { RefreshCw } from "lucide-react-native";
@@ -776,16 +775,19 @@ export function PackingScreen({
                       {bag.allowanceNote && (
                         <Copy muted>Allowance: {bag.allowanceNote}</Copy>
                       )}
-                      {packing.canEdit && (
-                        <TripLink
-                          title="Edit bag"
-                          onPress={() => open({ mode: "bag", initial: bag })}
-                        />
-                      )}
                       <OptionsMenu
                         title="Bag options"
                         triggerLabel="More"
                         actions={[
+                          ...(packing.canEdit
+                            ? [
+                                {
+                                  label: "Edit bag",
+                                  onPress: () =>
+                                    open({ mode: "bag", initial: bag }),
+                                },
+                              ]
+                            : []),
                           {
                             label: "Identification photo",
                             onPress: () => open({ mode: "photo", bag }),

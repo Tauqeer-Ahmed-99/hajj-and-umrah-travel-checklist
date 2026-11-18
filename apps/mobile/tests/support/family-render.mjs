@@ -11,7 +11,7 @@ import { filesystem } from "./client.mjs";
 const require = createRequire(import.meta.url);
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const native = `import React from 'react';import {focusManager} from '@tanstack/react-query';const listeners=new Set();export const AppState={currentState:'active',addEventListener:(_,fn)=>{listeners.add(fn);return{remove:()=>listeners.delete(fn)}}};export function foreground(){focusManager.setFocused(false);for(const fn of listeners)fn('active');focusManager.setFocused(true)}export const StyleSheet={create:x=>x,hairlineWidth:1};export function View(p){return React.createElement('view',p,p.children)};`;
-const ui = `import React from 'react';export const host=name=>function Component(p){return React.createElement(name,p,p.children)};export const Action=host('button'),Copy=host('text'),Heading=host('heading'),Loading=host('skeleton'),Notice=host('notice'),Screen=host('screen'),Surface=host('surface'),TripLink=host('button'),PageHeader=host('header'),IconButton=host('button'),ListRow=host('row'),OptionsMenu=host('menu'),SelectField=host('select'),DetailPage=host('detail');`;
+const ui = `import React from 'react';export const host=name=>function Component(p){return React.createElement(name,p,p.children,p.action)};export const Action=host('button'),Copy=host('text'),Heading=host('heading'),Loading=host('skeleton'),Notice=host('notice'),Screen=host('screen'),Surface=host('surface'),TripLink=host('button'),PageHeader=host('header'),IconButton=host('button'),ListRow=host('row'),OptionsMenu=host('menu'),SelectField=host('select'),DetailPage=host('detail'),Metric=host('metric'),SectionLabel=host('section-label');`;
 export async function renderFamily(t, origin, props) {
   const result = await build({
     stdin: {

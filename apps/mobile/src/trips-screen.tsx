@@ -1,4 +1,5 @@
 import { OptionsMenu } from "./simple-ui";
+import { PreparationSummary } from "./preparation-summary";
 import { formatCalendarDate } from "./date-values";
 import { FamilyScreen } from "./family-screen";
 import { TripLink } from "./trip-link";
@@ -87,7 +88,7 @@ import { FamilyForm, TravelerForm, TripForm } from "./trip-forms";
 import { InvitationInbox } from "./invitation-inbox";
 import { MembershipScreen } from "./membership-screen";
 import { ItineraryScreen } from "./itinerary-screen";
-import { OverviewSummary, OverviewScreen } from "./overview-screen";
+import { OverviewScreen } from "./overview-screen";
 import { GuidesScreen } from "./guides-screen";
 import { ChecklistDestination, ChecklistScreen } from "./checklist-screen";
 import { BagsDestination, PackingScreen } from "./packing-screen";
@@ -896,8 +897,12 @@ function TripHome({
     (token, signal) => tripApi.read(tripId, token, signal),
     { staleTime: 120_000 },
   );
-  const detail = api.data,
-    refresh = api.refresh;
+  const [summaryRefresh, setSummaryRefresh] = useState(0);
+  const detail = api.data;
+  const refresh = async () => {
+    await api.refresh();
+    setSummaryRefresh((value) => value + 1);
+  };
   const placeholders = {
     Guides: [
       "Guides are not available yet",
@@ -914,22 +919,6 @@ function TripHome({
             icon={RefreshCw}
             onPress={() => refresh()}
           />
-          {detail && (
-            <OptionsMenu
-              title="Trip options"
-              actions={[
-                { label: "Reminders", onPress: onReminders },
-                { label: "Shared items & bags", onPress: onShared },
-                { label: "Members & invitations", onPress: onAccess },
-                { label: "Share a summary", onPress: onSummary },
-                {
-                  label: "Find an item or task",
-                  onPress: () => onFind(overviewQuery.parse({})),
-                },
-                { label: "Completion & archive", onPress: onCompletion },
-              ]}
-            />
-          )}
         </View>
       </View>
       {preferenceError && <Notice error>{preferenceError}</Notice>}
@@ -945,12 +934,33 @@ function TripHome({
           <PageHeader
             title={detail.trip.name}
             subtitle={detail.trip.destinations.join(" → ")}
+            action={
+              <OptionsMenu
+                title="Trip options"
+                actions={[
+                  ...(detail.trip.role === "organizer"
+                    ? [
+                        {
+                          label: "Edit journey",
+                          onPress: () => onEdit(detail.trip),
+                        },
+                      ]
+                    : []),
+                  { label: "Reminders", onPress: onReminders },
+                  { label: "Shared items & bags", onPress: onShared },
+                  { label: "Members & invitations", onPress: onAccess },
+                  { label: "Share a summary", onPress: onSummary },
+                  {
+                    label: "Find an item or task",
+                    onPress: () => onFind(overviewQuery.parse({})),
+                  },
+                  { label: "Completion & archive", onPress: onCompletion },
+                ]}
+              />
+            }
           />
-          {detail.trip.role === "organizer" && (
-            <TripLink
-              title="Edit journey"
-              onPress={() => onEdit(detail.trip)}
-            />
+          {destination === "Overview" && (
+            <PreparationSummary tripId={tripId} refreshedAt={summaryRefresh} />
           )}
           {destination === "Overview" ? (
             <>

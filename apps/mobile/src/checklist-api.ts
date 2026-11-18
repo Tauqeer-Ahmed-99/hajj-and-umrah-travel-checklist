@@ -3,6 +3,7 @@ import {
   checklistResponse,
   acquisitionViewsResponse,
   checklistEntryResponse,
+  checklistSaveResponse,
   checklistCategoryResponse,
   checklistHistoryResponse,
   checklistSavedResponse,
@@ -123,21 +124,54 @@ export const checklistApi = {
       id ? "PATCH" : "POST",
       body,
     ),
-  create: (
+  create: async (
     scope: ChecklistScope,
     body: ChecklistEntryInput,
     token: string,
     signal: AbortSignal,
-  ) =>
-    request(
-      scope,
-      "/entries",
-      token,
-      signal,
-      checklistEntryResponse,
-      "POST",
-      body,
-    ),
+  ) => {
+    try {
+      return await request(
+        scope,
+        "/entries",
+        token,
+        signal,
+        checklistEntryResponse,
+        "POST",
+        body,
+      );
+    } catch (error) {
+      if (
+        signal.aborted ||
+        !body.requestId ||
+        (error instanceof TripError && error.code === "request_cancelled") ||
+        (error instanceof TripError && error.status > 0 && error.status < 500)
+      )
+        throw error;
+      // Only read the result of this exact save. Never automatically POST again,
+      // match by title, or trust a stale cached "not saved" result.
+      try {
+        const saved = await request(
+          scope,
+          `/entries?requestId=${body.requestId}`,
+          token,
+          signal,
+          checklistSaveResponse,
+        );
+        if (saved.entry) {
+          acceptedTravelChange();
+          return { entry: saved.entry };
+        }
+      } catch (checkError) {
+        if (
+          checkError instanceof TripError &&
+          [401, 403, 404].includes(checkError.status)
+        )
+          throw checkError;
+      }
+      throw error;
+    }
+  },
   edit: (
     scope: ChecklistScope,
     id: string,

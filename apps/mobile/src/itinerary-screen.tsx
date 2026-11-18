@@ -7,7 +7,7 @@ import {
   Surface,
 } from "./design-system";
 import { OptionsMenu, RecordRow } from "./simple-ui";
-import { TripLink } from "./trip-link";
+import { PreparationSummary } from "./preparation-summary";
 import { useForegroundRefresh } from "./use-foreground-refresh";
 import { useServerView } from "./use-server-view";
 import { formatCalendarDate, formatZonedDateTime } from "./date-values";
@@ -153,8 +153,12 @@ export function ItineraryScreen({
     },
     { enabled: !editor, staleTime: 120_000 },
   );
-  const data = api.data,
-    refresh = api.refresh;
+  const [summaryRefresh, setSummaryRefresh] = useState(0);
+  const data = api.data;
+  const refresh = async () => {
+    await api.refresh();
+    setSummaryRefresh((value) => value + 1);
+  };
   useScreenBackEffect(() => {
     if (editor) return; // The active form owns its unsaved-change confirmation.
     const listener = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -214,10 +218,24 @@ export function ItineraryScreen({
             icon={RefreshCw}
             onPress={() => refresh()}
           />
-          {data?.itinerary.canEdit && (
+        </View>
+      </View>
+      <PageHeader
+        title="Journey details"
+        subtitle={data?.trip.name}
+        action={
+          data?.itinerary.canEdit && (
             <OptionsMenu
               title="Journey options"
               actions={[
+                ...(data.trip.role === "organizer" && onEditTrip
+                  ? [
+                      {
+                        label: "Edit journey name & dates",
+                        onPress: () => onEditTrip(data.trip),
+                      },
+                    ]
+                  : []),
                 {
                   label: "Edit travel details",
                   onPress: () => setEditor({ mode: "references" }),
@@ -241,16 +259,9 @@ export function ItineraryScreen({
                   : []),
               ]}
             />
-          )}
-        </View>
-      </View>
-      <PageHeader title="Journey details" subtitle={data?.trip.name} />
-      {data?.trip.role === "organizer" && onEditTrip && (
-        <TripLink
-          title="Edit journey name & dates"
-          onPress={() => onEditTrip(data.trip)}
-        />
-      )}
+          )
+        }
+      />
       <Copy muted>Add stops, hotel details and contacts for this trip.</Copy>
       {saved && <Notice>Saved</Notice>}
       {!data && !api.error && <Loading message="Loading journey details" />}
@@ -262,6 +273,11 @@ export function ItineraryScreen({
       )}
       {data && (
         <>
+          <PreparationSummary
+            tripId={tripId}
+            phase={data.itinerary.phase}
+            refreshedAt={summaryRefresh}
+          />
           <Surface>
             <Copy>
               {dateLabel(data.trip.startDate)} — {dateLabel(data.trip.endDate)}
@@ -372,13 +388,6 @@ export function ItineraryScreen({
               icon={FileText}
               onPress={() => setEditor({ mode: "files" })}
             />
-            {data.itinerary.canEdit && (
-              <Action
-                title="Edit details"
-                secondary
-                onPress={() => setEditor({ mode: "references" })}
-              />
-            )}
           </Surface>
         </>
       )}

@@ -56,6 +56,38 @@ test("concurrent JSON reads share one request, fresh reads use memory, and expli
   finish("new");
   assert.equal((await (await next).json()).value, "new");
 });
+
+test("a denied family progress query removes that family without revoking the trip or another family", async (t) => {
+  const { app } = await client(t),
+    events = [];
+  const stop = app.onServerAccessRevoked((event) => events.push(event));
+  t.after(stop);
+  const other = `/api/trips/${trip}/families/33333333-3333-4333-8333-333333333333/checklist`;
+  const overview = `/api/trips/${trip}/overview?scope=family&familyId=${family}`;
+  const origin = await service(t, (req, res) =>
+    req.url === overview
+      ? json(res, 404, {
+          error: { code: "not_found", message: "Family access removed" },
+        })
+      : json(res, 200, { private: "authorized" }),
+  );
+  await app.travelFetch(origin + path, {});
+  await app.travelFetch(origin + other, {});
+  assert.equal((await app.travelFetch(origin + overview, {})).status, 404);
+  assert.deepEqual(
+    events.map((e) => ({ scope: e.scope, familyId: e.familyId })),
+    [{ scope: "family", familyId: family }],
+  );
+  assert.equal(
+    app.getServerQueryClient().getQueryData(app.serverQueryKey(origin + path)),
+    undefined,
+  );
+  assert.equal(
+    app.getServerQueryClient().getQueryData(app.serverQueryKey(origin + other))
+      .body.private,
+    "authorized",
+  );
+});
 test("a cancelled screen read does not cancel another consumer or label the server offline", async (t) => {
   const { app } = await client(t);
   let finish,

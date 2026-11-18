@@ -1,6 +1,5 @@
 import { formatCalendarDate } from "./date-values";
 import { DetailPage, OptionsMenu, RecordRow } from "./simple-ui";
-import { TripLink } from "./trip-link";
 import { useForegroundRefresh } from "./use-foreground-refresh";
 import { useServerView } from "./use-server-view";
 import { TaskProgressForm } from "./task-progress-form";
@@ -273,18 +272,19 @@ function ChecklistItemRow({
           </Copy>
         )}
       </DetailRow>
-      {data.checklist.canEdit && (
-        <TripLink
-          title="Edit details"
-          onPress={() =>
-            edit({ mode: "entry", initial: entry, kind: entry.kind })
-          }
-        />
-      )}
       <OptionsMenu
         title="Item options"
         triggerLabel="More"
         actions={[
+          ...(data.checklist.canEdit
+            ? [
+                {
+                  label: "Edit details",
+                  onPress: () =>
+                    edit({ mode: "entry", initial: entry, kind: entry.kind }),
+                },
+              ]
+            : []),
           { label: "History", onPress: () => edit({ mode: "history", entry }) },
           ...(data.family.canCoordinate
             ? [
@@ -794,15 +794,24 @@ export function ChecklistScreen({
                   entries.some((entry) => entry.categoryId === group.id),
                 )
                 .map((group) => (
-                  <ChecklistSection key={group.id} title={group.name}>
-                    {data.checklist.canEdit && (
-                      <TripLink
-                        title="Edit person / category"
-                        onPress={() =>
-                          edit({ mode: "category", initial: group })
-                        }
-                      />
-                    )}
+                  <ChecklistSection
+                    key={group.id}
+                    title={group.name}
+                    action={
+                      data.checklist.canEdit && (
+                        <OptionsMenu
+                          title={`Options for ${group.name}`}
+                          actions={[
+                            {
+                              label: "Edit person / category",
+                              onPress: () =>
+                                edit({ mode: "category", initial: group }),
+                            },
+                          ]}
+                        />
+                      )
+                    }
+                  >
                     {entries
                       .filter((entry) => entry.categoryId === group.id)
                       .map((entry) => (
@@ -854,33 +863,42 @@ export function ChecklistScreen({
             />
             {data.checklist.categories.map((group) => (
               <Surface key={group.id}>
-                <Copy>{group.name}</Copy>
-                <OptionsMenu
-                  title={group.name}
-                  triggerLabel="Edit person / category"
-                  actions={[
-                    {
-                      label: "Rename",
-                      onPress: () => {
-                        setManage(false);
-                        edit({ mode: "category", initial: group });
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Copy>{group.name}</Copy>
+                  </View>
+                  <OptionsMenu
+                    title={`Options for ${group.name}`}
+                    actions={[
+                      {
+                        label: "Rename",
+                        onPress: () => {
+                          setManage(false);
+                          edit({ mode: "category", initial: group });
+                        },
                       },
-                    },
-                    {
-                      label: "Remove group",
-                      destructive: true,
-                      onPress: () => {
-                        setManage(false);
-                        edit({
-                          mode: "remove",
-                          kind: "categories",
-                          id: group.id,
-                          title: group.name,
-                        });
+                      {
+                        label: "Remove group",
+                        destructive: true,
+                        onPress: () => {
+                          setManage(false);
+                          edit({
+                            mode: "remove",
+                            kind: "categories",
+                            id: group.id,
+                            title: group.name,
+                          });
+                        },
                       },
-                    },
-                  ]}
-                />
+                    ]}
+                  />
+                </View>
               </Surface>
             ))}
           </DetailPage>

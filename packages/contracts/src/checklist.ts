@@ -126,6 +126,10 @@ export const checklistEntry = checklistEntryFields.extend({
   kind: z.enum(["item", "task"]),
 });
 export const checklistEntryResponse = z.object({ entry: checklistEntry });
+export const checklistSaveQuery = z.strictObject({ requestId: z.uuid() });
+export const checklistSaveResponse = z.object({
+  entry: checklistEntry.nullable(),
+});
 export const checklistEntryPatch = checklistEntryFields
   .partial()
   .extend(mutationDetails.shape)

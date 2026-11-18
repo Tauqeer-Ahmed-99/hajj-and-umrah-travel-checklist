@@ -104,6 +104,89 @@ function item(categoryId: string, memberId: string) {
   };
 }
 
+test("a lost item-save reply can be checked by its member and family without replaying a write", async () => {
+  const owner = await member("save_lookup_owner"),
+    editor = await member("save_lookup_editor");
+  const journey = await trip(owner);
+  await admit(journey, owner, editor);
+  const group = await category(journey.checklist, owner.token);
+  const input = item(group.id, owner.id);
+  const lookup = `${journey.checklist}/entries?requestId=${input.requestId}`;
+  assert.equal((await fixture.request(lookup, owner.token)).data.entry, null);
+  const saved = await fixture.request(
+    `${journey.checklist}/entries`,
+    owner.token,
+    input,
+    "POST",
+  );
+  assert.equal(saved.status, 201, fixture.logs());
+  const recovered = await fixture.request(lookup, owner.token);
+  assert.equal(recovered.status, 200, fixture.logs());
+  assert.equal(recovered.data.entry.id, saved.data.entry.id);
+  assert.equal(
+    (await fixture.request(journey.checklist, owner.token)).data.entries.length,
+    1,
+  );
+  // Even another authorized family editor cannot query someone else's request ID.
+  assert.equal((await fixture.request(lookup, editor.token)).data.entry, null);
+  const another = await trip(owner);
+  assert.equal(
+    (
+      await fixture.request(
+        `${another.checklist}/entries?requestId=${input.requestId}`,
+        owner.token,
+      )
+    ).data.entry,
+    null,
+  );
+  assert.equal(
+    (
+      await fixture.request(
+        `${journey.checklist}/entries?requestId=invalid`,
+        owner.token,
+      )
+    ).status,
+    422,
+  );
+  const editorInput = item(group.id, editor.id);
+  const editorSaved = await fixture.request(
+    `${journey.checklist}/entries`,
+    editor.token,
+    editorInput,
+    "POST",
+  );
+  assert.equal(editorSaved.status, 201);
+  const editorLookup = `${journey.checklist}/entries?requestId=${editorInput.requestId}`;
+  assert.equal(
+    (await fixture.request(editorLookup, editor.token)).data.entry.id,
+    editorSaved.data.entry.id,
+  );
+  assert.equal(
+    (
+      await fixture.request(
+        `${journey.path}/families/${journey.familyId}/members/${editor.id}`,
+        owner.token,
+        undefined,
+        "DELETE",
+      )
+    ).status,
+    200,
+  );
+  assert.equal((await fixture.request(editorLookup, editor.token)).status, 404);
+  assert.equal(
+    (
+      await fixture.request(
+        `${journey.checklist}/entries/${saved.data.entry.id}`,
+        owner.token,
+        { requestId: randomUUID(), reason: "Disposable test entry" },
+        "DELETE",
+      )
+    ).status,
+    200,
+  );
+  assert.equal((await fixture.request(lookup, owner.token)).data.entry, null);
+});
+
 test("a family saves a child's requirement with a separate responsible account and reopens it after API restart", async () => {
   const owner = await member("checklist_owner");
   const journey = await trip(owner);

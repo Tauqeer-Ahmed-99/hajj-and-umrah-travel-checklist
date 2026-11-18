@@ -7,9 +7,11 @@ import { SelectField } from "./simple-ui";
 export function ChecklistSection({
   title,
   children,
+  action,
 }: {
   title: string;
   children: ReactNode;
+  action?: ReactNode;
 }) {
   const { colors } = useTheme();
   return (
@@ -19,12 +21,15 @@ export function ChecklistSection({
         { borderColor: colors.border, backgroundColor: colors.surface },
       ]}
     >
-      <Text
-        accessibilityRole="header"
-        style={[styles.heading, { color: colors.ink }]}
-      >
-        {title}
-      </Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+        <Text
+          accessibilityRole="header"
+          style={[styles.heading, { color: colors.ink, flex: 1 }]}
+        >
+          {title}
+        </Text>
+        {action}
+      </View>
       {children}
     </View>
   );

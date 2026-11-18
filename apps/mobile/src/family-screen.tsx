@@ -15,7 +15,7 @@ import { DetailPage, OptionsMenu } from "./simple-ui";
 import { useServerView } from "./use-server-view";
 import { tripApi } from "./trip-api";
 import { FamilyForm, TravelerForm } from "./trip-forms";
-import { TripLink } from "./trip-link";
+import { PreparationSummary } from "./preparation-summary";
 
 export function FamilyScreen({
   tripId,
@@ -58,7 +58,11 @@ export function FamilyScreen({
   );
   const family = api.data?.family,
     travelers = api.data?.travelers;
-  const refresh = api.refresh;
+  const [summaryRefresh, setSummaryRefresh] = useState(0);
+  const refresh = async () => {
+    await api.refresh();
+    setSummaryRefresh((value) => value + 1);
+  };
   if (editor) {
     const close = () => {
       setEditor(null);
@@ -110,16 +114,26 @@ export function FamilyScreen({
             action={
               <OptionsMenu
                 title="Family options"
-                actions={[{ label: "Members & access", onPress: onAccess }]}
+                actions={[
+                  ...(family.canCoordinate
+                    ? [
+                        {
+                          label: "Edit family",
+                          onPress: () =>
+                            setEditor({ kind: "family", initial: family }),
+                        },
+                      ]
+                    : []),
+                  { label: "Members & access", onPress: onAccess },
+                ]}
               />
             }
           />
-          {family.canCoordinate && (
-            <TripLink
-              title="Edit family"
-              onPress={() => setEditor({ kind: "family", initial: family })}
-            />
-          )}
+          <PreparationSummary
+            tripId={tripId}
+            familyId={familyId}
+            refreshedAt={summaryRefresh}
+          />
           {travelers.length === 0 && family.canCoordinate && (
             <Surface>
               <Copy>
@@ -183,13 +197,17 @@ export function FamilyScreen({
                       </Copy>
                     </View>
                     {family.canCoordinate && (
-                      <TripLink
-                        title="Edit"
-                        accessibilityLabel={`Edit ${person.firstName} ${person.lastName}`}
-                        onPress={() => {
-                          setPeople(false);
-                          setEditor({ kind: "traveler", initial: person });
-                        }}
+                      <OptionsMenu
+                        title={`Options for ${person.firstName} ${person.lastName}`}
+                        actions={[
+                          {
+                            label: "Edit traveler",
+                            onPress: () => {
+                              setPeople(false);
+                              setEditor({ kind: "traveler", initial: person });
+                            },
+                          },
+                        ]}
                       />
                     )}
                   </View>

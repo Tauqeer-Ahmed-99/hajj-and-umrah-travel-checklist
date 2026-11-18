@@ -142,12 +142,16 @@ function assertSession(session: Session | null, signal?: AbortSignal) {
   )
     throw new TripError(
       "This request was cancelled. Open the page again if needed.",
+      0,
+      undefined,
+      "request_cancelled",
     );
 }
 export function serverStaleTime(path: string) {
   // Reconnect/share checks and file-version checks must use current access.
   if (
     /\/summary(?:\?|$)/.test(path) ||
+    /\/checklist\/entries\?requestId=/.test(path) ||
     /\/guides\/[a-f0-9-]{36}(?:\/|\?|$)/.test(path) ||
     /\/travel-files(?:\/|\?|$)/.test(path)
   )
@@ -284,6 +288,31 @@ function removeDeniedAccess(
   const parts = path.split("/"),
     tripId = parts[3];
   if (!tripId || ![403, 404].includes(error.status)) return;
+  const target = new URL(path, "https://travel-companion.invalid");
+  const overviewFamily = /\/overview(?:\/return)?$/.test(target.pathname)
+    ? target.searchParams.get("familyId")
+    : null;
+  if (
+    method === "GET" &&
+    overviewFamily &&
+    /^[a-f0-9-]{36}$/.test(overviewFamily)
+  ) {
+    // A family-filtered overview cannot establish loss of the whole trip.
+    drop(
+      session,
+      (p) =>
+        p.startsWith(`/api/trips/${tripId}/families/${overviewFamily}`) ||
+        p === `/api/trips/${tripId}` ||
+        p.startsWith(`/api/trips/${tripId}/overview`),
+    );
+    emit({
+      scope: "family",
+      tripId,
+      familyId: overviewFamily,
+      message: error.message,
+    });
+    return;
+  }
   // A viewer can still read after an organizer-only action is refused. Only
   // complete read projections establish loss of the underlying read grant.
   const pathname = path.split("?")[0];
@@ -438,7 +467,15 @@ function abortable<T>(
 ): Promise<T> {
   if (!signal) return work;
   return new Promise((resolve, reject) => {
-    const aborted = () => reject(new TripError("This request was cancelled."));
+    const aborted = () =>
+      reject(
+        new TripError(
+          "This request was cancelled.",
+          0,
+          undefined,
+          "request_cancelled",
+        ),
+      );
     signal.addEventListener("abort", aborted, { once: true });
     if (signal.aborted) aborted();
     void work
@@ -560,6 +597,7 @@ export async function travelFetch(
     return toResponse(reply);
   } catch (error) {
     if (error instanceof ServerReplyError) return toResponse(error.reply);
+    assertSession(session, init.signal ?? undefined);
     throw error;
   }
 }

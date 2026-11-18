@@ -301,6 +301,26 @@ export function createChecklistEntry(
     return { entry: result.rows[0] };
   });
 }
+// A lost HTTP reply must be recoverable without replaying a mutation. The
+// request belongs to its original member and family; current access is checked
+// again before returning any saved entry.
+export function readChecklistSave(
+  memberId: string,
+  tripId: string,
+  familyId: string,
+  requestId: string,
+) {
+  return transaction(async (db) => {
+    await requireFamilyAccess(db, memberId, tripId, familyId);
+    const result = await db.execute<ChecklistEntry>(sql`
+      SELECT ${sql.raw(entryColumns)} FROM checklist_entries
+      WHERE family_id = ${sql.param(familyId)} AND removed_at IS NULL
+        AND id = (SELECT resource_id FROM creation_requests
+          WHERE member_id = ${sql.param(memberId)} AND request_id = ${sql.param(requestId)}
+            AND scope = ${sql.param(`checklist-entry:${tripId}:${familyId}`)})`);
+    return { entry: result.rows[0] ?? null };
+  });
+}
 async function insertEntry(
   db: DatabaseTransaction,
   memberId: string,
