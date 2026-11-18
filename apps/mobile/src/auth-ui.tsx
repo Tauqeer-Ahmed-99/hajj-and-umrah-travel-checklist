@@ -342,6 +342,9 @@ const styles = StyleSheet.create({
     right: 0,
     color: "transparent",
     backgroundColor: "transparent",
+    // Only the six boxes paint the digits. The invisible native input retains
+    // focus, paste and OTP autofill independently of its text colour.
+    opacity: 0,
     fontSize: 26,
     padding: 0,
   },

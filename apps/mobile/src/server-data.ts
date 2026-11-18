@@ -19,6 +19,7 @@ type Session = {
   controller: AbortController;
   client: QueryClient;
   key: number;
+  scope: { revoked: boolean };
 };
 export type AccessRemoval = (
   | { scope: "trip"; tripId: string }
@@ -85,7 +86,20 @@ export function createServerQueryClient() {
   });
 }
 export function getServerQueryClient() {
-  return active?.client ?? fallback;
+  return currentSession()?.client ?? fallback;
+}
+function currentSession() {
+  const session = active;
+  if (!session || session.scope.revoked) return session;
+  const controller = session.owner.current();
+  if (controller !== session.controller) {
+    // Clearing managed file copies rotates their cancellation controller. A
+    // later request gets a fresh cache generation; earlier replies stay fenced
+    // out by their original session/controller. An expired login never renews.
+    session.client.clear();
+    active = { ...session, controller, key: ++nextSession };
+  }
+  return active;
 }
 export function startServerData(
   owner: Owner,
@@ -98,11 +112,12 @@ export function startServerData(
     controller: owner.current(),
     client,
     key: ++nextSession,
+    scope: { revoked: false },
   };
   active = session;
   return () => {
     session.client.clear();
-    if (active === session) active = null;
+    if (active?.scope === session.scope) active = null;
   };
 }
 export function onServerAccessRevoked(
@@ -121,6 +136,7 @@ function assertSession(session: Session | null, signal?: AbortSignal) {
     signal?.aborted ||
     (session &&
       (active !== session ||
+        session.scope.revoked ||
         session.controller.signal.aborted ||
         session.owner.current() !== session.controller))
   )
@@ -154,7 +170,7 @@ export function serverQueryKey(url: string): QueryKey {
   const target = new URL(url);
   return [
     "server",
-    active?.key ?? 0,
+    currentSession()?.key ?? 0,
     target.origin,
     target.pathname + target.search,
   ];
@@ -260,6 +276,7 @@ function removeDeniedAccess(
       code ?? "",
     )
   ) {
+    session.scope.revoked = true;
     session.client.clear();
     session.owner.clearAccount();
     return;
@@ -490,7 +507,7 @@ export async function travelFetch(
     (method === "DELETE" && path === "/api/notifications/device") ||
     (path === "/api/me/removal" &&
       new Headers(init.headers).get("Authorization")?.startsWith("Removal "));
-  const session = cleanup ? null : active;
+  const session = cleanup ? null : currentSession();
   assertSession(session, init.signal ?? undefined);
   const cached =
     !!session && method === "GET" && !/\/me\/removal(?:\?|$)/.test(path);
