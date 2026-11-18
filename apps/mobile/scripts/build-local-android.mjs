@@ -12,17 +12,23 @@ import {
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseEnv } from "node:util";
+import {
+  localBuildSettings,
+  mobileBuildVariables,
+} from "./local-build-settings.mjs";
 
 const app = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const root = resolve(app, "../..");
-const args = process.argv.slice(2);
-assert.ok(
-  args.every((arg) => ["--prepare-only", "--offline"].includes(arg)),
-  "Options: --prepare-only, --offline",
+const { profile, channel, settings, prepareOnly, offline } = localBuildSettings(
+  process.argv.slice(2),
+  app,
 );
-const prepareOnly = args.includes("--prepare-only");
-const state = join(root, ".local/android-local-build");
+const state = join(
+  root,
+  profile === "production"
+    ? ".local/android-production-build"
+    : ".local/android-local-build",
+);
 mkdirSync(state, { recursive: true });
 const credentialsFile = join(app, "credentials.json");
 assert.ok(
@@ -54,43 +60,36 @@ const redact = (text) =>
   );
 const expectedCertificate =
   "f6e8630d6745ac7920f15c8bdea855f90880e4e12953645f92a9a1979298ced5";
-const settings = Object.assign(
-  {},
-  ...[".env", ".env.local"]
-    .filter((name) => existsSync(join(app, name)))
-    .map((name) =>
-      parseEnv(readFileSync(join(app, name), "utf8").replace(/^\uFEFF/, "")),
-    ),
-);
 const env = {
   ...process.env,
   CI: "1",
   NODE_ENV: "production",
-  EAS_BUILD_PROFILE: "preview",
+  EAS_BUILD_PROFILE: profile,
   EXPO_NO_TELEMETRY: "1",
   EXPO_NO_DOTENV: "1",
   CMAKE_BUILD_PARALLEL_LEVEL: "2",
 };
 for (const name of [
   "DATABASE_URL",
+  "CLERK_PUBLISHABLE_KEY",
   "CLERK_SECRET_KEY",
+  "CLERK_API_URL",
+  "R2_ENDPOINT",
+  "R2_BUCKET",
   "R2_ACCESS_KEY_ID",
   "R2_SECRET_ACCESS_KEY",
   "EXPO_ACCESS_TOKEN",
   "CRON_SECRET",
+  "EXPO_PUSH_API_URL",
 ])
   delete env[name];
-for (const name of [
-  "EXPO_PUBLIC_API_URL",
-  "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY",
-  "EXPO_PUBLIC_CLERK_GOOGLE_WEB_CLIENT_ID",
-  "GOOGLE_SERVICES_JSON",
-]) {
-  if (settings[name]) env[name] = settings[name];
+for (const name of mobileBuildVariables) {
+  delete env[name];
+  if (Object.hasOwn(settings, name)) env[name] = settings[name];
 }
 assert.ok(
   env.GOOGLE_SERVICES_JSON && existsSync(env.GOOGLE_SERVICES_JSON),
-  "Set the existing GOOGLE_SERVICES_JSON file path in apps/mobile/.env.local.",
+  `Set GOOGLE_SERVICES_JSON in apps/mobile/${profile === "production" ? ".env.production.local" : ".env.local"}.`,
 );
 const java = env.JAVA_HOME
   ? join(
@@ -134,6 +133,9 @@ async function run(label, executable, command, cwd = app, extraEnv = {}) {
 }
 
 try {
+  await run("Check native build inputs", process.execPath, [
+    "scripts/check-build-inputs.mjs",
+  ]);
   const certificate = await run(
     "Verify existing signing certificate",
     keytool,
@@ -159,7 +161,7 @@ try {
       .replaceAll(":", "")
       .toLowerCase(),
     expectedCertificate,
-    "Signing key differs from the installed preview; no APK was built.",
+    "Signing key differs from the installed app; no APK was built.",
   );
   const compiler = join(
     root,
@@ -184,9 +186,6 @@ try {
     readFileSync(bytecode).subarray(0, 8).toString("hex"),
     "c61fbc03c103191f",
   );
-  await run("Check native build inputs", process.execPath, [
-    "scripts/check-build-inputs.mjs",
-  ]);
   await run("Check authentication configuration", process.execPath, [
     "scripts/check-auth-provider.mjs",
   ]);
@@ -202,8 +201,8 @@ try {
     "utf8",
   );
   assert.ok(
-    manifest.includes("expo-channel-name") && manifest.includes("preview"),
-    "The local preview update channel was not configured.",
+    manifest.includes("expo-channel-name") && manifest.includes(channel),
+    `The local ${channel} update channel was not configured.`,
   );
   const runtimeOutput = await run("Resolve native runtime", process.execPath, [
     join(root, "node_modules/expo-updates/bin/cli.js"),
@@ -230,6 +229,7 @@ try {
     ).trim(),
   );
   const version = config.android.versionCode;
+  assert.equal(config.updates.requestHeaders["expo-channel-name"], channel);
   const sourceCommit = (
     await run("Record build source", "git", ["rev-parse", "HEAD"], root)
   ).trim();
@@ -244,10 +244,11 @@ try {
     ).trim(),
   );
   const report = {
+    profile,
     package: config.android.package,
     version: config.version,
     versionCode: version,
-    channel: "preview",
+    channel,
     runtime,
     certificateSha256: expectedCertificate,
     architectures: ["arm64-v8a", "x86_64"],
@@ -255,6 +256,10 @@ try {
     sourceDirty,
     prepared: true,
   };
+  assert.ok(
+    profile !== "production" || !sourceDirty,
+    "Commit source changes before building a production APK for publication.",
+  );
   writeFileSync(
     join(state, "preparation.json"),
     JSON.stringify(report, null, 2),
@@ -289,7 +294,7 @@ try {
     ];
     if (process.platform === "win32")
       gradle.push("-I", join(app, "scripts/windows-cmake.gradle"));
-    if (args.includes("--offline")) gradle.push("--offline");
+    if (offline) gradle.push("--offline");
     await run("Build signed release APK", java, gradle, join(app, "android"));
     const apk = join(
       app,
@@ -309,7 +314,7 @@ try {
         "--build-tools",
         join(sdk, "build-tools", toolsVersion),
         "--channel",
-        "preview",
+        channel,
         "--runtime",
         runtime,
         "--api",
@@ -325,7 +330,7 @@ try {
     const destination = join(
       root,
       ".local",
-      `travel-companion-local-v${version}.apk`,
+      `travel-companion-${profile === "production" ? "production" : "local"}-v${version}.apk`,
     );
     copyFileSync(apk, destination);
     report.apk = destination;
