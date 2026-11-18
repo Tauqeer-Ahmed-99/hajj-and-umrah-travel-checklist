@@ -18,14 +18,14 @@ if (process.env.EAS_BUILD === "true" && !projectId) {
 const config: ExpoConfig = {
   name: "Travel Companion",
   slug: "nmt-travel",
-  version: "0.2.0",
+  version: "0.2.1",
   icon: "./assets/launcher-foreground.png",
   scheme: "nmttravel",
   platforms: ["android"],
   userInterfaceStyle: "automatic",
   android: {
     package: "in.nmtsolutions.travel",
-    versionCode: 10,
+    versionCode: 11,
     adaptiveIcon: {
       // Separate padding keeps the whole mascot inside Android's launcher mask.
       foregroundImage: "./assets/launcher-foreground.png",

@@ -14,10 +14,10 @@ export function CompanyCredit({ version = false }: { version?: boolean }) {
   const number =
     Application.nativeApplicationVersion ??
     Constants.expoConfig?.version ??
-    "0.2.0";
+    "0.2.1";
   const build =
     Application.nativeBuildVersion ??
-    String(Constants.expoConfig?.android?.versionCode ?? 10);
+    String(Constants.expoConfig?.android?.versionCode ?? 11);
   return (
     <View style={{ gap: 8, alignItems: "center", paddingVertical: 12 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
