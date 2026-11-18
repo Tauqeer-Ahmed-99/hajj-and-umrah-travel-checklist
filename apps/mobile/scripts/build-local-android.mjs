@@ -238,7 +238,13 @@ try {
       await run(
         "Check working tree",
         "git",
-        ["status", "--porcelain", "--untracked-files=no"],
+        [
+          "status",
+          "--porcelain",
+          profile === "production"
+            ? "--untracked-files=normal"
+            : "--untracked-files=no",
+        ],
         root,
       )
     ).trim(),
