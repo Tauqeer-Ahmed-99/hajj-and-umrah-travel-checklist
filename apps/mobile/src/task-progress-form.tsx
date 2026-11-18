@@ -23,7 +23,6 @@ export function TaskProgressForm(props: FormProps & { entry: ChecklistEntry }) {
   return (
     <Screen>
       <PageHeader title="Update task" subtitle={props.entry.title} />
-      <Copy>Choose the progress for this task. You can change it later.</Copy>
       <ChecklistChoices
         label="Progress"
         options={checklistTaskStatus.options.map((value) => ({

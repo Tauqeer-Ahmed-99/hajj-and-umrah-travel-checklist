@@ -1,3 +1,4 @@
+import { FloatingAction, SearchField, SegmentedControl } from "./controls";
 import { OptionsMenu, RecordRow } from "./simple-ui";
 import { useForegroundRefresh } from "./use-foreground-refresh";
 import { useServerView } from "./use-server-view";
@@ -5,6 +6,7 @@ import { RefreshCw } from "lucide-react-native";
 import { ArrowLeft, Luggage } from "lucide-react-native";
 import {
   DetailRow,
+  ListHeader,
   IconButton,
   ListRow,
   PageHeader,
@@ -360,96 +362,87 @@ export function PackingScreen({
   const legLabel = leg === "return" ? "Return" : "Outbound";
   const matches = (text: string) =>
     text.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
-  return (
-    <Screen contentKey={view}>
-      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-        <IconButton
-          label="Back"
-          icon={ArrowLeft}
-          onPress={() =>
-            ["bags", "items"].includes(view) ? onBack() : setView("bags")
-          }
+  const header = (
+    <ListHeader
+      title={
+        {
+          bags: "Bags",
+          items: "Pack items",
+          departure: "Before you leave",
+          review: "Coming home",
+          checkout: "Room check",
+          history: "Packing history",
+        }[view]
+      }
+      subtitle={
+        (data?.familyName ?? "Family") +
+        " / " +
+        (leg === "return" ? "Return" : "Outbound")
+      }
+      onBack={() =>
+        ["bags", "items"].includes(view) ? onBack() : setView("bags")
+      }
+      actions={
+        <OptionsMenu
+          title="Packing options"
+          actions={[
+            { label: "Refresh bags", onPress: () => refresh() },
+            {
+              label:
+                leg === "outbound"
+                  ? "Prepare the journey home"
+                  : "Prepare the journey there",
+              onPress: () => {
+                setLeg(leg === "outbound" ? "return" : "outbound");
+                setView(leg === "outbound" ? "review" : "bags");
+                setQuery("");
+                setSelectedId(undefined);
+              },
+            },
+            {
+              label: "Packing history",
+              onPress: () => {
+                setView("history");
+                setSelectedId(undefined);
+              },
+            },
+          ]}
         />
-        <View style={{ flexDirection: "row", gap: 6 }}>
-          <IconButton
-            label="Refresh bags"
-            icon={RefreshCw}
-            onPress={() => refresh()}
-          />
-          <OptionsMenu
-            title="Packing options"
-            actions={[
-              {
-                label:
-                  leg === "outbound"
-                    ? "Prepare the journey home"
-                    : "Prepare the journey there",
-                onPress: () => {
-                  setLeg(leg === "outbound" ? "return" : "outbound");
-                  setView(leg === "outbound" ? "review" : "bags");
-                  setQuery("");
-                  setSelectedId(undefined);
-                },
-              },
-              {
-                label: "Packing history",
-                onPress: () => {
-                  setView("history");
-                  setSelectedId(undefined);
-                },
-              },
-            ]}
-          />
-        </View>
-      </View>
-      <PageHeader
-        title={
-          {
-            bags: "Bags",
-            items: "Pack items",
-            departure: "Before you leave",
-            review: "What’s coming home?",
-            checkout: "Room check",
-            history: "Packing history",
-          }[view]
-        }
-        subtitle={
-          (data?.familyName ?? "Family") +
-          " · " +
-          (leg === "return" ? "Coming home" : "Going there")
-        }
-      />
+      }
+    >
       {["bags", "items"].includes(view) && (
-        <ChecklistChoices
-          label="Show"
+        <SegmentedControl
+          label="Packing view"
           value={view}
+          options={[
+            { value: "bags", label: "Bags" },
+            { value: "items", label: "Pack items" },
+          ]}
           onChange={(next) => {
             setView(next);
             setSelectedId(undefined);
           }}
-          options={[
-            { value: "bags", label: "Your bags" },
-            { value: "items", label: "Items to pack" },
-          ]}
         />
       )}
+    </ListHeader>
+  );
+  return (
+    <Screen
+      contentKey={view}
+      header={header}
+      floatingAction={
+        view === "bags" &&
+        packing?.canEdit &&
+        !!data?.travelers.length && (
+          <FloatingAction
+            label="Add bag"
+            onPress={() => open({ mode: "bag", initial: null })}
+          />
+        )
+      }
+    >
       {saved && <Notice>Saved</Notice>}
-      <Copy muted>
-        {
-          {
-            bags: "Name each bag and choose who carries it. Open a bag to see its contents.",
-            items:
-              "Choose an item you have, then choose its bag or the person carrying it.",
-            departure:
-              "Check your passports, tickets and other essentials before leaving.",
-            review:
-              "Count what is coming home. Record anything used, given away or missing.",
-            checkout:
-              "Check the room before you leave so nothing stays behind.",
-            history: "See who changed a bag or moved an item.",
-          }[view]
-        }
-      </Copy>
+
       {selectedId &&
         data &&
         ![
@@ -482,12 +475,12 @@ export function PackingScreen({
       {data && packing && (
         <>
           {!packing.canEdit && <Notice>Read-only family access</Notice>}
-          <Field
+          <SearchField
             label="Find a bag or item"
             value={query}
             onChangeText={setQuery}
-            testID="packing-search"
           />
+
           {leg === "return" && view === "review" && data.returnPreparation && (
             <>
               <Copy>
@@ -660,12 +653,7 @@ export function PackingScreen({
                   </>
                 )}
               </Surface>
-              {packing.canEdit && data.travelers.length > 0 && (
-                <Action
-                  title="Add bag"
-                  onPress={() => open({ mode: "bag", initial: null })}
-                />
-              )}
+
               {packing.canEdit && data.travelers.length === 0 && (
                 <Surface>
                   <Copy>

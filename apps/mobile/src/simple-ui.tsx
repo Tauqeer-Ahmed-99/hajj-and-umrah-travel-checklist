@@ -18,11 +18,12 @@ import {
   ChevronDown,
   ChevronRight,
   MoreHorizontal,
+  type LucideIcon,
   X,
 } from "lucide-react-native";
 import { useTheme } from "./theme";
 import { Text } from "./typography";
-import { IconButton, PageHeader } from "./design-system";
+import { IconButton, ListHeader } from "./design-system";
 
 export type MenuAction = {
   label: string;
@@ -37,26 +38,47 @@ export function DetailPage({
   open,
   onClose,
   children,
+  floatingAction,
 }: {
   title: string;
   subtitle?: string;
   open: boolean;
   onClose(): void;
   children: ReactNode;
+  floatingAction?: ReactNode;
 }) {
   const { colors } = useTheme();
   const reduced = useReducedMotion();
   return open ? (
     <Modal animationType={reduced ? "none" : "slide"} onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.canvas }}>
+        <View style={{ paddingHorizontal: 20, paddingVertical: 10 }}>
+          <ListHeader title={title} subtitle={subtitle} onBack={onClose} />
+        </View>
         <ScrollView
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: 40 }}
+          contentContainerStyle={{
+            padding: 20,
+            gap: 18,
+            paddingBottom: floatingAction ? 104 : 40,
+          }}
         >
-          <IconButton label="Back" icon={ArrowLeft} onPress={onClose} />
-          <PageHeader title={title} subtitle={subtitle} />
           {children}
         </ScrollView>
+        {floatingAction && (
+          <View
+            pointerEvents="box-none"
+            style={{
+              position: "absolute",
+              end: 20,
+              start: 20,
+              bottom: 20,
+              alignItems: "flex-end",
+            }}
+          >
+            {floatingAction}
+          </View>
+        )}
       </SafeAreaView>
     </Modal>
   ) : null;
@@ -67,12 +89,14 @@ export function OptionsMenu({
   triggerLabel,
   compact = true,
   disabled = false,
+  icon: MenuIcon = MoreHorizontal,
 }: {
   title?: string;
   actions: MenuAction[];
   triggerLabel?: string;
   compact?: boolean;
   disabled?: boolean;
+  icon?: LucideIcon;
 }) {
   const [open, setOpen] = useState(false);
   const { colors } = useTheme();
@@ -114,7 +138,7 @@ export function OptionsMenu({
             <ChevronDown size={17} color={colors.muted} accessible={false} />
           </>
         ) : (
-          <MoreHorizontal size={23} color={colors.ink} accessible={false} />
+          <MenuIcon size={23} color={colors.ink} accessible={false} />
         )}
       </Pressable>
       {open && (
@@ -264,50 +288,63 @@ export function RecordRow({
   subtitle,
   initiallyOpen = false,
   children,
+  action,
 }: {
   title: string;
   subtitle: string;
   initiallyOpen?: boolean;
   children: ReactNode;
+  action?: ReactNode;
 }) {
   const [open, setOpen] = useState(initiallyOpen);
   const { colors } = useTheme();
   const reduced = useReducedMotion();
   return (
     <>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${title}, ${subtitle}`}
-        accessibilityHint="Open details"
-        onPress={() => setOpen(true)}
-        style={({ pressed }) => [
-          styles.record,
-          { borderColor: colors.border, opacity: pressed ? 0.65 : 1 },
-        ]}
-      >
-        <View style={{ flex: 1, gap: 5 }}>
-          <Text
-            style={{
-              color: colors.ink,
-              fontSize: 16,
-              lineHeight: 23,
-              fontWeight: "500",
-            }}
-          >
-            {title}
-          </Text>
-          <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 19 }}>
-            {subtitle}
-          </Text>
-        </View>
-        <ChevronRight size={18} color={colors.muted} accessible={false} />
-      </Pressable>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${title}, ${subtitle}`}
+          accessibilityHint="Open details"
+          onPress={() => setOpen(true)}
+          style={({ pressed }) => [
+            styles.record,
+            { flex: 1 },
+            { borderColor: colors.border, opacity: pressed ? 0.65 : 1 },
+          ]}
+        >
+          <View style={{ flex: 1, gap: 5 }}>
+            <Text
+              style={{
+                color: colors.ink,
+                fontSize: 16,
+                lineHeight: 23,
+                fontWeight: "500",
+              }}
+            >
+              {title}
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 19 }}>
+              {subtitle}
+            </Text>
+          </View>
+          <ChevronRight size={18} color={colors.muted} accessible={false} />
+        </Pressable>
+        {action}
+      </View>
       {open && (
         <Modal
           animationType={reduced ? "none" : "slide"}
           onRequestClose={() => setOpen(false)}
         >
           <SafeAreaView style={{ flex: 1, backgroundColor: colors.canvas }}>
+            <View style={{ paddingHorizontal: 20, paddingVertical: 10 }}>
+              <ListHeader
+                title={title}
+                subtitle={subtitle}
+                onBack={() => setOpen(false)}
+              />
+            </View>
             <ScrollView
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={{
@@ -316,12 +353,6 @@ export function RecordRow({
                 paddingBottom: 40,
               }}
             >
-              <IconButton
-                label="Back"
-                icon={ArrowLeft}
-                onPress={() => setOpen(false)}
-              />
-              <PageHeader title={title} subtitle={subtitle} />
               {children}
             </ScrollView>
           </SafeAreaView>

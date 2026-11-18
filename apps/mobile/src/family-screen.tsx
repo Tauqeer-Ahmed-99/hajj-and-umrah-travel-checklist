@@ -1,3 +1,4 @@
+import { FloatingAction } from "./controls";
 import { useState } from "react";
 import { View } from "react-native";
 import {
@@ -110,7 +111,7 @@ export function FamilyScreen({
         <>
           <PageHeader
             title={family.name}
-            subtitle="Your family’s preparation, step by step."
+            subtitle={`${travelers.length} ${travelers.length === 1 ? "traveler" : "travelers"}`}
             action={
               <OptionsMenu
                 title="Family options"
@@ -167,14 +168,16 @@ export function FamilyScreen({
               onPress={() => setPeople(true)}
             />
           </Surface>
-          <Copy muted>
-            Add your list, mark items ready, then pack your bags.
-          </Copy>
           <DetailPage
             title="Who’s traveling?"
             subtitle={family.name}
             open={people}
             onClose={() => setPeople(false)}
+            floatingAction={
+              family.canCoordinate && (
+                <FloatingAction label="Add traveler" onPress={onAdd} />
+              )
+            }
           >
             <Surface>
               {travelers.length === 0 ? (
@@ -214,9 +217,6 @@ export function FamilyScreen({
                 ))
               )}
             </Surface>
-            {family.canCoordinate && (
-              <Action title="Add traveler" onPress={onAdd} />
-            )}
           </DetailPage>
         </>
       )}

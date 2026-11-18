@@ -186,12 +186,12 @@ function QuickAcquisitionForm(
           />
           {action === "have" && (
             <ChecklistChoices
-              label="Check before saving"
+              label="Confirm the items"
               multiple
               options={[
                 {
                   value: "checked",
-                  label: "I checked these items and have them with me",
+                  label: "These items are with me",
                 },
               ]}
               value={checked ? ["checked"] : []}

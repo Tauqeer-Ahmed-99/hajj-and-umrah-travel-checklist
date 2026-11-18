@@ -1,3 +1,4 @@
+import { ChoiceField } from "./controls";
 import { useScreenBackEffect } from "./screen-back";
 import { Text } from "./typography";
 import { useEffect, type ReactNode } from "react";
@@ -76,47 +77,14 @@ export function AccessChoices<T extends string>({
   onChange: (value: T) => void;
   disabled?: boolean;
 }) {
-  const { colors } = useTheme();
   return (
-    <View style={{ gap: 8 }}>
-      <Copy>{label}</Copy>
-      <View
-        accessibilityRole="radiogroup"
-        style={{ gap: 8, flexDirection: "row", flexWrap: "wrap" }}
-      >
-        {choices.map((choice) => (
-          <Pressable
-            key={choice.value}
-            accessibilityRole="radio"
-            accessibilityLabel={`${label}: ${choice.label}`}
-            accessibilityState={{ checked: value === choice.value, disabled }}
-            disabled={disabled}
-            onPress={() => onChange(choice.value)}
-            style={[
-              styles.choice,
-              {
-                borderColor:
-                  value === choice.value ? colors.brand : colors.border,
-                backgroundColor:
-                  value === choice.value ? colors.tint : colors.surface,
-                opacity: disabled ? 0.65 : 1,
-              },
-            ]}
-          >
-            <Text
-              style={{
-                color: colors.ink,
-                fontSize: 16,
-                lineHeight: 24,
-                fontWeight: "600",
-              }}
-            >
-              {choice.label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-    </View>
+    <ChoiceField
+      label={label}
+      options={choices}
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+    />
   );
 }
 export const tripRoleChoices = [

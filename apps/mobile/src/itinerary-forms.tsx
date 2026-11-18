@@ -1,3 +1,4 @@
+import { ChoiceField } from "./controls";
 import { DateTimeField } from "./date-field";
 import { useScreenBackEffect } from "./screen-back";
 import { Text } from "./typography";
@@ -145,35 +146,13 @@ export function ItineraryChoices<T extends string>({
   onChange: (value: T) => void;
   locked?: boolean;
 }) {
-  const { colors } = useTheme();
   return (
-    <View accessibilityRole="radiogroup" style={styles.choices}>
-      {options.map((option) => (
-        <Pressable
-          key={option.value}
-          accessibilityRole="radio"
-          accessibilityLabel={option.label}
-          accessibilityState={{
-            checked: option.value === value,
-            disabled: locked,
-          }}
-          disabled={locked}
-          onPress={() => onChange(option.value)}
-          style={[
-            styles.choice,
-            {
-              borderColor: colors.brand,
-              backgroundColor:
-                option.value === value ? colors.tint : colors.surface,
-            },
-          ]}
-        >
-          <Text style={[styles.choiceText, { color: colors.ink }]}>
-            {option.label}
-          </Text>
-        </Pressable>
-      ))}
-    </View>
+    <ChoiceField
+      options={options}
+      value={value}
+      onChange={onChange}
+      disabled={locked}
+    />
   );
 }
 

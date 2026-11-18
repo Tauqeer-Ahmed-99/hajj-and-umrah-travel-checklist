@@ -1,3 +1,4 @@
+import { ToggleRow, FloatingAction } from "./controls";
 import { formatZonedDateTime } from "./date-values";
 import { DateTimeField } from "./date-field";
 import { useScreenBackEffect } from "./screen-back";
@@ -167,7 +168,17 @@ export function RemindersScreen({
       />
     );
   return (
-    <Screen>
+    <Screen
+      floatingAction={
+        data && (
+          <FloatingAction
+            label="Add reminder"
+            disabled={api.busy || deviceBusy}
+            onPress={() => setForm("new")}
+          />
+        )
+      }
+    >
       <Action
         title="Back to trip"
         secondary
@@ -178,22 +189,14 @@ export function RemindersScreen({
       <Copy muted>
         Choose a time for a task or item. Your phone can remind you.
       </Copy>
-      <Copy>
-        Keep travel checks in your checklist and itinerary. Notifications may be
-        delayed or missed; they never confirm a delivery or that a bag is
-        packed.
+      <Copy muted>
+        Keep important checks in your checklist too. Alerts can be delayed.
       </Copy>
       {notice !== "" && <Notice>{notice}</Notice>}
       {api.error && <Notice error>{api.error.message}</Notice>}
       {!data && !api.error && <Loading message="Opening reminders…" />}
       {data && (
         <>
-          <Action
-            requiresConnection
-            title="Add reminder"
-            disabled={api.busy || deviceBusy}
-            onPress={() => setForm("new")}
-          />
           {data.reminders.length === 0 && (
             <Copy>
               No reminders yet. Add a preparation check with an owner and a
@@ -270,13 +273,12 @@ export function RemindersScreen({
                 ["tripChanges", "Trip changes"],
               ] as const
             ).map(([key, label]) => (
-              <Action
-                requiresConnection
+              <ToggleRow
                 key={key}
-                title={`${label}: ${data.preferences[key] ? "On" : "Off"}`}
-                secondary
+                label={label}
+                value={data.preferences[key]}
                 disabled={api.busy || deviceBusy}
-                onPress={() => preference(key)}
+                onChange={() => void preference(key)}
               />
             ))}
             <Action

@@ -1,6 +1,9 @@
+import { FloatingAction, SearchField, SegmentedControl } from "./controls";
+import { DetailPage, OptionsMenu } from "./simple-ui";
 import { useScreenBackEffect } from "./screen-back";
 import {
   ArrowLeft,
+  Search,
   BookOpen,
   Download,
   FileText,
@@ -11,6 +14,7 @@ import {
 } from "lucide-react-native";
 import {
   DocumentCard,
+  ListHeader,
   IconButton,
   JourneyCard,
   ListRow,
@@ -272,6 +276,7 @@ function GuideLibrary({
   const { width, fontScale } = useWindowDimensions();
   const copies = useGuideCopies();
   const api = useTripRequest();
+  const [adding, setAdding] = useState(false);
   const [q, setQ] = useState("");
   const [pinned, setPinned] = useState("all");
   const [query, setQuery] = useState<GuideQuery>({ q: "" });
@@ -300,63 +305,95 @@ function GuideLibrary({
     if (api.error && [401, 403, 404].includes(api.error.status)) setData(null);
   }, [api.error]);
   useRefresh(load);
-  return (
-    <Screen>
-      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-        <IconButton
-          label="Back to Overview"
-          icon={ArrowLeft}
-          onPress={onBack}
+  const search = () =>
+    setQuery({
+      q: q.trim(),
+      ...(pinned === "pinned" ? { pinned: "true" as const } : {}),
+    });
+  const header = (
+    <ListHeader
+      title="Guides"
+      subtitle={data?.name}
+      onBack={onBack}
+      actions={
+        <OptionsMenu
+          title="Guide options"
+          actions={[
+            { label: "Saved guides", onPress: onOffline },
+            { label: "Save guides for offline use", onPress: onPrepare },
+            { label: "Refresh guides", onPress: () => load() },
+          ]}
         />
-        <IconButton label="Saved guides" icon={Download} onPress={onOffline} />
-      </View>
-      <PageHeader
-        title="Guide library"
-        subtitle={data?.name ?? "Notes, links and files for your journey"}
-      />
-      <Copy muted>
-        Open a guide to read it. Save a file if you need it without a
-        connection.
-      </Copy>
-      {footer}
-      {data && (
-        <JourneyCard
-          eyebrow="PRIVATE TRAVEL LIBRARY"
-          title={String(data.count).padStart(2, "0") + " guides"}
-          subtitle="Notes, links and documents you’re allowed to access."
-          onPress={onPrepare}
-          label="Prepare selected guides for offline use"
-        />
-      )}
-      <Field
+      }
+    >
+      <SearchField
         label="Search guides"
-        testID="guide-search"
         value={q}
         onChangeText={setQ}
-        maxLength={120}
-        editable={!api.busy}
-        placeholder="Find notes, documents or links"
-      />
-      <GuideChoices
-        label="Show guides"
-        value={pinned}
-        onChange={setPinned}
-        locked={api.busy}
-        options={[
-          { value: "all", label: "All guides" },
-          { value: "pinned", label: "Pinned only" },
-        ]}
-      />
-      <Action
-        title="Search guides"
-        busy={api.busy}
-        onPress={() =>
-          setQuery({
-            q: q.trim(),
-            ...(pinned === "pinned" ? { pinned: "true" as const } : {}),
-          })
+        onSubmit={search}
+        action={
+          <IconButton
+            label="Search guides"
+            icon={Search}
+            busy={api.busy}
+            onPress={search}
+          />
         }
       />
+      <SegmentedControl
+        label="Guide filter"
+        options={[
+          { value: "all", label: "All guides" },
+          { value: "pinned", label: "Pinned" },
+        ]}
+        value={pinned}
+        disabled={api.busy}
+        onChange={(value) => {
+          setPinned(value);
+          setQuery({
+            q: q.trim(),
+            ...(value === "pinned" ? { pinned: "true" as const } : {}),
+          });
+        }}
+      />
+    </ListHeader>
+  );
+  return (
+    <Screen
+      header={header}
+      floatingAction={
+        !!data?.families.length && (
+          <FloatingAction label="Add guide" onPress={() => setAdding(true)} />
+        )
+      }
+    >
+      {footer}
+      <DetailPage
+        title="Add guide"
+        open={adding}
+        onClose={() => setAdding(false)}
+      >
+        <Surface>
+          <ListRow
+            title="Note or link"
+            subtitle="Write a note or save a website"
+            icon={BookOpen}
+            onPress={() => {
+              setAdding(false);
+              if (data) onCreate(data.families);
+            }}
+          />
+          <ListRow
+            title="Document or photo"
+            subtitle="Upload a file for your family"
+            icon={Upload}
+            onPress={() => {
+              setAdding(false);
+              if (data) onUpload(data.families);
+            }}
+          />
+        </Surface>
+      </DetailPage>
       {!data && !api.error && (
         <Loading kind="cards" message="Loading permitted guides…" />
       )}
@@ -400,38 +437,8 @@ function GuideLibrary({
               />
             ))}
           </View>
-          {data.families.length > 0 ? (
-            <Surface>
-              <ListRow
-                title="Add a note or link"
-                icon={Plus}
-                onPress={() => onCreate(data.families)}
-              />
-              <ListRow
-                title="Upload document or image"
-                icon={Upload}
-                onPress={() => onUpload(data.families)}
-              />
-            </Surface>
-          ) : (
-            <Copy muted>
-              Read-only library. A family editor can contribute guides.
-            </Copy>
-          )}
         </>
       )}
-      <Surface>
-        <ListRow
-          title="Prepare for offline use"
-          icon={WifiOff}
-          onPress={onPrepare}
-        />
-        <ListRow
-          title="Refresh guides"
-          icon={BookOpen}
-          onPress={() => load()}
-        />
-      </Surface>
     </Screen>
   );
 }

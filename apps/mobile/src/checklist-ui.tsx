@@ -1,6 +1,7 @@
+import { ChoiceField } from "./controls";
 import { Text } from "./typography";
 import type { ReactNode } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { useTheme } from "./theme";
 import { SelectField } from "./simple-ui";
 
@@ -49,58 +50,25 @@ export function ChecklistChoices<T extends string>({
   locked?: boolean;
   multiple?: boolean;
 }) {
-  const { colors } = useTheme();
   if (!multiple && !Array.isArray(value) && options.length > 3)
     return (
       <SelectField
         label={label}
-        value={value}
         options={options}
+        value={value}
         onChange={onChange}
         disabled={locked}
       />
     );
   return (
-    <View style={styles.group}>
-      <Text
-        accessibilityRole="header"
-        style={[styles.label, { color: colors.ink }]}
-      >
-        {label}
-      </Text>
-      <View
-        accessibilityRole={multiple ? undefined : "radiogroup"}
-        style={styles.choices}
-      >
-        {options.map((option) => {
-          const checked = Array.isArray(value)
-            ? value.includes(option.value)
-            : value === option.value;
-          return (
-            <Pressable
-              key={option.value}
-              accessibilityRole={multiple ? "checkbox" : "radio"}
-              accessibilityLabel={option.label}
-              accessibilityState={{ checked, disabled: locked }}
-              disabled={locked}
-              onPress={() => onChange(option.value)}
-              style={[
-                styles.choice,
-                {
-                  borderColor: checked ? colors.brand : colors.border,
-                  backgroundColor: checked ? colors.tint : colors.surface,
-                },
-              ]}
-            >
-              <Text style={[styles.label, { color: colors.ink }]}>
-                {multiple ? (checked ? "✓ " : "+ ") : checked ? "● " : "○ "}
-                {option.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
+    <ChoiceField
+      label={label}
+      options={options}
+      value={value}
+      onChange={onChange}
+      disabled={locked}
+      multiple={multiple}
+    />
   );
 }
 const styles = StyleSheet.create({

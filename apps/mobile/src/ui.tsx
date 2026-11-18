@@ -277,11 +277,15 @@ export function AppearancePicker() {
 export function Screen({
   children,
   footer,
+  header,
+  floatingAction,
   contentKey,
   auth = false,
 }: {
   children: ReactNode;
   footer?: ReactNode;
+  header?: ReactNode;
+  floatingAction?: ReactNode;
   contentKey?: string;
   auth?: boolean;
 }) {
@@ -298,9 +302,24 @@ export function Screen({
         style={styles.safe}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
+        {header && (
+          <View
+            style={{
+              paddingHorizontal: 20,
+              paddingVertical: 10,
+              gap: 8,
+              backgroundColor: colors.canvas,
+            }}
+          >
+            {header}
+          </View>
+        )}
         <ScrollView
           key={contentKey}
-          contentContainerStyle={styles.scroll}
+          contentContainerStyle={[
+            styles.scroll,
+            floatingAction ? { paddingBottom: 104 } : undefined,
+          ]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
         >
@@ -331,6 +350,20 @@ export function Screen({
             )}
           </View>
         </ScrollView>
+        {floatingAction && (
+          <View
+            pointerEvents="box-none"
+            style={{
+              position: "absolute",
+              bottom: 18,
+              end: 20,
+              start: 20,
+              alignItems: "flex-end",
+            }}
+          >
+            {floatingAction}
+          </View>
+        )}
         {footer}
       </KeyboardAvoidingView>
     </SafeAreaView>

@@ -10,12 +10,61 @@ import {
 } from "react-native";
 import {
   ArrowUpRight,
+  ArrowLeft,
   ChevronRight,
   type LucideIcon,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "./theme";
 import { Text } from "./typography";
+
+export function ListHeader({
+  title,
+  subtitle,
+  onBack,
+  actions,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  onBack?(): void;
+  actions?: ReactNode;
+  children?: ReactNode;
+}) {
+  const { colors } = useTheme();
+  return (
+    <>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        {onBack && (
+          <IconButton label="Back" icon={ArrowLeft} onPress={onBack} />
+        )}
+        <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
+          <Text
+            accessibilityRole="header"
+            style={{
+              fontSize: 20,
+              lineHeight: 27,
+              fontWeight: "600",
+              color: colors.ink,
+            }}
+          >
+            {title}
+          </Text>
+          {!!subtitle && (
+            <Text
+              numberOfLines={1}
+              style={{ fontSize: 12, lineHeight: 18, color: colors.muted }}
+            >
+              {subtitle}
+            </Text>
+          )}
+        </View>
+        {actions}
+      </View>
+      {children}
+    </>
+  );
+}
 
 export function DetailRow({
   title,

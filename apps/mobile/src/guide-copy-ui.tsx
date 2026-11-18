@@ -1,3 +1,4 @@
+import { CheckboxRow } from "./controls";
 import { useScreenBackEffect } from "./screen-back";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BackHandler, Pressable, View } from "react-native";
@@ -494,15 +495,11 @@ export function PrepareGuidesScreen({
           guide.kind === "text" || (guide.kind === "file" && !!guide.file);
         return (
           <View key={guide.id}>
-            <Pressable
-              accessibilityRole="checkbox"
-              accessibilityLabel={`Save ${guide.title}`}
-              accessibilityState={{
-                checked: selected.has(guide.id),
-                disabled: !supported || api.busy,
-              }}
+            <CheckboxRow
+              label={guide.title}
+              checked={selected.has(guide.id)}
               disabled={!supported || api.busy}
-              onPress={() =>
+              onChange={() =>
                 setSelected((prev) => {
                   const next = new Set(prev);
                   if (next.has(guide.id)) next.delete(guide.id);
@@ -510,28 +507,14 @@ export function PrepareGuidesScreen({
                   return next;
                 })
               }
-              style={{
-                minHeight: 56,
-                padding: 16,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: selected.has(guide.id)
-                  ? colors.tint
-                  : colors.surface,
-              }}
-            >
-              <Copy>
-                {selected.has(guide.id) ? "Selected: " : ""}
-                {guide.title}
-              </Copy>
-              <Copy muted>
-                {supported
+              description={
+                supported
                   ? `Version ${guide.version} · ${copySize(guide.file?.byteSize ?? new TextEncoder().encode(guide.text).length)}`
                   : guide.kind === "link"
                     ? "Link · Connection required"
-                    : "Upload incomplete"}
-              </Copy>
-            </Pressable>
+                    : "Upload incomplete"
+              }
+            />
           </View>
         );
       })}

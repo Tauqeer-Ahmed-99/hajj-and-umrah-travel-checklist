@@ -1,3 +1,4 @@
+import { FloatingAction } from "./controls";
 import { ArrowLeft, FileText, RefreshCw } from "lucide-react-native";
 import {
   IconButton,
@@ -209,7 +210,18 @@ export function ItineraryScreen({
   };
   const dateLabel = formatCalendarDate;
   return (
-    <Screen>
+    <Screen
+      floatingAction={
+        data?.itinerary.canEdit && (
+          <FloatingAction
+            label="Add stop"
+            onPress={() =>
+              setEditor({ mode: "entry", entry: null, kind: "stop" })
+            }
+          />
+        )
+      }
+    >
       <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
         <IconButton label="Back to journey" icon={ArrowLeft} onPress={onBack} />
         <View style={{ flexDirection: "row", gap: 6 }}>
@@ -262,7 +274,6 @@ export function ItineraryScreen({
           )
         }
       />
-      <Copy muted>Add stops, hotel details and contacts for this trip.</Copy>
       {saved && <Notice>Saved</Notice>}
       {!data && !api.error && <Loading message="Loading journey details" />}
       {api.error && (
@@ -364,14 +375,7 @@ export function ItineraryScreen({
               </RecordRow>
             ))}
           </Surface>
-          {data.itinerary.canEdit && (
-            <Action
-              title="Add a stop"
-              onPress={() =>
-                setEditor({ mode: "entry", entry: null, kind: "stop" })
-              }
-            />
-          )}
+
           <SectionLabel>Useful details</SectionLabel>
           <Surface>
             <References value={data.itinerary} />

@@ -1,3 +1,4 @@
+import { CheckboxRow } from "./controls";
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { CheckSquare, Square } from "lucide-react-native";
@@ -33,38 +34,13 @@ function SelectionRow({
   checked: boolean;
   onPress(): void;
 }) {
-  const { colors } = useTheme(),
-    Icon = checked ? CheckSquare : Square;
   return (
-    <Pressable
-      accessibilityRole="checkbox"
-      accessibilityLabel={title}
-      accessibilityState={{ checked }}
-      onPress={onPress}
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 14,
-        minHeight: 58,
-        paddingVertical: 12,
-      }}
-    >
-      <Icon
-        size={23}
-        color={checked ? colors.brand : colors.muted}
-        accessible={false}
-      />
-      <View style={{ flex: 1, gap: 4 }}>
-        <Text style={{ fontSize: 16, lineHeight: 23, color: colors.ink }}>
-          {title}
-        </Text>
-        {!!subtitle && (
-          <Text style={{ fontSize: 13, lineHeight: 19, color: colors.muted }}>
-            {subtitle}
-          </Text>
-        )}
-      </View>
-    </Pressable>
+    <CheckboxRow
+      label={title}
+      description={subtitle}
+      checked={checked}
+      onChange={onPress}
+    />
   );
 }
 function sectionDescription(checklist: Checklist, id: string) {

@@ -1,3 +1,4 @@
+import { ChoiceField } from "./controls";
 import { Text } from "./typography";
 import { Pressable, StyleSheet, View } from "react-native";
 import type { GuideRecord } from "@nmt/contracts";
@@ -31,43 +32,14 @@ export function GuideChoices<T extends string>({
   onChange(value: T): void;
   locked?: boolean;
 }) {
-  const { colors } = useTheme();
   return (
-    <View
-      accessibilityRole="radiogroup"
-      accessibilityLabel={label}
-      style={styles.choices}
-    >
-      <Copy>{label}</Copy>
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-        {options.map((option) => (
-          <Pressable
-            key={option.value}
-            accessibilityRole="radio"
-            accessibilityLabel={`${label}: ${option.label}`}
-            accessibilityState={{
-              checked: value === option.value,
-              disabled: locked,
-            }}
-            disabled={locked}
-            onPress={() => onChange(option.value)}
-            style={[
-              styles.choice,
-              {
-                borderColor:
-                  value === option.value ? colors.brand : colors.border,
-                backgroundColor:
-                  value === option.value ? colors.tint : colors.surface,
-              },
-            ]}
-          >
-            <Text style={{ color: colors.ink, fontSize: 14 }}>
-              {option.label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-    </View>
+    <ChoiceField
+      label={label}
+      options={options}
+      value={value}
+      onChange={onChange}
+      disabled={locked}
+    />
   );
 }
 export function guideAlignment(

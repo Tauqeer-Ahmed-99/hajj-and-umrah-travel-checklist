@@ -1,3 +1,4 @@
+import { FloatingAction } from "./controls";
 import { OptionsMenu } from "./simple-ui";
 import { PreparationSummary } from "./preparation-summary";
 import { formatCalendarDate } from "./date-values";
@@ -794,14 +795,10 @@ function TripList({
   const { trips, busy, error, refresh } = useTripCatalog();
   const { colors } = useTheme();
   return (
-    <Screen>
-      <PageHeader
-        title="Your trips"
-        subtitle="Every journey, in one place."
-        action={
-          <IconButton label="Create trip" icon={Plus} onPress={onCreate} />
-        }
-      />
+    <Screen
+      floatingAction={<FloatingAction label="New trip" onPress={onCreate} />}
+    >
+      <PageHeader title="Your trips" />
       {preferenceError && <Notice error>{preferenceError}</Notice>}
       {!trips && !error && <Loading message="Loading your trips…" />}
       {error && (
@@ -840,7 +837,6 @@ function TripList({
         />
       ))}
       <Surface>
-        <ListRow title="Create a trip" icon={Plus} onPress={onCreate} />
         <ListRow title="Your invitations" icon={Mail} onPress={onInvitations} />
         <ListRow title="Archived trips" icon={Archive} onPress={onArchives} />
       </Surface>
@@ -964,16 +960,12 @@ function TripHome({
           )}
           {destination === "Overview" ? (
             <>
-              <SectionLabel>Prepare with your family</SectionLabel>
-              <Copy muted>
-                Choose your family to manage its checklist, travelers and bags.
-              </Copy>
+              <SectionLabel>Your families</SectionLabel>
               <Surface>
                 {detail.families.map((family) => (
                   <ListRow
                     key={family.id}
                     title={family.name}
-                    subtitle="Checklist, bags and travelers"
                     icon={Users}
                     onPress={() => onFamily(family.id)}
                   />

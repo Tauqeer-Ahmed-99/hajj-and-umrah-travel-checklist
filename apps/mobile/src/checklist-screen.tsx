@@ -1,9 +1,15 @@
+import {
+  CompactAction,
+  FloatingAction,
+  SearchField,
+  SegmentedControl,
+} from "./controls";
 import { formatCalendarDate } from "./date-values";
 import { DetailPage, OptionsMenu, RecordRow } from "./simple-ui";
 import { useForegroundRefresh } from "./use-foreground-refresh";
 import { useServerView } from "./use-server-view";
 import { TaskProgressForm } from "./task-progress-form";
-import { RefreshCw } from "lucide-react-native";
+import { RefreshCw, Search, SlidersHorizontal } from "lucide-react-native";
 import {
   ArrowLeft,
   ListChecks,
@@ -13,6 +19,7 @@ import {
 } from "lucide-react-native";
 import {
   DetailRow,
+  ListHeader,
   IconButton,
   ListRow,
   PageHeader,
@@ -209,7 +216,26 @@ function ChecklistItemRow({
         entry.unit
     : checklistTaskLabels[entry.taskStatus!];
   return (
-    <RecordRow title={entry.title} subtitle={subtitle} initiallyOpen={selected}>
+    <RecordRow
+      title={entry.title}
+      subtitle={subtitle}
+      initiallyOpen={selected}
+      action={
+        data.checklist.canEdit && (
+          <CompactAction
+            label="Update"
+            accessibilityLabel={`Update ${entry.title}`}
+            onPress={() =>
+              edit(
+                isItem
+                  ? { mode: "acquisition", entry }
+                  : { mode: "taskProgress", entry },
+              )
+            }
+          />
+        )
+      }
+    >
       {isItem && (
         <Surface>
           <Copy>
@@ -402,6 +428,8 @@ export function ChecklistScreen({
   useEffect(() => {
     onRemember?.(view, selectedId);
   }, [view, selectedId, onRemember]);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const [kind, setKind] = useState<"item" | "task">("item");
   const [manage, setManage] = useState(false);
   const scope = { tripId, familyId };
@@ -629,59 +657,137 @@ export function ChecklistScreen({
     !data ? [] : view === "all" ? data.checklist.entries : data.views[view]
   ).filter(
     (entry) =>
-      (!selectedId || entry.id === selectedId) && entry.kind === effectiveKind,
+      (!selectedId || entry.id === selectedId) &&
+      entry.kind === effectiveKind &&
+      (entry.title + " " + entry.notes)
+        .toLocaleLowerCase()
+        .includes(search.trim().toLocaleLowerCase()),
   );
   const add = () => edit({ mode: "entry", initial: null, kind: effectiveKind });
-  return (
-    <Screen>
-      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-        <IconButton label="Back to family" icon={ArrowLeft} onPress={onBack} />
-        <View style={{ flexDirection: "row", gap: 6 }}>
-          <IconButton
-            label="Refresh checklist"
-            icon={RefreshCw}
-            onPress={() => refresh()}
+  const header = (
+    <ListHeader
+      title="Checklist"
+      subtitle={data?.family.name}
+      onBack={onBack}
+      actions={
+        data && (
+          <OptionsMenu
+            title="Checklist options"
+            actions={[
+              { label: "Refresh checklist", onPress: () => refresh() },
+              ...(data.checklist.canEdit
+                ? [
+                    {
+                      label: "Use starter suggestions",
+                      onPress: () => edit({ mode: "starter" }),
+                    },
+                    {
+                      label: "Manage people / categories",
+                      onPress: () => setManage(true),
+                    },
+                    {
+                      label: "Select and delete",
+                      destructive: true,
+                      onPress: () =>
+                        edit({
+                          mode: "bulkRemoval",
+                          initialGroup: effectiveKind,
+                        }),
+                    },
+                  ]
+                : []),
+              {
+                label: "Recent activity",
+                onPress: () => edit({ mode: "history" }),
+              },
+            ]}
           />
-          {data && (
-            <OptionsMenu
-              title="Checklist options"
-              actions={[
-                ...(data.checklist.canEdit
-                  ? [
-                      {
-                        label: "Use starter suggestions",
-                        onPress: () => edit({ mode: "starter" }),
-                      },
-                      {
-                        label: "Manage people / categories",
-                        onPress: () => setManage(true),
-                      },
-                      {
-                        label: "Select and delete",
-                        destructive: true,
-                        onPress: () =>
-                          edit({
-                            mode: "bulkRemoval",
-                            initialGroup: effectiveKind,
-                          }),
-                      },
-                    ]
-                  : []),
-                {
-                  label: "Recent activity",
-                  onPress: () => edit({ mode: "history" }),
-                },
+        )
+      }
+    >
+      {data && (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <View style={{ flex: 1 }}>
+            <SegmentedControl
+              label="Checklist type"
+              value={effectiveKind}
+              options={[
+                { value: "item", label: "Items" },
+                { value: "task", label: "Tasks" },
               ]}
+              onChange={(next) => {
+                setKind(next);
+                setView("all");
+                setSelectedId(undefined);
+              }}
+            />
+          </View>
+          <IconButton
+            label={searchOpen ? "Hide search" : "Search checklist"}
+            icon={Search}
+            onPress={() => {
+              if (searchOpen) setSearch("");
+              setSearchOpen((value) => !value);
+            }}
+          />
+          {effectiveKind === "item" && (
+            <OptionsMenu
+              title="Filter items"
+              icon={SlidersHorizontal}
+
+              actions={[
+                { value: "all", label: "All items" },
+                { value: "shopping", label: "Still to get" },
+                {
+                  value: "expectedDelivery",
+                  label: "Waiting for delivery",
+                },
+                { value: "overdueReceipt", label: "Delivery overdue" },
+                {
+                  value: "essentialOutstanding",
+                  label: "Essentials to get",
+                },
+              ].map((option) => ({
+                label: option.label,
+                selected: view === option.value,
+                onPress: () => {
+                  setView(option.value as ChecklistView);
+                  setSelectedId(undefined);
+                },
+              }))}
             />
           )}
         </View>
-      </View>
-      <PageHeader title="Checklist" subtitle={data?.family.name} />
-      <Copy muted>
-        {effectiveKind === "item"
-          ? "List what you need. Open an item to mark what you have or ordered."
-          : "Add jobs such as booking transport. Open a task to update its progress."}
-      </Copy>
+      )}
+      {view !== "all" && (
+        <CompactAction
+          label="Clear item filter"
+          onPress={() => setView("all")}
+        />
+      )}
+      {searchOpen && (
+        <SearchField
+          label="Search checklist"
+          value={search}
+          onChangeText={setSearch}
+          autoFocus
+        />
+      )}
+    </ListHeader>
+  );
+  return (
+    <Screen
+      header={header}
+      floatingAction={
+        data?.checklist.canEdit &&
+        data.checklist.categories.length > 0 && (
+          <FloatingAction
+            label={effectiveKind === "item" ? "Add item" : "Add task"}
+            onPress={add}
+          />
+        )
+      }
+    >
       {saved && <Notice>Saved</Notice>}
       {!data && !api.error && <Loading message="Loading checklist" />}
       {api.error && (
@@ -692,19 +798,6 @@ export function ChecklistScreen({
       )}
       {data && (
         <>
-          <ChecklistChoices
-            label="Show"
-            options={[
-              { value: "item", label: "Things to bring" },
-              { value: "task", label: "Things to do" },
-            ]}
-            value={effectiveKind}
-            onChange={(next) => {
-              setKind(next);
-              setView("all");
-              setSelectedId(undefined);
-            }}
-          />
           {data.checklist.categories.length === 0 ? (
             <Surface>
               <Copy>
@@ -728,46 +821,6 @@ export function ChecklistScreen({
             </Surface>
           ) : (
             <>
-              {data.checklist.canEdit && (
-                <Action
-                  title={effectiveKind === "item" ? "Add item" : "Add task"}
-                  onPress={add}
-                />
-              )}
-              {effectiveKind === "item" && (
-                <OptionsMenu
-                  title="Filter items"
-                  triggerLabel={
-                    {
-                      all: "All items",
-                      shopping: "Still to get",
-                      expectedDelivery: "Waiting for delivery",
-                      overdueReceipt: "Delivery overdue",
-                      essentialOutstanding: "Essentials to get",
-                    }[view]
-                  }
-                  actions={[
-                    { value: "all", label: "All items" },
-                    { value: "shopping", label: "Still to get" },
-                    {
-                      value: "expectedDelivery",
-                      label: "Waiting for delivery",
-                    },
-                    { value: "overdueReceipt", label: "Delivery overdue" },
-                    {
-                      value: "essentialOutstanding",
-                      label: "Essentials to get",
-                    },
-                  ].map((option) => ({
-                    label: option.label,
-                    selected: view === option.value,
-                    onPress: () => {
-                      setView(option.value as ChecklistView);
-                      setSelectedId(undefined);
-                    },
-                  }))}
-                />
-              )}
               {selectedId && (
                 <Action
                   title="Show all"
@@ -781,11 +834,13 @@ export function ChecklistScreen({
               {!entries.length && (
                 <Surface>
                   <Copy muted>
-                    {view === "all"
-                      ? effectiveKind === "item"
-                        ? "No items yet. Add what your family needs to bring."
-                        : "No tasks yet. Add something your family needs to do."
-                      : "Nothing to do in this view."}
+                    {search.trim()
+                      ? "No matches. Try another search."
+                      : view === "all"
+                        ? effectiveKind === "item"
+                          ? "No items yet. Add what your family needs to bring."
+                          : "No tasks yet. Add something your family needs to do."
+                        : "Nothing to do in this view."}
                   </Copy>
                 </Surface>
               )}

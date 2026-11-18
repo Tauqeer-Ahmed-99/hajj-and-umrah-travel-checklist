@@ -120,12 +120,10 @@ export function TravelFilesScreen({
       </Heading>
       <Copy>
         {target.kind === "bag_photo"
-          ? "A family-private image to distinguish this physical bag on either travel leg."
-          : "Files attached to these travel details. Each file has its own family and visibility."}
+          ? "A private photo to help you recognize this bag."
+          : "Keep tickets and other travel documents here."}
       </Copy>
-      <Copy>
-        Open files temporarily in the app. These files are not saved offline.
-      </Copy>
+      <Copy>These files need a connection to open.</Copy>
       {saved && <Notice>Saved</Notice>}
       {!data && !api.error && <Loading message="Loading permitted files…" />}
       {api.error && <Notice error>{api.error.message}</Notice>}
