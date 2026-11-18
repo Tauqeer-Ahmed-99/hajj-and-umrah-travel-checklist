@@ -171,9 +171,14 @@ export function ChecklistCategoryForm(
   );
   return (
     <Screen>
-      <Heading>{props.initial ? "Edit category" : "Add category"}</Heading>
+      <Heading>
+        {props.initial ? "Edit person / category" : "Add person / category"}
+      </Heading>
+      <Copy>
+        Group items by a person's name or a category, such as Toiletries.
+      </Copy>
       <Field
-        label="Category name"
+        label="Person / Category name"
         testID="checklist-category-name"
         value={name}
         onChangeText={setName}
@@ -183,7 +188,7 @@ export function ChecklistCategoryForm(
       />
       <SaveActions
         save={save}
-        title="Save category"
+        title="Save"
         onSave={() =>
           void save.submit({ name, ...(props.initial ? {} : { requestId }) })
         }
@@ -298,7 +303,7 @@ export function ChecklistEntryForm(
       />
       {props.checklist.categories.length > 1 && (
         <ChecklistChoices
-          label="Category"
+          label="Person / Category"
           options={props.checklist.categories.map((group) => ({
             value: group.id,
             label: group.name,
@@ -602,7 +607,8 @@ export function ChecklistRemovalForm(
       <Heading>Remove {props.title}?</Heading>
       <Copy>
         The entry leaves the active checklist. Its accepted history is retained.
-        A category must be empty before removal.
+        A person / category group must be empty before removal. Traveler
+        profiles stay saved.
       </Copy>
       {props.requiresReason && (
         <Field

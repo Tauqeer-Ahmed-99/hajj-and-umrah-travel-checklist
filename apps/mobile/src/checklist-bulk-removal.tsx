@@ -77,7 +77,7 @@ function sectionDescription(checklist: Checklist, id: string) {
       tasks ? `${tasks} ${tasks === 1 ? "task" : "tasks"}` : "",
     ]
       .filter(Boolean)
-      .join(", ") || "Empty section"
+      .join(", ") || "No items or tasks"
   );
 }
 export function ChecklistBulkRemoval(
@@ -132,7 +132,7 @@ export function ChecklistBulkRemoval(
     items ? `${items} ${items === 1 ? "item" : "items"}` : "",
     tasks ? `${tasks} ${tasks === 1 ? "task" : "tasks"}` : "",
     categories.length
-      ? `${categories.length} ${categories.length === 1 ? "section" : "sections"}`
+      ? `${categories.length} ${categories.length === 1 ? "group" : "groups"}`
       : "",
   ]
     .filter(Boolean)
@@ -142,8 +142,8 @@ export function ChecklistBulkRemoval(
       <Screen>
         <PageHeader title="Delete this selection?" subtitle={description} />
         <Copy>
-          These entries and sections will leave the active checklist. Their
-          history stays saved.
+          These entries and groups will leave the active checklist. Their
+          history and traveler profiles stay saved.
         </Copy>
         <Copy muted>
           Items that are packed or needed for the return trip must be sorted out
@@ -151,7 +151,7 @@ export function ChecklistBulkRemoval(
         </Copy>
         {categories.length > 0 && (
           <Surface>
-            <Copy>Sections to delete</Copy>
+            <Copy>People / Categories to delete</Copy>
             {categories.map((category) => (
               <Copy key={category.id}>{category.name}</Copy>
             ))}
@@ -202,20 +202,17 @@ export function ChecklistBulkRemoval(
     );
   return (
     <Screen>
-      <PageHeader
-        title="Select to delete"
-        subtitle="Items, tasks and sections"
-      />
+      <PageHeader title="Select to delete" subtitle="Items, tasks and groups" />
       <Copy>
-        Choose what to remove, then review your selection. Selecting a section
-        also selects every item and task in it.
+        Choose what to remove, then review your selection. Selecting a person /
+        category also selects every item and task in it.
       </Copy>
       <ChecklistChoices
         label="Choose from"
         options={[
           { value: "item", label: "Items" },
           { value: "task", label: "Tasks" },
-          { value: "category", label: "Sections" },
+          { value: "category", label: "People / Categories" },
         ]}
         value={group}
         onChange={setGroup}
@@ -225,7 +222,7 @@ export function ChecklistBulkRemoval(
       </Copy>
       {tooMany && (
         <Notice error>
-          Choose up to {MAX_BULK_CHECKLIST_RECORDS} entries and sections at a
+          Choose up to {MAX_BULK_CHECKLIST_RECORDS} entries and groups at a
           time. Clear part of this selection before continuing.
         </Notice>
       )}
@@ -252,7 +249,7 @@ export function ChecklistBulkRemoval(
           <Copy>
             No{" "}
             {group === "category"
-              ? "sections"
+              ? "people / categories"
               : group === "item"
                 ? "items"
                 : "tasks"}{" "}

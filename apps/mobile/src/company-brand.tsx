@@ -17,7 +17,7 @@ export function CompanyCredit({ version = false }: { version?: boolean }) {
     "0.2.0";
   const build =
     Application.nativeBuildVersion ??
-    String(Constants.expoConfig?.android?.versionCode ?? 9);
+    String(Constants.expoConfig?.android?.versionCode ?? 10);
   return (
     <View style={{ gap: 8, alignItems: "center", paddingVertical: 12 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>

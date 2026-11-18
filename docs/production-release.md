@@ -1,0 +1,54 @@
+# Production EAS preparation, November 18, 2026
+
+The checklist now uses **Person / Category** for grouping. A group can be named after a person or a category such as Toiletries. This changes labels and guidance; existing entries, group IDs, assignments, permissions and deletion rules retain their behavior.
+
+Production build **10**, version **0.2.0**, is configured in `apps/mobile/eas.json`. It produces a signed standalone APK for the existing direct-download release plan, uses the `production` EAS environment and update channel, and preserves Android package `in.nmtsolutions.travel` and the original release certificate. It does not submit to Google Play or publish an update. See [the APK distribution decision](adr/0005-distribute-public-apks-initially.md).
+
+No production build has been submitted. The current blockers are the missing production Clerk configuration and exhausted Expo Android allowance. Existing physical-device and public-launch acceptance in [the release record](release.md) remains open.
+
+## Environment review
+
+The audit read local `.env` files, the current project's EAS project/account variables and subscription usage, and the NMT Solutions Vercel project's environment metadata. Credential values were neither printed nor committed. Vercel sensitive values are redacted; their presence does not independently prove which runtime service they select. Live-service correlation from the previous audit is linked below.
+
+| Configuration                                                          | Consumer and current state                                                                                                                                                                                                                                              | Production action                                                                                                                                                                        |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `EXPO_PUBLIC_API_URL`                                                  | Mobile `src/api.ts`; `https://nmt-travel-api.vercel.app`. The protected profile route returned 401 without a session.                                                                                                                                                   | The same HTTPS origin is now set in EAS Production.                                                                                                                                      |
+| `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`                                    | Mobile `App.tsx`; local and EAS Preview select development frontend `polite-reptile-6620.clerk.accounts.dev`. The local API publishable key matches.                                                                                                                    | Supply the **same NMT Travel app's production instance** key (`pk_live_`) to EAS Production. Its preflight rejects development keys.                                                     |
+| `EXPO_PUBLIC_CLERK_GOOGLE_WEB_CLIENT_ID`                               | Clerk native Google hook via `app.config.ts`; existing Google project `nmt-travel`, number `25995067202`.                                                                                                                                                               | The existing public client is now set in EAS Production. Its production Clerk connection, OAuth consent and native signed login still require acceptance.                                |
+| `GOOGLE_SERVICES_JSON`                                                 | `app.config.ts` and Android build; Firebase project `nmt-travel`, package `in.nmtsolutions.travel`.                                                                                                                                                                     | The same validated Android client file is now an EAS Production secret file. It contains client configuration; it is separate from the private FCM service account in EAS credentials.   |
+| `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`                            | API `src/identity.ts`; local keys remain development. Vercel Production and Preview both contain the two sensitive variables.                                                                                                                                           | Pair the production publishable/secret keys with the mobile production instance during a planned auth cutover. Do not silently replace the serving API's keys.                           |
+| `DATABASE_URL`                                                         | API Drizzle/node-postgres and migrations; local endpoint `ep-noisy-salad-b3hkqt6y-pooler.c-4.ap-southeast-1.aws.neon.tech`, database `neondb`, pooled TLS with `sslmode=require`.                                                                                       | Keep the paid database confirmed by the user. Vercel Production/Preview contain this variable. No database migration or billing change is needed for the checklist labels.               |
+| `R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | API `src/guide-storage.ts`; Vercel Production/Preview contain all four. Local selects Cloudflare account `819348a86fd91584e2d56fb67f303355`, bucket `nmt-travel`; the last live audit selected account `0d2ad4278f04cbbfd3123a756c9683c1`, bucket `nmt-travel-private`. | Preserve the serving API's R2 values and files. Local `.env` must not overwrite them. A bucket move needs a separate object migration and verification.                                  |
+| `EXPO_ACCESS_TOKEN`                                                    | Optional API `src/notification-dispatch.ts` credential for enhanced Expo push security; present locally, absent from Vercel Production.                                                                                                                                 | Configure the intended Expo token securely if enhanced push security is enabled, then verify delivery. This does not block ordinary database reads. Never copy it into mobile variables. |
+| `CRON_SECRET`                                                          | API `app/api/notifications/dispatch/route.ts`; present locally and in Vercel Production.                                                                                                                                                                                | Retain it; production cron/delivery acceptance still needs an actual check.                                                                                                              |
+
+All nine local API variables and four local mobile variables have current consumers. No unused variable was added. The production profile disables automatic dotenv loading so the local development key cannot fill a missing production value. No database, R2 or API secret is stored in the EAS mobile environment.
+
+The Vercel project remains `nmt-solutions/nmt-travel-api`, owned by account `wafakhan`, with Mumbai region `bom1`. See [current ownership](ownership-transfer.md) and [the earlier service correlation audit](service-account-audit.md). This preparation did not change the API environment or deployment.
+
+## Authentication cutover
+
+Clerk development and production are distinct identity instances. Existing `members.clerk_user_id` values, sessions and memberships must be accounted for before switching the API. Use the production instance within the existing NMT Travel Clerk app, complete its DNS/SSL and native/passwordless Google settings, and preserve a rollback path. The existing development keys remain in local/Preview configuration so current installed previews keep working.
+
+The missing release input is the production publishable key and its matching API secret key, supplied securely. Once available, verify their app/instance and deployment status before configuring the API or producing the binary. Production credentials alone do not establish user migration or real-device login acceptance. [Clerk's production deployment instructions](https://clerk.com/docs/guides/development/deployment/production) describe the separate instance keys and deployment requirements.
+
+## EAS account and build command
+
+The linked Expo project remains `tauqeerahmed/nmt-travel`, ID `8c2739c3-9d23-4c92-a50a-836d3ea3a94c`. The current Free plan reports **15 of 15 Android builds used**, for the billing period ending **December 1, 2026 UTC**. No build was submitted to an account known to have exhausted its allowance. No account transfer, subscription upgrade or billing change occurred.
+
+After production credentials, auth cutover and build allowance are ready, run from `apps/mobile`:
+
+```sh
+eas build --platform android --profile production --freeze-credentials --non-interactive --wait
+```
+
+The EAS post-install hook validates production inputs and live Clerk public settings. The production profile selects APK explicitly; Expo otherwise defaults Android production builds to AAB. [Expo's APK configuration](https://docs.expo.dev/build-reference/apk/) and [EAS environment/channel configuration](https://docs.expo.dev/eas/json/) document these controls.
+
+Download the actual resulting APK before advertising it. Inspect its release certificate, version code 10, `production` channel, actual fingerprint runtime, embedded API/Clerk configuration and server-secret absence with `scripts/inspect-apk.py`. Preserve the existing signing key and verify an in-place device upgrade, Google/email login, existing memberships, private files and push behavior. Do not reuse preview build 9's runtime/hash as production evidence, and do not publish a production OTA before an actual compatible binary has been inspected.
+
+## Validation
+
+- All **41 mobile tests** passed, including production rejection of development keys and missing native configuration, wrong-package Firebase rejection, and preview compatibility.
+- Mobile TypeScript passed.
+- The four production-input tests use synthetic public configuration; they do not establish live production login.
+- Live Clerk production settings, a production APK, production device journeys and public release remain pending. No backend code changed; the unrelated API/PostgreSQL suite was not repeated.

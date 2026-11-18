@@ -5,7 +5,7 @@ import eas from "./eas.json";
 const projectId: string | null = project.projectId;
 const profile: string | undefined = process.env.EAS_BUILD_PROFILE;
 const channel =
-  profile === "preview" || profile === "development"
+  profile === "preview" || profile === "development" || profile === "production"
     ? eas.build[profile].channel
     : undefined;
 // EAS cannot produce a distributed binary until a real update project is linked.
@@ -25,7 +25,7 @@ const config: ExpoConfig = {
   userInterfaceStyle: "automatic",
   android: {
     package: "in.nmtsolutions.travel",
-    versionCode: 9,
+    versionCode: 10,
     adaptiveIcon: {
       // Separate padding keeps the whole mascot inside Android's launcher mask.
       foregroundImage: "./assets/launcher-foreground.png",

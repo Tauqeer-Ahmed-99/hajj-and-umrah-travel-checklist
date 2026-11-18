@@ -121,9 +121,9 @@ function beneficiaries(entry: ChecklistEntry, travelers: Traveler[]) {
           .join(", ");
 }
 const fieldLabels: Record<string, string> = {
-  name: "Category name",
+  name: "Person / Category name",
   title: "Title",
-  categoryId: "Category",
+  categoryId: "Person / Category",
   kind: "Type",
   requiredQuantity: "Required quantity",
   unit: "Unit",
@@ -158,7 +158,7 @@ function historyValue(field: string, value: unknown, data: Data): string {
   if (field === "categoryId")
     return (
       data.checklist.categories.find((category) => category.id === value)
-        ?.name ?? "Former category"
+        ?.name ?? "Former person / category"
     );
   if (field === "beneficiaries" && typeof value === "object" && value) {
     const target = value as ChecklistEntry["beneficiaries"];
@@ -585,7 +585,7 @@ export function ChecklistScreen({
                         ]?.after ??
                           (event.entityType === "entry"
                             ? "Former entry"
-                            : "Former category"),
+                            : "Former person / category"),
                       )}
                   </Copy>
                 )}
@@ -645,7 +645,7 @@ export function ChecklistScreen({
                         onPress: () => edit({ mode: "starter" }),
                       },
                       {
-                        label: "Manage sections",
+                        label: "Manage people / categories",
                         onPress: () => setManage(true),
                       },
                       {
@@ -701,7 +701,7 @@ export function ChecklistScreen({
             <Surface>
               <Copy>
                 {data.checklist.canEdit
-                  ? "Start with a suggested list, or make your own section."
+                  ? "Start with a suggested list, or group items by person or category."
                   : "No checklist yet. A family editor can add one."}
               </Copy>
               {data.checklist.canEdit && (
@@ -817,12 +817,12 @@ export function ChecklistScreen({
             <Notice>View only. A family editor can change this list.</Notice>
           )}
           <DetailPage
-            title="List sections"
+            title="People / Categories"
             open={manage}
             onClose={() => setManage(false)}
           >
             <Action
-              title="Select and delete sections"
+              title="Select and delete"
               secondary
               onPress={() => {
                 setManage(false);
@@ -830,7 +830,7 @@ export function ChecklistScreen({
               }}
             />
             <Action
-              title="Add section"
+              title="Add person / category"
               onPress={() => {
                 setManage(false);
                 edit({ mode: "category", initial: null });
@@ -841,7 +841,7 @@ export function ChecklistScreen({
                 <Copy>{group.name}</Copy>
                 <OptionsMenu
                   title={group.name}
-                  triggerLabel="Edit section"
+                  triggerLabel="Edit person / category"
                   actions={[
                     {
                       label: "Rename",
@@ -851,7 +851,7 @@ export function ChecklistScreen({
                       },
                     },
                     {
-                      label: "Remove section",
+                      label: "Remove group",
                       destructive: true,
                       onPress: () => {
                         setManage(false);

@@ -19,7 +19,18 @@ assert.match(
   /^pk_(test|live)_[A-Za-z0-9_-]+$/,
   "Set this build's public Clerk instance key.",
 );
+const production = process.env.EAS_BUILD_PROFILE === "production";
+if (production)
+  assert.ok(
+    key.startsWith("pk_live_"),
+    "Production requires the existing Travel Companion Clerk app's production publishable key. Do not ship the development instance.",
+  );
 const google = process.env.EXPO_PUBLIC_CLERK_GOOGLE_WEB_CLIENT_ID;
+if (production)
+  assert.ok(
+    google,
+    "Configure production's public Google Web OAuth client ID.",
+  );
 if (google)
   assert.match(
     google,
@@ -27,6 +38,8 @@ if (google)
     "Use the Travel Companion project's public Web OAuth client ID.",
   );
 const file = process.env.GOOGLE_SERVICES_JSON;
+if (production)
+  assert.ok(file, "Configure production's Firebase Android client file.");
 if (file) {
   const config = JSON.parse(await readFile(file, "utf8"));
   assert.equal(

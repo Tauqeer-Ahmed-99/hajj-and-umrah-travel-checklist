@@ -13,6 +13,13 @@
       "channel": "preview",
       "environment": "preview",
       "android": { "buildType": "apk" }
+    },
+    "production": {
+      "distribution": "internal",
+      "channel": "production",
+      "environment": "production",
+      "env": { "EXPO_NO_DOTENV": "1" },
+      "android": { "buildType": "apk" }
     }
   }
 }
