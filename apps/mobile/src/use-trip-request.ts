@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSessionAuth } from "./session-auth";
 import { TripError } from "./trip-api";
+import { requestToken } from "./request-deadline";
 
 export function useTripRequest(timeoutMs = 35_000, requestScope?: string) {
   const { getToken } = useSessionAuth();
@@ -9,10 +10,12 @@ export function useTripRequest(timeoutMs = 35_000, requestScope?: string) {
   const active = useRef(true);
   const running = useRef<AbortController | null>(null);
   const scope = useRef(requestScope);
+  const tokenSource = useRef(getToken);
   scope.current = requestScope;
+  tokenSource.current = getToken;
   useEffect(() => {
     running.current?.abort();
-  }, [requestScope]);
+  }, [requestScope, getToken]);
   useEffect(() => {
     active.current = true;
     return () => {
@@ -47,7 +50,7 @@ export function useTripRequest(timeoutMs = 35_000, requestScope?: string) {
         );
         const result = await Promise.race([
           (async () => {
-            const token = await getToken();
+            const token = await requestToken(getToken, controller.signal);
             if (!token)
               throw new TripError(
                 "Your session has ended. Open Account and sign in again.",
@@ -62,11 +65,16 @@ export function useTripRequest(timeoutMs = 35_000, requestScope?: string) {
         if (
           active.current &&
           !controller.signal.aborted &&
+          tokenSource.current === getToken &&
           startedScope === scope.current
         )
           return result;
       } catch (failure) {
-        if (active.current && startedScope === scope.current)
+        if (
+          active.current &&
+          tokenSource.current === getToken &&
+          startedScope === scope.current
+        )
           setError(
             failure instanceof TripError
               ? failure

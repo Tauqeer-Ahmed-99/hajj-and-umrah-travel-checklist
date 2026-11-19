@@ -15,7 +15,7 @@ export function useSessionAuth() {
     };
   }, [auth]);
   const getToken = useCallback(
-    (...args: Parameters<typeof auth.getToken>) => {
+    async (...args: Parameters<typeof auth.getToken>) => {
       const current = latest.current;
       // An old request/callback must never obtain a different account's token,
       // even if Clerk replaced the session before the caller's cleanup ran.
@@ -26,8 +26,12 @@ export function useSessionAuth() {
         current.userId !== userId ||
         current.sessionId !== sessionId
       )
-        return Promise.resolve(null);
-      return current.getToken(...args);
+        return null;
+      const token = await current.getToken(...args);
+      return latest.current?.userId === userId &&
+        latest.current?.sessionId === sessionId
+        ? token
+        : null;
     },
     [userId, sessionId],
   );

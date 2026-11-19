@@ -17,8 +17,13 @@ import {
   type ChecklistBulkRemovalInput,
 } from "@nmt/contracts";
 import { apiOrigin } from "./api";
-import { travelFetch } from "./server-data";
+import { serverAccountFence, travelFetch } from "./server-data";
 import { TripError } from "./trip-api";
+import {
+  RequestDeadlineError,
+  waitForRequest,
+  withinRequest,
+} from "./request-deadline";
 
 export type ChecklistScope = { tripId: string; familyId: string };
 async function request<T>(
@@ -77,17 +82,25 @@ async function saveEntry(
   operation: "create" | "edit" | "acquisition",
   entryId?: string,
 ) {
+  const assertAccount = serverAccountFence();
   try {
-    return await request(
-      scope,
-      path,
-      token,
-      signal,
-      checklistEntryResponse,
-      method,
-      body,
+    // Leave room inside useTripRequest's overall deadline to confirm a save
+    // whose connection stalls. Aborting that whole request would skip recovery.
+    const saved = await withinRequest(signal, 12_000, (writeSignal) =>
+      request(
+        scope,
+        path,
+        token,
+        writeSignal,
+        checklistEntryResponse,
+        method,
+        body,
+      ),
     );
+    assertAccount();
+    return saved;
   } catch (error) {
+    assertAccount();
     if (
       signal.aborted ||
       !body.requestId ||
@@ -98,25 +111,52 @@ async function saveEntry(
     // Only read the result of this exact save. Never automatically POST again,
     // match by title, or trust a stale cached "not saved" result.
     try {
-      const saved = await request(
-        scope,
-        `/entries?${new URLSearchParams({ requestId: body.requestId, operation, ...(entryId ? { entryId } : {}) })}`,
-        token,
-        signal,
-        checklistSaveResponse,
-      );
+      const saved = await withinRequest(signal, 10_000, async (checkSignal) => {
+        const path = `/entries?${new URLSearchParams({ requestId: body.requestId!, operation, ...(entryId ? { entryId } : {}) })}`;
+        let result = await request(
+          scope,
+          path,
+          token,
+          checkSignal,
+          checklistSaveResponse,
+        );
+        assertAccount();
+        // A timed-out write may still be committing. Give that exact receipt a
+        // short, bounded read-only confirmation window; never resend the write.
+        if (error instanceof RequestDeadlineError) {
+          for (const pause of [750, 1_500, 2_500, 3_500]) {
+            if (result.entry) break;
+            await waitForRequest(checkSignal, pause);
+            assertAccount();
+            result = await request(
+              scope,
+              path,
+              token,
+              checkSignal,
+              checklistSaveResponse,
+            );
+            assertAccount();
+          }
+        }
+        return result;
+      });
       if (saved.entry) {
         acceptedTravelChange();
         return { entry: saved.entry };
       }
     } catch (checkError) {
+      assertAccount();
       if (
         checkError instanceof TripError &&
         [401, 403, 404].includes(checkError.status)
       )
         throw checkError;
     }
-    throw error;
+    throw error instanceof RequestDeadlineError
+      ? new TripError(
+          "The save could not be confirmed yet. Your details are still here. Try again.",
+        )
+      : error;
   }
 }
 export const checklistApi = {

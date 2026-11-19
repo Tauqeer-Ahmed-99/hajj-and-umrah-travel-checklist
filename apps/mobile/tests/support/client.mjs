@@ -4,6 +4,8 @@ import { writeFile, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
 
 // Only the unavailable native filesystem is adapted. The actual connection
 // store, request boundary, schemas, cache checks and Node HTTP transport run.
@@ -33,7 +35,7 @@ export async function client(t, origin = "") {
   const root = fileURLToPath(new URL("../../", import.meta.url));
   const result = await build({
     stdin: {
-      contents: `export * from './src/server-data.ts';export * from './src/trip-cache-state.ts';export {checklistApi} from './src/checklist-api';export {Directory,seed} from 'expo-file-system';`,
+      contents: `export * from './src/server-data.ts';export * from './src/trip-cache-state.ts';export {checklistApi} from './src/checklist-api';export {useTripRequest} from './src/use-trip-request';export {setTokenProvider,setAuthIdentity} from '@clerk/expo';export {Directory,seed} from 'expo-file-system';`,
       resolveDir: root,
       sourcefile: "mobile-transport-test.ts",
     },
@@ -49,11 +51,23 @@ export async function client(t, origin = "") {
       {
         name: "native-filesystem",
         setup(b) {
+          b.onResolve({ filter: /^react(?:\/jsx-runtime)?$/ }, (a) => ({
+            path: pathToFileURL(require.resolve(a.path)).href,
+            external: true,
+          }));
+          b.onResolve({ filter: /^@clerk\/expo$/ }, () => ({
+            path: "auth",
+            namespace: "native",
+          }));
+          b.onLoad({ filter: /^auth$/, namespace: "native" }, () => ({
+            contents: `let provider=async()=> 'token',userId='owned-user',sessionId='owned-session';export const setTokenProvider=fn=>{provider=fn};export const setAuthIdentity=(user,session)=>{userId=user;sessionId=session};export const useAuth=()=>({userId,sessionId,getToken:(...args)=>provider(...args)});`,
+            loader: "js",
+          }));
           b.onResolve({ filter: /^expo-file-system$/ }, () => ({
             path: "filesystem",
             namespace: "native",
           }));
-          b.onLoad({ filter: /.*/, namespace: "native" }, () => ({
+          b.onLoad({ filter: /^filesystem$/, namespace: "native" }, () => ({
             contents: filesystem,
             loader: "js",
           }));

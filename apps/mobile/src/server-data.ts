@@ -147,6 +147,19 @@ function assertSession(session: Session | null, signal?: AbortSignal) {
       "request_cancelled",
     );
 }
+export function serverAccountFence() {
+  const session = currentSession();
+  return () => {
+    if (currentSession() !== session)
+      throw new TripError(
+        "This request was cancelled. Open the page again if needed.",
+        0,
+        undefined,
+        "request_cancelled",
+      );
+    assertSession(session);
+  };
+}
 export function serverStaleTime(path: string) {
   // Reconnect/share checks and file-version checks must use current access.
   if (
@@ -547,7 +560,10 @@ export async function travelFetch(
   const session = cleanup ? null : currentSession();
   assertSession(session, init.signal ?? undefined);
   const cached =
-    !!session && method === "GET" && !/\/me\/removal(?:\?|$)/.test(path);
+    !!session &&
+    method === "GET" &&
+    !/\/me\/removal(?:\?|$)/.test(path) &&
+    !/\/checklist\/entries\?requestId=/.test(path);
   try {
     if (!cached) {
       const response = await fetch(url, init);
