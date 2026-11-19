@@ -1,3 +1,5 @@
+import { RequestFeedback } from "./request-feedback";
+import { useViewState } from "./use-view-state";
 import { useScreenBackEffect } from "./screen-back";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, BackHandler, View } from "react-native";
@@ -275,25 +277,24 @@ export function CompletionScreen({
   onShared(): void;
 }) {
   const api = useTripRequest();
-  const [data, setData] = useState<{
+  const [data, setData] = useViewState<{
     completion: Completion;
     review: CompletionReview;
     detail: TripDetail;
-  } | null>(null);
+  } | null>(JSON.stringify([tripId]), api.error);
   const [editor, setEditor] = useState<{
     kind: "complete" | "lesson" | "archive";
     reviewToken?: string;
   } | null>(null);
   const [message, setMessage] = useState("");
   const load = useCallback(async () => {
-    setData(null);
-    const result = await api.run(async (token, signal) => ({
+    const result = await api.read(async (token, signal) => ({
       completion: await completionApi.read(tripId, token, signal),
       detail: await tripApi.read(tripId, token, signal),
       review: await completionApi.review(tripId, token, signal),
     }));
     if (result) setData(result);
-  }, [api.run, tripId]);
+  }, [api.read, tripId]);
   useEffect(() => {
     void load();
     const listener = AppState.addEventListener("change", (state) => {
@@ -339,7 +340,7 @@ export function CompletionScreen({
       <Action title="Back to trip" secondary onPress={onBack} />
       <Heading>Completion and archive</Heading>
       {!!message && <Notice>{message}</Notice>}
-      {api.error && <Notice error>{api.error.message}</Notice>}
+      <RequestFeedback request={api} hasData={!!data} onRetry={() => load()} />
       {!data && !api.error && (
         <Loading message="Loading completion and permitted arrival records…" />
       )}
@@ -437,14 +438,13 @@ export function ArchivesScreen({
   onOpen(tripId: string): void;
 }) {
   const api = useTripRequest();
-  const [archives, setArchives] = useState<
+  const [archives, setArchives] = useViewState<
     Awaited<ReturnType<typeof completionApi.archives>>["archives"] | null
-  >(null);
+  >(JSON.stringify(["archives"]), api.error);
   const load = useCallback(async () => {
-    setArchives(null);
-    const result = await api.run(completionApi.archives);
+    const result = await api.read(completionApi.archives);
     if (result) setArchives(result.archives);
-  }, [api.run]);
+  }, [api.read]);
   useEffect(() => {
     void load();
     const listener = AppState.addEventListener("change", (state) => {
@@ -467,7 +467,11 @@ export function ArchivesScreen({
         Read past journeys you still have permission to access. Archiving does
         not grant access.
       </Copy>
-      {api.error && <Notice error>{api.error.message}</Notice>}
+      <RequestFeedback
+        request={api}
+        hasData={!!archives}
+        onRetry={() => load()}
+      />
       {!archives && !api.error && <Loading message="Finding your archives…" />}
       <Action
         title="Refresh archives"

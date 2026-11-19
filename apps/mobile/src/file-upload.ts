@@ -1,3 +1,4 @@
+import { requestToken } from "./request-deadline";
 import type { GuideUpload, fileAuthorization } from "@nmt/contracts";
 import type { z } from "zod";
 import type { File } from "expo-file-system";
@@ -30,7 +31,7 @@ export async function completeFileUpload<T>(
     session: FileUpload | null;
     file?: File;
     signal: AbortSignal;
-    getToken(): Promise<string | null>;
+    getToken(options?: { skipCache?: boolean }): Promise<string | null>;
     prepared(value: FileUpload): void;
     phase(value: string): void;
   },
@@ -43,7 +44,7 @@ export async function completeFileUpload<T>(
       );
   };
   const token = async () => {
-    const value = await options.getToken();
+    const value = await requestToken(options.getToken, signal);
     check();
     if (!value)
       throw new TripError(

@@ -1,3 +1,5 @@
+import { RequestFeedback } from "./request-feedback";
+import { requestToken } from "./request-deadline";
 import { formatCalendarDate, formatZonedDateTime } from "./date-values";
 import { ListRow, Metric } from "./design-system";
 import { useScreenBackEffect } from "./screen-back";
@@ -50,9 +52,9 @@ function useOverview(tripId: string, query: OverviewQuery) {
           "Refresh took too long. The last successful view, if shown, may be stale. Retry when connected.",
         );
       }
-    }, 15_000);
+    }, 35_000);
     try {
-      const token = await getToken();
+      const token = await requestToken(getToken, controller.signal);
       if (!token)
         throw new TripError(
           "Connect to refresh this account. Cached views remain read only.",
@@ -171,7 +173,15 @@ export function OverviewSummary({
   }, [data?.phase]);
   return (
     <ChecklistSection title="What needs attention">
-      {error && <Notice error>{error}</Notice>}
+      <RequestFeedback
+        request={{
+          error: error ? new TripError(error) : null,
+          errorKind: "read",
+          busy: busy,
+        }}
+        hasData={!!data}
+        onRetry={() => load()}
+      />
       {!data && !error && (
         <Loading message="Loading permitted responsibilities…" />
       )}
@@ -215,14 +225,15 @@ export function OverviewSummary({
         title="Find belongings and responsibilities"
         onPress={() => onFind(data?.query ?? initialQuery())}
       />
-      {error && (
-        <Action
-          title="Retry overview"
-          secondary
-          busy={busy}
-          onPress={() => load()}
-        />
-      )}
+      <RequestFeedback
+        request={{
+          error: error ? new TripError(error) : null,
+          errorKind: "read",
+          busy: busy,
+        }}
+        hasData={!!data}
+        onRetry={() => load()}
+      />
     </ChecklistSection>
   );
 }
@@ -282,11 +293,11 @@ function Activity({
       controller.abort();
       if (active)
         setError("Activity refresh took too long. Reconnect and retry.");
-    }, 15_000);
+    }, 35_000);
     setError("");
     void (async () => {
       try {
-        const token = await getToken();
+        const token = await requestToken(getToken, controller.signal);
         if (!token)
           throw new TripError(
             "Connect to check current item access and activity.",
@@ -330,9 +341,15 @@ function Activity({
         Only accepted changes for this item and permitted travel leg appear.
         Private location details and free-text reasons are omitted.
       </Copy>
-      {error && (
-        <Notice error>{error} Previously shown activity may be stale.</Notice>
-      )}
+      <RequestFeedback
+        request={{
+          error: error ? new TripError(error) : null,
+          errorKind: "read",
+          busy: false,
+        }}
+        hasData={!!data}
+        onRetry={() => setAttempt((value) => value + 1)}
+      />
       {!data && !error && <Loading message="Checking item activity…" />}
       {data?.history.length === 0 && (
         <Notice>
@@ -538,9 +555,15 @@ export function OverviewScreen({
         secondary
         onPress={() => change({ ...query, q: search })}
       />
-      {error && (
-        <Notice error>{error} Previously displayed data may be stale.</Notice>
-      )}
+      <RequestFeedback
+        request={{
+          error: error ? new TripError(error) : null,
+          errorKind: "read",
+          busy,
+        }}
+        hasData={!!data}
+        onRetry={() => load()}
+      />
       {!data && !error && <Loading message="Finding permitted records…" />}
       {data && (
         <>

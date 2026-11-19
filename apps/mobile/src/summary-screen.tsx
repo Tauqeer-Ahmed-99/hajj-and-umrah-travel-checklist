@@ -109,7 +109,7 @@ export function SummaryScreen({
     setChoices(null);
     setPreview(null);
     setLocalError("");
-    const result = await api.run((token, signal) =>
+    const result = await api.read((token, signal) =>
       summaryApi.choices(tripId, token, signal),
     );
     finishWork();
@@ -117,7 +117,7 @@ export function SummaryScreen({
       setChoices(result);
       setNotice("");
     }
-  }, [api.run, tripId, finishWork]);
+  }, [api.read, tripId, finishWork]);
   useEffect(() => {
     void load();
   }, [load]);
@@ -144,7 +144,7 @@ export function SummaryScreen({
     const current = generation.current;
     void (async () => {
       try {
-        const result = await accessApi.run(async (token, signal) => {
+        const result = await accessApi.read(async (token, signal) => {
           try {
             // This read checks the union of current family and shared access,
             // including records first encountered only through Summary.

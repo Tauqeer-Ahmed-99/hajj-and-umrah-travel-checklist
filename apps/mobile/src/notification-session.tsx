@@ -1,3 +1,4 @@
+import { requestToken } from "./request-deadline";
 import { useSessionAuth } from "./session-auth";
 import { useEffect } from "react";
 import { AppState } from "react-native";
@@ -16,12 +17,12 @@ export function useNotificationSession(memberId: string | null) {
     setNotificationSession(memberId, sessionId ?? null);
     const controllers = new Set<AbortController>();
     let active = true;
-    const refresh = async () => {
+    const read = async () => {
       const controller = new AbortController();
       controllers.add(controller);
       const timeout = setTimeout(() => controller.abort(), 15000);
       try {
-        const token = await getToken();
+        const token = await requestToken(getToken, controller.signal);
         if (active && !controller.signal.aborted && token && sessionId)
           await synchronizeNotifications(
             memberId,
@@ -41,6 +42,18 @@ export function useNotificationSession(memberId: string | null) {
         clearTimeout(timeout);
         controllers.delete(controller);
       }
+    };
+    let flight: Promise<void> | null = null;
+    const refresh = () => {
+      if (flight) return flight;
+      const next = read();
+      flight = next;
+      void next
+        .finally(() => {
+          if (flight === next) flight = null;
+        })
+        .catch(() => {});
+      return next;
     };
     void refresh();
     const listener = AppState.addEventListener("change", (state) => {

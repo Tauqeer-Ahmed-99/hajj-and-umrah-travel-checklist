@@ -1,3 +1,4 @@
+import { RequestFeedback } from "./request-feedback";
 import { FloatingAction } from "./controls";
 import { useState } from "react";
 import { View } from "react-native";
@@ -101,12 +102,11 @@ export function FamilyScreen({
         />
       </View>
       {!travelers && !api.error && <Loading message="Loading family" />}
-      {api.error && (
-        <Surface>
-          <Notice error>{api.error.message}</Notice>
-          <Action title="Try again" onPress={() => refresh()} />
-        </Surface>
-      )}
+      <RequestFeedback
+        request={api}
+        hasData={!!api.data}
+        onRetry={() => refresh()}
+      />
       {family && travelers && (
         <>
           <PageHeader

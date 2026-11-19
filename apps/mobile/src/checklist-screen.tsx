@@ -1,3 +1,4 @@
+import { RequestFeedback } from "./request-feedback";
 import {
   CompactAction,
   FloatingAction,
@@ -578,12 +579,11 @@ export function ChecklistScreen({
         {!data && !api.error && (
           <Loading message="Checking current family access…" />
         )}
-        {api.error && (
-          <>
-            <Notice error>{api.error.message}</Notice>
-            <Action title="Retry loading history" onPress={() => refresh()} />
-          </>
-        )}
+        <RequestFeedback
+          request={api}
+          hasData={!!data}
+          onRetry={() => refresh()}
+        />
         {data && (
           <>
             <Copy muted>
@@ -790,12 +790,11 @@ export function ChecklistScreen({
     >
       {saved && <Notice>Saved</Notice>}
       {!data && !api.error && <Loading message="Loading checklist" />}
-      {api.error && (
-        <Surface>
-          <Notice error>{api.error.message}</Notice>
-          <Action title="Try again" onPress={() => refresh()} />
-        </Surface>
-      )}
+      <RequestFeedback
+        request={api}
+        hasData={!!data}
+        onRetry={() => refresh()}
+      />
       {data && (
         <>
           {data.checklist.categories.length === 0 ? (

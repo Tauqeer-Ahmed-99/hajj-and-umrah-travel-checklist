@@ -1,3 +1,5 @@
+import { RequestFeedback } from "./request-feedback";
+import { useViewState } from "./use-view-state";
 import { useCallback, useState } from "react";
 import { invitation, type Invitation } from "@nmt/contracts";
 import { Action, Copy, Field, Heading, Loading, Notice, Screen } from "./ui";
@@ -18,20 +20,21 @@ export function InvitationInbox({
   onOpenTrip: (id: string) => void;
 }) {
   const api = useTripRequest();
-  const [invitations, setInvitations] = useState<Invitation[] | null>(null);
+  const [invitations, setInvitations] = useViewState<Invitation[] | null>(
+    JSON.stringify(["invitations"]),
+    api.error,
+  );
   const [selected, setSelected] = useState<Invitation | null>(null);
   const [code, setCode] = useState("");
   const [validation, setValidation] = useState("");
   const [uncertain, setUncertain] = useState(false);
   const load = useCallback(async () => {
-    setInvitations(null);
-    setSelected(null);
-    const result = await api.run(invitationApi.inbox);
+    const result = await api.read(invitationApi.inbox);
     if (result) {
       setInvitations(result.invitations);
       setUncertain(false);
     }
-  }, [api.run]);
+  }, [api.read]);
   useAccessRefresh(load);
   const back = () => {
     if (selected) {
@@ -76,7 +79,11 @@ export function InvitationInbox({
         Only the intended account can accept. A forwarded code does not grant
         access.
       </Copy>
-      {api.error && <Notice error>{api.error.message}</Notice>}
+      <RequestFeedback
+        request={api}
+        hasData={!!invitations}
+        onRetry={() => load()}
+      />
       {selected ? (
         <>
           <AccessSection title={selected.trip.name}>

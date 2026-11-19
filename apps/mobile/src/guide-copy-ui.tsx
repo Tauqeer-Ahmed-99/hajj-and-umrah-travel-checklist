@@ -1,3 +1,4 @@
+import { RequestFeedback } from "./request-feedback";
 import { CheckboxRow } from "./controls";
 import { useScreenBackEffect } from "./screen-back";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -400,11 +401,11 @@ export function PrepareGuidesScreen({
   const controller = useRef<AbortController | null>(null);
   useEffect(() => () => controller.current?.abort(), []);
   const load = useCallback(async () => {
-    const result = await api.run((token, signal) =>
+    const result = await api.read((token, signal) =>
       guideApi.list(tripId, { q: "" }, token, signal),
     );
     if (result) setGuides(result.guides);
-  }, [api.run, tripId]);
+  }, [api.read, tripId]);
   useEffect(() => {
     void load();
   }, [load]);
@@ -489,7 +490,11 @@ export function PrepareGuidesScreen({
         default. Links are connectivity-dependent and cannot be saved websites.
       </Copy>
       {!guides && !api.error && <Loading message="Loading guide choices…" />}
-      {api.error && <Notice error>{api.error.message}</Notice>}
+      <RequestFeedback
+        request={api}
+        hasData={!!guides}
+        onRetry={() => load()}
+      />
       {guides?.map((guide) => {
         const supported =
           guide.kind === "text" || (guide.kind === "file" && !!guide.file);

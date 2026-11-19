@@ -11,6 +11,7 @@ import { useSessionAuth } from "./session-auth";
 import { useGuideCopies } from "./guide-copy-context";
 import { TripError } from "./request-error";
 import { onServerAccessRevoked } from "./server-data";
+import { requestToken } from "./request-deadline";
 
 // The view groups related JSON reads. The endpoint queries below it share their
 // own data across pages. Neither cache writes JSON to the device filesystem.
@@ -63,19 +64,7 @@ export function useServerView<T>(
     subscribed: focused && enabled,
     retry: false,
     queryFn: async ({ signal }) => {
-      let timer: ReturnType<typeof setTimeout>;
-      const token = await Promise.race([
-        getToken(),
-        new Promise<never>((_, reject) => {
-          timer = setTimeout(
-            () =>
-              reject(
-                new TripError("Sign-in took too long to reply. Try again."),
-              ),
-            10_000,
-          );
-        }),
-      ]).finally(() => clearTimeout(timer!));
+      const token = await requestToken(getToken, signal);
       if (!token) throw new TripError("Sign in again to continue.", 401);
       if (signal.aborted) throw new TripError("This request was cancelled.");
       return read(token, signal);
@@ -106,7 +95,15 @@ export function useServerView<T>(
     if (!result.error && result.data && version === denialVersion.current)
       setDenied(null);
   }, [client, query.refetch]);
-  const error = denied?.path === path ? denied.error : query.error;
+  const failure = denied?.path === path ? denied.error : query.error;
+  const deniedAccess = !!failure && [401, 403, 404].includes(failure.status);
+  const transient = !!failure && (!failure.status || failure.status >= 500);
+  const hasData = query.data !== undefined && query.data !== null;
+  const error = deniedAccess
+    ? failure
+    : query.isFetching || (hasData && transient)
+      ? null
+      : failure;
   return {
     data:
       error && [401, 403, 404].includes(error.status)
@@ -115,6 +112,11 @@ export function useServerView<T>(
     setData,
     busy: query.isFetching,
     error,
+    errorKind: "read" as const,
+    refreshError:
+      hasData && transient && !query.isFetching && !deniedAccess
+        ? failure
+        : null,
     refresh,
   };
 }

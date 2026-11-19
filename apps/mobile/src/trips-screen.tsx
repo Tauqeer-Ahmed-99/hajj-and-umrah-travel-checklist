@@ -1,3 +1,4 @@
+import { RequestFeedback } from "./request-feedback";
 import { FloatingAction } from "./controls";
 import { OptionsMenu } from "./simple-ui";
 import { PreparationSummary } from "./preparation-summary";
@@ -919,12 +920,11 @@ function TripHome({
       </View>
       {preferenceError && <Notice error>{preferenceError}</Notice>}
       {!detail && !api.error && <Loading message="Opening journey" />}
-      {api.error && (
-        <Surface>
-          <Notice error>{api.error.message}</Notice>
-          <Action title="Try again" onPress={() => refresh()} />
-        </Surface>
-      )}
+      <RequestFeedback
+        request={api}
+        hasData={!!detail}
+        onRetry={() => refresh()}
+      />
       {detail && (
         <>
           <PageHeader

@@ -7,6 +7,7 @@ export function useTripRequest(timeoutMs = 35_000, requestScope?: string) {
   const { getToken } = useSessionAuth();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<TripError | null>(null);
+  const [errorKind, setErrorKind] = useState<"read" | "write">("write");
   const active = useRef(true);
   const running = useRef<AbortController | null>(null);
   const scope = useRef(requestScope);
@@ -26,13 +27,17 @@ export function useTripRequest(timeoutMs = 35_000, requestScope?: string) {
   const run = useCallback(
     async <T>(
       operation: (token: string, signal: AbortSignal) => Promise<T>,
+      kind: "read" | "write" = "write",
     ): Promise<T | undefined> => {
       if (running.current) return;
       const controller = new AbortController();
       const startedScope = scope.current;
       running.current = controller;
       setBusy(true);
-      setError(null);
+      setError((previous) =>
+        previous && [401, 403, 404].includes(previous.status) ? previous : null,
+      );
+      setErrorKind(kind);
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
         // Race token retrieval too: a stalled provider must not leave Save disabled.
@@ -67,8 +72,10 @@ export function useTripRequest(timeoutMs = 35_000, requestScope?: string) {
           !controller.signal.aborted &&
           tokenSource.current === getToken &&
           startedScope === scope.current
-        )
+        ) {
+          setError(null);
           return result;
+        }
       } catch (failure) {
         if (
           active.current &&
@@ -90,7 +97,12 @@ export function useTripRequest(timeoutMs = 35_000, requestScope?: string) {
     },
     [getToken, timeoutMs],
   );
+  const read = useCallback(
+    <T>(operation: (token: string, signal: AbortSignal) => Promise<T>) =>
+      run(operation, "read"),
+    [run],
+  );
   // Connectivity gates submissions in Action/travelFetch. A permission refresh
   // must not disable a draft's native input and make it lose keyboard focus.
-  return { run, busy, error };
+  return { run, read, busy, error, errorKind };
 }

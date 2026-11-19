@@ -6,6 +6,7 @@ import {
   overviewResponse,
 } from "@nmt/contracts";
 import { TripError } from "./request-error";
+import { RequestDeadlineError, withinRequest } from "./request-deadline";
 import { serviceReachable } from "./trip-cache-state";
 
 type JsonReply = {
@@ -509,37 +510,46 @@ async function readJson(
   session?.controller.signal.addEventListener("abort", abort, { once: true });
   querySignal?.addEventListener("abort", abort, { once: true });
   if (querySignal?.aborted) controller.abort();
-  const timer = setTimeout(abort, timeoutMs);
   try {
-    const response = await fetch(url, { ...init, signal: controller.signal });
-    assertSession(session, querySignal);
-    serviceReachable();
-    let body: unknown;
-    try {
-      body = await response.json();
-    } catch {
-      throw new TripError(
-        "The server returned an unreadable reply. Try again.",
-        502,
-      );
-    }
-    assertSession(session, querySignal);
-    const headers: Record<string, string> = {};
-    response.headers.forEach((value, key) => {
-      headers[key] = value;
+    return await withinRequest(controller.signal, timeoutMs, async (signal) => {
+      const response = await fetch(url, { ...init, signal });
+      assertSession(session, signal);
+      serviceReachable();
+      let body: unknown;
+      try {
+        body = await response.json();
+      } catch {
+        throw new TripError(
+          "The server returned an unreadable reply. Try again.",
+          502,
+        );
+      }
+      assertSession(session, signal);
+      const headers: Record<string, string> = {};
+      response.headers.forEach((value, key) => {
+        headers[key] = value;
+      });
+      const reply = { status: response.status, body, headers };
+      if (!response.ok) throw new ServerReplyError(reply);
+      return reply;
     });
-    const reply = { status: response.status, body, headers };
-    if (!response.ok) throw new ServerReplyError(reply);
-    return reply;
   } catch (error) {
+    assertSession(session, querySignal);
+    if (error instanceof RequestDeadlineError)
+      throw new TripError(
+        "Loading took longer than expected. Try again.",
+        0,
+        undefined,
+        "read_timeout",
+      );
     if (error instanceof TripError) throw error;
     throw new TripError(
-      controller.signal.aborted
-        ? "The server took too long to reply. Your details are still here. Try again."
-        : "This request could not reach the server. Try again.",
+      "This request could not reach the server. Try again.",
+      0,
+      undefined,
+      "read_unavailable",
     );
   } finally {
-    clearTimeout(timer);
     session?.controller.signal.removeEventListener("abort", abort);
     querySignal?.removeEventListener("abort", abort);
   }

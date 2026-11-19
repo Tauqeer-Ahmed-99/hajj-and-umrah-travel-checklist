@@ -12,10 +12,10 @@ const require = createRequire(import.meta.url);
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const native = `import React from 'react';import {focusManager} from '@tanstack/react-query';const listeners=new Set();export const AppState={currentState:'active',addEventListener:(_,fn)=>{listeners.add(fn);return{remove:()=>listeners.delete(fn)}}};export function foreground(){focusManager.setFocused(false);for(const fn of listeners)fn('active');focusManager.setFocused(true)}export const StyleSheet={create:x=>x,hairlineWidth:1};export function View(p){return React.createElement('view',p,p.children)};`;
 const ui = `import React from 'react';export const host=name=>function Component(p){return React.createElement(name,p,p.header,p.children,p.action,p.floatingAction)};export const Action=host('button'),Copy=host('text'),Heading=host('heading'),Loading=host('skeleton'),Notice=host('notice'),Screen=host('screen'),Surface=host('surface'),TripLink=host('button'),PageHeader=host('header'),IconButton=host('button'),ListRow=host('row'),OptionsMenu=host('menu'),SelectField=host('select'),DetailPage=host('detail'),Metric=host('metric'),SectionLabel=host('section-label'),FloatingAction=host('fab');`;
-export async function renderFamily(t, origin, props) {
+export async function renderFamily(t, origin, props, component) {
   const result = await build({
     stdin: {
-      contents: `export { FamilyScreen } from './src/family-screen';export {foreground} from 'react-native';export {setFocused} from '@react-navigation/native';export {useServerView} from './src/use-server-view';export * from './src/server-data';export {Directory} from 'expo-file-system';export {QueryClientProvider} from '@tanstack/react-query';`,
+      contents: `export { FamilyScreen } from './src/family-screen';export {foreground} from 'react-native';export {setFocused} from '@react-navigation/native';export {setTokenProvider} from './src/session-auth';export {useServerView} from './src/use-server-view';export * from './src/server-data';export {Directory} from 'expo-file-system';export {QueryClientProvider} from '@tanstack/react-query';`,
       resolveDir: fileURLToPath(new URL("../../", import.meta.url)),
     },
     bundle: true,
@@ -51,7 +51,7 @@ export async function renderFamily(t, origin, props) {
             path: "icons",
             namespace: "fixture",
           }));
-          b.onResolve({ filter: /^\.\/session-auth$/ }, () => ({
+          b.onResolve({ filter: /^\.\/(?:src\/)?session-auth$/ }, () => ({
             path: "auth",
             namespace: "fixture",
           }));
@@ -78,7 +78,7 @@ export async function renderFamily(t, origin, props) {
                 "export const ArrowLeft=()=>null,ListChecks=()=>null,Luggage=()=>null,Plus=()=>null,RefreshCw=()=>null,Users=()=>null;",
               navigation:
                 "import {useSyncExternalStore} from 'react';let focused=true;const listeners=new Set();export function setFocused(value){focused=value;for(const fn of listeners)fn()}export const useIsFocused=()=>useSyncExternalStore(fn=>{listeners.add(fn);return()=>listeners.delete(fn)},()=>focused);",
-              auth: "const getToken=async()=> 'owned-test-token';export const useSessionAuth=()=>({getToken});",
+              auth: "let provider=async()=> 'owned-test-token';const getToken=options=>provider(options);export const setTokenProvider=fn=>provider=fn;export const useSessionAuth=()=>({getToken});",
               copies:
                 "export const useGuideCopies=()=>({accountId:'owned-account'});",
               api: `export const apiOrigin=()=>${JSON.stringify(origin)};`,
@@ -115,7 +115,10 @@ export async function renderFamily(t, origin, props) {
       React.createElement(
         app.QueryClientProvider,
         { client: app.getServerQueryClient() },
-        React.createElement(app.FamilyScreen, props),
+        React.createElement(
+          component ? component(app) : app.FamilyScreen,
+          props,
+        ),
       ),
     );
   });

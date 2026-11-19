@@ -1,3 +1,4 @@
+import { RequestFeedback } from "./request-feedback";
 import { FloatingAction, SearchField, SegmentedControl } from "./controls";
 import { OptionsMenu, RecordRow } from "./simple-ui";
 import { useForegroundRefresh } from "./use-foreground-refresh";
@@ -466,12 +467,11 @@ export function PackingScreen({
         />
       )}
       {!data && !api.error && <Loading message="Loading family packing…" />}
-      {api.error && (
-        <>
-          <Notice error>{api.error.message}</Notice>
-          <Action title="Retry loading bags" onPress={() => refresh()} />
-        </>
-      )}
+      <RequestFeedback
+        request={api}
+        hasData={!!data}
+        onRetry={() => refresh()}
+      />
       {data && packing && (
         <>
           {!packing.canEdit && <Notice>Read-only family access</Notice>}

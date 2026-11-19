@@ -1,3 +1,5 @@
+import { RequestFeedback } from "./request-feedback";
+import { useViewState } from "./use-view-state";
 import { Text } from "./typography";
 import { useCallback, useState } from "react";
 import { Alert } from "react-native";
@@ -45,7 +47,10 @@ export function MembershipScreen({
 }) {
   const api = useTripRequest();
   const { colors } = useTheme();
-  const [data, setData] = useState<AccessView | null>(null);
+  const [data, setData] = useViewState<AccessView | null>(
+    JSON.stringify([tripId, familyId]),
+    api.error,
+  );
   const [mode, setMode] = useState<"list" | "compose">("list");
   const [editing, setEditing] = useState<AccessMember | null>(null);
   const [role, setRole] = useState<TripRole | FamilyRole>("viewer");
@@ -57,9 +62,7 @@ export function MembershipScreen({
     "transfer" | "delete" | null
   >(null);
   const load = useCallback(async () => {
-    setData(null);
-    setEditing(null);
-    const result = await api.run(async (token, signal) => {
+    const result = await api.read(async (token, signal) => {
       const [detail, members, tripMembers, invitations] = await Promise.all([
         tripApi.read(tripId, token, signal),
         invitationApi.members(tripId, familyId, token, signal),
@@ -79,10 +82,10 @@ export function MembershipScreen({
       setData(result);
       setPending(false);
     }
-  }, [api.run, tripId, familyId]);
+  }, [api.read, tripId, familyId]);
   const refresh = useCallback(async () => {
-    if (mode === "list" && !responsibility) await load();
-  }, [load, mode, responsibility]);
+    if (mode === "list" && !responsibility && !editing) await load();
+  }, [load, mode, responsibility, editing]);
   useAccessRefresh(refresh);
   const back = () => {
     if (editing && roleChanged)
@@ -114,6 +117,7 @@ export function MembershipScreen({
     });
     if (result) {
       setSaved("Access saved.");
+      setEditing(null);
       await load();
     }
   };
@@ -211,7 +215,7 @@ export function MembershipScreen({
           />
         </AccessSection>
       )}
-      {api.error && <Notice error>{api.error.message}</Notice>}
+      <RequestFeedback request={api} hasData={!!data} onRetry={() => load()} />
       {pending && api.error && (
         <Notice>
           Refresh to review the current access before changing it again. Nothing

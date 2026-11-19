@@ -1,3 +1,6 @@
+import { RequestFeedback } from "./request-feedback";
+import { useViewState } from "./use-view-state";
+import { requestToken } from "./request-deadline";
 import { ToggleRow, FloatingAction } from "./controls";
 import { formatZonedDateTime } from "./date-values";
 import { DateTimeField } from "./date-field";
@@ -43,19 +46,19 @@ export function RemindersScreen({
 }) {
   const api = useTripRequest();
   const { getToken, sessionId } = useSessionAuth();
-  const [data, setData] = useState<{
+  const [data, setData] = useViewState<{
     reminders: Reminder[];
     detail: TripDetail;
     members: AccessMember[];
     preferences: NotificationPreferences;
     uncertainDelivery: boolean;
     uncertainSchedules: string[];
-  } | null>(null);
+  } | null>(JSON.stringify([tripId, memberId]), api.error);
   const [form, setForm] = useState<Reminder | "new" | null>(null);
   const [notice, setNotice] = useState("");
   const [deviceBusy, setDeviceBusy] = useState(false);
   const load = useCallback(async () => {
-    const result = await api.run(async (token, signal) => {
+    const result = await api.read(async (token, signal) => {
       const [reminders, detail, members, notifications] = await Promise.all([
         reminderApi.list(tripId, token, signal),
         tripApi.read(tripId, token, signal),
@@ -78,8 +81,7 @@ export function RemindersScreen({
       };
     });
     if (result) setData(result);
-    else setData(null);
-  }, [api.run, tripId, memberId, sessionId]);
+  }, [api.read, tripId, memberId, sessionId]);
   useEffect(() => {
     void load();
   }, [load]);
@@ -107,15 +109,11 @@ export function RemindersScreen({
         );
         return;
       }
-      const token = await getToken();
+      const signal = AbortSignal.timeout(35_000);
+      const token = await requestToken(getToken, signal);
       if (token && sessionId)
         setNotice(
-          await synchronizeNotifications(
-            memberId,
-            sessionId,
-            token,
-            AbortSignal.timeout(15000),
-          ),
+          await synchronizeNotifications(memberId, sessionId, token, signal),
         );
     } catch {
       setNotice(
@@ -193,7 +191,7 @@ export function RemindersScreen({
         Keep important checks in your checklist too. Alerts can be delayed.
       </Copy>
       {notice !== "" && <Notice>{notice}</Notice>}
-      {api.error && <Notice error>{api.error.message}</Notice>}
+      <RequestFeedback request={api} hasData={!!data} onRetry={() => load()} />
       {!data && !api.error && <Loading message="Opening reminders…" />}
       {data && (
         <>
@@ -364,7 +362,7 @@ function ReminderForm({
     setMembers([]);
     setEntries([]);
     void references
-      .run(async (token, signal) => {
+      .read(async (token, signal) => {
         const roster = await invitationApi.members(
           tripId,
           familyId === "trip" ? undefined : familyId,

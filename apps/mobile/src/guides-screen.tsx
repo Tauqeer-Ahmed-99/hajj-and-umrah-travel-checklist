@@ -1,3 +1,5 @@
+import { RequestFeedback } from "./request-feedback";
+import { useViewState } from "./use-view-state";
 import { FloatingAction, SearchField, SegmentedControl } from "./controls";
 import { DetailPage, OptionsMenu } from "./simple-ui";
 import { useScreenBackEffect } from "./screen-back";
@@ -280,14 +282,14 @@ function GuideLibrary({
   const [q, setQ] = useState("");
   const [pinned, setPinned] = useState("all");
   const [query, setQuery] = useState<GuideQuery>({ q: "" });
-  const [data, setData] = useState<{
+  const [data, setData] = useViewState<{
     name: string;
     families: Family[];
     guides: Guide[];
     count: number;
-  } | null>(null);
+  } | null>(JSON.stringify([tripId, query]), api.error);
   const load = useCallback(async () => {
-    const result = await api.run(async (token, signal) => {
+    const result = await api.read(async (token, signal) => {
       await refreshSavedGuideAccess(copies, token, signal);
       const [library, detail] = await Promise.all([
         guideApi.list(tripId, query, token, signal),
@@ -300,7 +302,7 @@ function GuideLibrary({
       };
     });
     if (result) setData(result);
-  }, [api.run, tripId, query, copies]);
+  }, [api.read, tripId, query, copies]);
   useEffect(() => {
     if (api.error && [401, 403, 404].includes(api.error.status)) setData(null);
   }, [api.error]);
@@ -397,7 +399,7 @@ function GuideLibrary({
       {!data && !api.error && (
         <Loading kind="cards" message="Loading permitted guides…" />
       )}
-      {api.error && <Notice error>{api.error.message}</Notice>}
+      <RequestFeedback request={api} hasData={!!data} onRetry={() => load()} />
       {data && (
         <>
           <Notice>
@@ -463,10 +465,13 @@ function GuideReader({
 }) {
   const copies = useGuideCopies();
   const api = useTripRequest();
-  const [guide, setGuide] = useState<Guide | null>(null);
+  const [guide, setGuide] = useViewState<Guide | null>(
+    JSON.stringify([tripId, id]),
+    api.error,
+  );
   const [pendingUploads, setPendingUploads] = useState(0);
   const load = useCallback(async () => {
-    const result = await api.run(async (token, signal) => {
+    const result = await api.read(async (token, signal) => {
       await refreshSavedGuideAccess(copies, token, signal);
       const current = await guideApi.read(tripId, id, token, signal);
       const pending =
@@ -479,7 +484,7 @@ function GuideReader({
       setGuide(result.guide);
       setPendingUploads(result.pending);
     }
-  }, [api.run, tripId, id, copies]);
+  }, [api.read, tripId, id, copies]);
   useEffect(
     () =>
       onServerAccessRevoked((removal) => {
@@ -516,7 +521,7 @@ function GuideReader({
       {!guide && !api.error && (
         <Loading kind="reader" message="Opening guide…" />
       )}
-      {api.error && <Notice error>{api.error.message}</Notice>}
+      <RequestFeedback request={api} hasData={!!guide} onRetry={() => load()} />
       {guide && (
         <>
           <Heading>{guide.title}</Heading>
@@ -614,17 +619,16 @@ function GuideHistory({
   onOpenFile(version: number): void;
 }) {
   const api = useTripRequest();
-  const [versions, setVersions] = useState<
+  const [versions, setVersions] = useViewState<
     { guide: GuideRecord; changedFields: string[] }[] | null
-  >(null);
+  >(JSON.stringify([tripId, id]), api.error);
   const [selected, setSelected] = useState<number | null>(null);
   const load = useCallback(async () => {
-    setVersions(null);
-    const result = await api.run((token, signal) =>
+    const result = await api.read((token, signal) =>
       guideApi.history(tripId, id, token, signal),
     );
     if (result) setVersions(result.versions);
-  }, [api.run, tripId, id]);
+  }, [api.read, tripId, id]);
   useRefresh(load);
   return (
     <Screen>
@@ -634,7 +638,11 @@ function GuideHistory({
         Only versions permitted by your current access appear here.
       </Copy>
       {!versions && !api.error && <Loading message="Loading guide history…" />}
-      {api.error && <Notice error>{api.error.message}</Notice>}
+      <RequestFeedback
+        request={api}
+        hasData={!!versions}
+        onRetry={() => load()}
+      />
       {versions?.map(({ guide, changedFields }) => (
         <GuideSection key={guide.version}>
           <Heading>Version {guide.version}</Heading>

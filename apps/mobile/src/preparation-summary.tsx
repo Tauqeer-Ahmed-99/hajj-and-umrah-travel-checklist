@@ -1,3 +1,4 @@
+import { RequestFeedback } from "./request-feedback";
 import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import { overviewQuery, type Itinerary } from "@nmt/contracts";
@@ -105,21 +106,11 @@ export function PreparationSummary({
           )}
         </>
       )}
-      {api.error && (
-        <>
-          <Copy muted>
-            {progress
-              ? "These counts may be out of date."
-              : "Progress is unavailable right now."}
-          </Copy>
-          <Action
-            title="Refresh progress"
-            secondary
-            busy={api.busy}
-            onPress={() => api.refresh()}
-          />
-        </>
-      )}
+      <RequestFeedback
+        request={api}
+        hasData={!!api.data}
+        onRetry={() => api.refresh()}
+      />
     </Surface>
   );
 }

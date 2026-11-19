@@ -1,3 +1,5 @@
+import { RequestFeedback } from "./request-feedback";
+import { useViewState } from "./use-view-state";
 import { useScreenBackEffect } from "./screen-back";
 import { useCallback, useEffect, useState } from "react";
 import { AppState, BackHandler } from "react-native";
@@ -21,10 +23,10 @@ export function TravelFilesScreen({
   onBack(): void;
 }) {
   const api = useTripRequest();
-  const [data, setData] = useState<{
+  const [data, setData] = useViewState<{
     records: TravelFile[];
     families: Family[];
-  } | null>(null);
+  } | null>(JSON.stringify([tripId, target]), api.error);
   const [editor, setEditor] = useState<{ initial?: TravelFile } | null>(null),
     [opened, setOpened] = useState<TravelFile | null>(null);
   const [visibility, setVisibility] = useState<{
@@ -36,8 +38,7 @@ export function TravelFilesScreen({
   const bagId = target.kind === "bag_photo" ? target.bagId : undefined,
     entryId = target.kind === "attachment" ? target.entryId : undefined;
   const load = useCallback(async () => {
-    setData(null);
-    const result = await api.run(async (token, signal) => {
+    const result = await api.read(async (token, signal) => {
       const [files, detail] = await Promise.all([
         travelFileApi.list(
           tripId,
@@ -53,7 +54,7 @@ export function TravelFilesScreen({
       };
     });
     if (result) setData(result);
-  }, [api.run, tripId, bagId, entryId]);
+  }, [api.read, tripId, bagId, entryId]);
   useEffect(() => {
     if (editor || opened || visibility) return;
     void load();
@@ -126,7 +127,7 @@ export function TravelFilesScreen({
       <Copy>These files need a connection to open.</Copy>
       {saved && <Notice>Saved</Notice>}
       {!data && !api.error && <Loading message="Loading permitted files…" />}
-      {api.error && <Notice error>{api.error.message}</Notice>}
+      <RequestFeedback request={api} hasData={!!data} onRetry={() => load()} />
       {visibility && (
         <GuideSection>
           <Copy>

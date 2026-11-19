@@ -432,7 +432,9 @@ test("temporary failure leaves family content readable and a later refresh accep
   await page.act(async () => {
     await refreshButton(page).props.onPress();
   });
-  await page.until(() => page.text().includes("Service unavailable"));
+  await page.until(() =>
+    page.text().includes("Showing your last loaded details"),
+  );
   assert.ok(page.text().includes("Owned family"));
   assert.equal(page.renderer.root.findAllByType("skeleton").length, 0);
   server.status(200);
@@ -448,7 +450,7 @@ test("temporary failure leaves family content readable and a later refresh accep
     await refreshButton(page).props.onPress();
   });
   await page.until(() => page.text().includes("1 person in this family"));
-  assert.ok(!page.text().includes("Service unavailable"));
+  assert.ok(!page.text().includes("Showing your last loaded details"));
 });
 test("definitive family denial removes private content, and only an accepted fresh read can restore it", async (t) => {
   const server = await fixture(t),

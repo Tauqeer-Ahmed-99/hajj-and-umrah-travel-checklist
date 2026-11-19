@@ -1,3 +1,5 @@
+import { RequestFeedback } from "./request-feedback";
+import { useViewState } from "./use-view-state";
 import { formatCalendarDate } from "./date-values";
 import { useScreenBackEffect } from "./screen-back";
 import { useCallback, useEffect, useState } from "react";
@@ -44,14 +46,15 @@ export function SharedScreen({
   onBack: () => void;
 }) {
   const api = useTripRequest();
-  const [data, setData] = useState<{
-    shared: SharedContent;
-    trip: TripDetail;
-    members: AccessMember[];
-  } | null>(null);
   const [leg, setLeg] = useState<"outbound" | "return">(
     initialLeg ?? "outbound",
   );
+
+  const [data, setData] = useViewState<{
+    shared: SharedContent;
+    trip: TripDetail;
+    members: AccessMember[];
+  } | null>(JSON.stringify([tripId, leg]), api.error);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [view, setView] = useState<"items" | "bags" | "activity">(
     initialView ?? "items",
@@ -99,7 +102,7 @@ export function SharedScreen({
   const [query, setQuery] = useState("");
   const [saved, setSaved] = useState(false);
   const load = useCallback(async () => {
-    const result = await api.run(async (token, signal) => {
+    const result = await api.read(async (token, signal) => {
       const [shared, trip, members] = await Promise.all([
         sharingApi.read(tripId, token, signal, leg),
         tripApi.read(tripId, token, signal),
@@ -108,7 +111,7 @@ export function SharedScreen({
       return { shared, trip, members: members.members };
     });
     if (result) setData(result);
-  }, [tripId, api.run, leg]);
+  }, [tripId, api.read, leg]);
   useEffect(() => {
     if (api.error && [401, 403, 404].includes(api.error.status)) setData(null);
   }, [api.error]);
@@ -253,7 +256,7 @@ export function SharedScreen({
       </Copy>
       {saved && <Notice>Saved</Notice>}
       {!data && !api.error && <Loading message="Loading shared content…" />}
-      {api.error && <Notice error>{api.error.message}</Notice>}
+      <RequestFeedback request={api} hasData={!!data} onRetry={() => load()} />
       {data && (
         <>
           {data.trip.trip.role === "viewer" && (

@@ -1,3 +1,4 @@
+import { RequestFeedback } from "./request-feedback";
 import {
   createContext,
   useContext,
@@ -256,17 +257,11 @@ function HomePage({
       {!catalog.trips && !catalog.error && (
         <Loading message="Finding your journeys…" />
       )}
-      {catalog.error && (
-        <Surface>
-          <Notice error>{catalog.error}</Notice>
-          <Action
-            title="Refresh journeys"
-            secondary
-
-            onPress={() => catalog.refresh()}
-          />
-        </Surface>
-      )}
+      <RequestFeedback
+        request={catalog.request}
+        hasData={!!catalog.trips}
+        onRetry={() => catalog.refresh()}
+      />
       {trip ? (
         <JourneyCard
           eyebrow={`${trip.kind.toUpperCase()} · YOUR JOURNEY`}
@@ -377,7 +372,11 @@ function LibrariesPage({
         onPress={() => navigation.navigate("Trips")}
       />
       <SectionLabel>Trip libraries</SectionLabel>
-      {catalog.error && <Notice error>{catalog.error}</Notice>}
+      <RequestFeedback
+        request={catalog.request}
+        hasData={!!catalog.trips}
+        onRetry={() => catalog.refresh()}
+      />
       {!catalog.trips && !catalog.error && (
         <Loading message="Loading libraries…" />
       )}

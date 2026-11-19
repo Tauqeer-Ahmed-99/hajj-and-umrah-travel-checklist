@@ -1,3 +1,4 @@
+import { requestToken } from "./request-deadline";
 import { useScreenBackEffect } from "./screen-back";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -265,7 +266,7 @@ export function GuideFileViewer({
           .join("");
         if (checksum !== opened.file.sha256)
           throw new TripError("The file did not arrive intact. Retry Open.");
-        const freshToken = await getToken();
+        const freshToken = await requestToken(getToken, signal);
         assertCopySession(copies, signal);
         if (!freshToken)
           throw new TripError(

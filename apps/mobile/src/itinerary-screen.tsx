@@ -1,3 +1,5 @@
+import { RequestFeedback } from "./request-feedback";
+import { useViewState } from "./use-view-state";
 import { FloatingAction } from "./controls";
 import { ArrowLeft, FileText, RefreshCw } from "lucide-react-native";
 import {
@@ -94,14 +96,16 @@ export function ItineraryOverview({
   onOpen: () => void;
 }) {
   const api = useTripRequest();
-  const [phase, setPhase] = useState<Itinerary["phase"] | null>(null);
+  const [phase, setPhase] = useViewState<Itinerary["phase"] | null>(
+    JSON.stringify([tripId]),
+    api.error,
+  );
   const load = useCallback(async () => {
-    setPhase(null);
-    const result = await api.run((token, signal) =>
+    const result = await api.read((token, signal) =>
       itineraryApi.read(tripId, token, signal),
     );
     if (result) setPhase(result.phase);
-  }, [api.run, tripId]);
+  }, [api.read, tripId]);
   useEffect(() => {
     void load();
     const listener = AppState.addEventListener("change", (state) => {
@@ -113,7 +117,7 @@ export function ItineraryOverview({
     <Section title="Trip phase">
       {phase && <Copy>{tripPhaseLabels[phase]}</Copy>}
       {!phase && !api.error && <Loading message="Loading the trip phase…" />}
-      {api.error && <Notice error>{api.error.message}</Notice>}
+      <RequestFeedback request={api} hasData={!!phase} onRetry={() => load()} />
       <Action title="Itinerary and travel details" secondary onPress={onOpen} />
     </Section>
   );
@@ -276,12 +280,11 @@ export function ItineraryScreen({
       />
       {saved && <Notice>Saved</Notice>}
       {!data && !api.error && <Loading message="Loading journey details" />}
-      {api.error && (
-        <Surface>
-          <Notice error>{api.error.message}</Notice>
-          <Action title="Try again" onPress={() => refresh()} />
-        </Surface>
-      )}
+      <RequestFeedback
+        request={api}
+        hasData={!!data}
+        onRetry={() => refresh()}
+      />
       {data && (
         <>
           <PreparationSummary

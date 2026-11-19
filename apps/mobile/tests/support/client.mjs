@@ -35,7 +35,7 @@ export async function client(t, origin = "") {
   const root = fileURLToPath(new URL("../../", import.meta.url));
   const result = await build({
     stdin: {
-      contents: `export * from './src/server-data.ts';export * from './src/trip-cache-state.ts';export {checklistApi} from './src/checklist-api';export {useTripRequest} from './src/use-trip-request';export {setTokenProvider,setAuthIdentity} from '@clerk/expo';export {Directory,seed} from 'expo-file-system';`,
+      contents: `export * from './src/server-data.ts';export * from './src/trip-cache-state.ts';export {checklistApi} from './src/checklist-api';export {useTripRequest} from './src/use-trip-request';export {useViewState} from './src/use-view-state';export {setTokenProvider,setAuthIdentity} from '@clerk/expo';export {Directory,seed} from 'expo-file-system';`,
       resolveDir: root,
       sourcefile: "mobile-transport-test.ts",
     },
