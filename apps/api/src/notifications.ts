@@ -16,6 +16,7 @@ import { lockAccountAccess, requireActiveMember } from "./account-access";
 
 export const preferenceColumns = `assignments, deadlines, trip_changes AS "tripChanges"`;
 export type NotificationScope = {
+  source_key?: string;
   recipient_id: string;
   trip_id: string;
   family_id: string | null;
@@ -26,6 +27,34 @@ export async function permittedEvent(
   row: NotificationScope,
 ) {
   await requireTripAccess(db, row.recipient_id, row.trip_id);
+  if (row.source_key?.startsWith("family-ready:")) {
+    const [, familyId, leg, version] = row.source_key.split(":");
+    const current = (
+      await db.execute(
+        sql`SELECT r.version FROM family_readiness r JOIN families f ON f.id=r.family_id WHERE f.id=${familyId} AND f.trip_id=${row.trip_id} AND r.leg=${leg} AND r.ready AND r.version=${Number(version)} FOR SHARE OF f,r`,
+      )
+    ).rowCount;
+    if (
+      !current ||
+      !(await (await import("./trip-updates")).familyIsReady(db, familyId, leg))
+    )
+      throw new HttpError(
+        404,
+        "not_found",
+        "This packing update is no longer current.",
+      );
+  }
+  if (row.source_key?.startsWith("trip-tip:")) {
+    const id = row.source_key.slice("trip-tip:".length);
+    if (
+      !(
+        await db.execute(
+          sql`SELECT id FROM trip_tips WHERE id=${id} AND trip_id=${row.trip_id} AND removed_at IS NULL FOR SHARE`,
+        )
+      ).rowCount
+    )
+      throw new HttpError(404, "not_found", "This tip is no longer available.");
+  }
   let familyAccess = false;
   if (row.family_id) {
     try {

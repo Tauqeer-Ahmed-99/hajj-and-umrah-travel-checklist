@@ -1,3 +1,4 @@
+import { contentShapes } from "./content-shapes";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
@@ -320,13 +321,8 @@ export function CompactAction({
       disabled={action.busy}
       onPress={action.press}
       style={({ pressed }) => ({
-        minHeight: 48,
-        borderWidth: 1,
-        borderRadius: 14,
+        ...contentShapes.compactAction,
         borderColor: colors.border,
-        paddingHorizontal: 12,
-        alignItems: "center",
-        justifyContent: "center",
         backgroundColor: colors.surface,
         opacity: pressed ? 0.65 : 1,
       })}
@@ -336,10 +332,8 @@ export function CompactAction({
       ) : (
         <Text
           style={{
-            fontSize: 13,
-            lineHeight: 20,
+            ...contentShapes.compactLabel,
             color: colors.brand,
-            fontWeight: "600",
           }}
         >
           {label}
@@ -401,13 +395,7 @@ export function SearchField({
 }
 
 const s = StyleSheet.create({
-  selection: {
-    minHeight: 48,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 10,
-  },
+  selection: contentShapes.selection,
   checkbox: {
     width: 24,
     height: 24,

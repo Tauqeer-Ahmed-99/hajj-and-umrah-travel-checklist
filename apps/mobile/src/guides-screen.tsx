@@ -397,7 +397,7 @@ function GuideLibrary({
         </Surface>
       </DetailPage>
       {!data && !api.error && (
-        <Loading kind="cards" message="Loading permitted guides…" />
+        <Loading kind="guideCards" message="Loading permitted guides…" />
       )}
       <RequestFeedback request={api} hasData={!!data} onRetry={() => load()} />
       {data && (
@@ -519,7 +519,7 @@ function GuideReader({
       <Action title="Back to guides" secondary onPress={onBack} />
       {saved && <Notice>Saved</Notice>}
       {!guide && !api.error && (
-        <Loading kind="reader" message="Opening guide…" />
+        <Loading kind="guideText" message="Opening guide…" />
       )}
       <RequestFeedback request={api} hasData={!!guide} onRetry={() => load()} />
       {guide && (
@@ -637,7 +637,9 @@ function GuideHistory({
       <Copy muted>
         Only versions permitted by your current access appear here.
       </Copy>
-      {!versions && !api.error && <Loading message="Loading guide history…" />}
+      {!versions && !api.error && (
+        <Loading kind="guideHistory" message="Loading guide history…" />
+      )}
       <RequestFeedback
         request={api}
         hasData={!!versions}

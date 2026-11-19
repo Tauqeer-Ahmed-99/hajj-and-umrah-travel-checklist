@@ -126,7 +126,7 @@ export function InvitationInbox({
       ) : (
         <>
           {!invitations && !api.error && (
-            <Loading message="Checking your invitations…" />
+            <Loading kind="invitations" message="Checking your invitations…" />
           )}
           {invitations?.length === 0 && (
             <Notice>

@@ -223,7 +223,7 @@ export function MembershipScreen({
         </Notice>
       )}
       {!data && !api.error && (
-        <Loading message="Checking members and permissions…" />
+        <Loading kind="members" message="Checking members and permissions…" />
       )}
       {data && (
         <>

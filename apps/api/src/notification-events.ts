@@ -7,7 +7,9 @@ import { after } from "next/server";
 export function dispatchAfterResponse() {
   after(async () => {
     try {
-      await (await import("./notification-dispatch")).dispatchNotifications();
+      await (
+        await import("./notification-dispatch")
+      ).dispatchPendingNotifications();
     } catch {
       console.warn("Notification dispatch deferred. No delivery is confirmed.");
     }
@@ -41,7 +43,7 @@ export async function itineraryChanged(
   tripId: string,
 ) {
   await db.execute(
-    sql`UPDATE reminders SET needs_review = true, version = version + 1 WHERE trip_id = ${sql.param(tripId)} AND NOT dismissed`,
+    sql`UPDATE reminders SET needs_review = true, version = version + 1 WHERE trip_id = ${sql.param(tripId)} AND NOT dismissed AND transport_step_id IS NULL`,
   );
   await db.execute(sql`INSERT INTO notification_events (source_key, recipient_id, trip_id, kind)
     SELECT ${sql.param(randomUUID())}, tm.member_id, tm.trip_id, 'tripChanges' FROM trip_members tm

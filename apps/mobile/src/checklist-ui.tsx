@@ -1,3 +1,4 @@
+import { contentShapes } from "./content-shapes";
 import { ChoiceField } from "./controls";
 import { Text } from "./typography";
 import type { ReactNode } from "react";
@@ -72,12 +73,7 @@ export function ChecklistChoices<T extends string>({
   );
 }
 const styles = StyleSheet.create({
-  section: {
-    gap: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 16,
-    borderRadius: 22,
-  },
+  section: contentShapes.section,
   heading: { fontSize: 19, lineHeight: 26, fontWeight: "600" },
   group: { gap: 8 },
   choices: { flexDirection: "row", flexWrap: "wrap", gap: 8 },

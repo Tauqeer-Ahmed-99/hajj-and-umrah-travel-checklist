@@ -60,7 +60,7 @@ export async function dispatchNotifications() {
     .execute(sql`INSERT INTO notification_events (source_key, recipient_id, trip_id, family_id, entry_id, reminder_id, reminder_version, kind)
     SELECT 'reminder:' || r.id || ':' || r.version, r.owner_member_id, r.trip_id, r.family_id, r.entry_id, r.id, r.version, 'deadlines'
     FROM reminders r JOIN notification_preferences p ON p.member_id = r.owner_member_id AND p.deadlines
-    WHERE NOT r.dismissed AND NOT r.needs_review AND (r.due_at->>'dateTime')::timestamptz <= now()
+    WHERE NOT r.dismissed AND NOT r.needs_review AND (r.due_at->>'dateTime')::timestamptz <= now() AND (r.transport_step_id IS NULL OR ((r.due_at->>'dateTime')::timestamptz > now()-interval '2 minutes' AND coalesce((SELECT boarding_enabled FROM trip_travel_preferences tp WHERE tp.trip_id=r.trip_id AND tp.member_id=r.owner_member_id),true)))
     ON CONFLICT DO NOTHING`);
   await database()
     .execute(sql`INSERT INTO notification_deliveries (event_id, device_id)
@@ -114,14 +114,24 @@ export async function dispatchNotifications() {
             ).rowCount,
           );
         }
+        let boardingBody: string | undefined;
         if (allowed && row.reminder_id) {
-          allowed = Boolean(
-            (
-              await db.execute(
-                sql`SELECT id FROM reminders WHERE id = ${sql.param(row.reminder_id)} AND owner_member_id = ${sql.param(row.recipient_id)} AND version = ${sql.param(row.reminder_version)} AND NOT dismissed AND NOT needs_review FOR SHARE`,
-              )
-            ).rowCount,
-          );
+          const current = (
+            await db.execute<{
+              transport_step_id: string | null;
+              mode: string | null;
+              transport_offset_minutes: number | null;
+            }>(
+              sql`SELECT r.transport_step_id,r.transport_offset_minutes,s.mode FROM reminders r LEFT JOIN trip_transport_steps s ON s.id=r.transport_step_id WHERE r.id = ${sql.param(row.reminder_id)} AND r.owner_member_id = ${sql.param(row.recipient_id)} AND r.version = ${sql.param(row.reminder_version)} AND NOT r.dismissed AND NOT r.needs_review
+                AND (r.transport_step_id IS NULL OR (s.version=r.transport_step_version AND (r.due_at->>'dateTime')::timestamptz > now()-interval '2 minutes' AND coalesce((SELECT boarding_enabled FROM trip_travel_preferences tp WHERE tp.trip_id=r.trip_id AND tp.member_id=r.owner_member_id),true))) FOR SHARE OF r`,
+            )
+          ).rows[0];
+          allowed = Boolean(current);
+          if (current?.transport_step_id)
+            boardingBody = (await import("./travel-plan")).boardingLabel(
+              current.mode!,
+              current.transport_offset_minutes!,
+            );
           if (
             (
               await db.execute(
@@ -155,9 +165,15 @@ export async function dispatchNotifications() {
               {
                 to: row.token,
                 title: "Travel Companion",
-                body: messages[row.kind as keyof typeof messages],
+                body:
+                  boardingBody ??
+                  (row.source_key?.startsWith("family-ready:")
+                    ? "A family is packed and ready. Open Travel Companion to see the update."
+                    : row.source_key?.startsWith("trip-tip:")
+                      ? "A trip member shared a packing tip. Open Travel Companion."
+                      : messages[row.kind as keyof typeof messages]),
                 channelId: "travel",
-                ttl: 3600,
+                ttl: boardingBody ? 120 : 3600,
               },
               accessToken,
             );
@@ -221,5 +237,19 @@ export async function dispatchNotifications() {
   await database().execute(
     sql`UPDATE notification_deliveries SET state = 'unknown', updated_at = clock_timestamp() WHERE state = 'submitted' AND updated_at < now() - interval '24 hours'`,
   );
-  return { status: "processed" };
+  const remaining = await database().execute(
+    sql`SELECT 1 FROM notification_deliveries WHERE state='pending' LIMIT 1`,
+  );
+  return { status: "processed", morePending: Boolean(remaining.rowCount) };
+}
+
+// Drain subsequent batches after the response so a trip with more than ten
+// devices does not wait for the daily fallback job. Claims and fresh permission
+// checks still happen separately for every delivery; uncertain sends never replay.
+export async function dispatchPendingNotifications() {
+  const until = Date.now() + 45_000;
+  do {
+    const result = await dispatchNotifications();
+    if (!("morePending" in result) || !result.morePending) return;
+  } while (Date.now() < until);
 }

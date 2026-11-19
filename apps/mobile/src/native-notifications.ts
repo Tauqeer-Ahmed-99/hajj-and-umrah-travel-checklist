@@ -1,7 +1,9 @@
+import { withinRequest } from "./request-deadline";
 import * as Notifications from "expo-notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import { randomUUID } from "expo-crypto";
+import { travelPlanApi } from "./travel-plan-api";
 import { reminderApi } from "./reminder-api";
 import { tripApi } from "./trip-api";
 import type { Reminder } from "@nmt/contracts";
@@ -148,14 +150,24 @@ export function synchronizeNotifications(
       return "Notification types are off. Choose the alerts you want below.";
     }
     const lists = await Promise.all(
-      trips.map(
-        async (trip) =>
-          (await reminderApi.list(trip.id, token, signal)).reminders,
-      ),
+      trips.map(async (trip) => {
+        const [normal, travel] = await Promise.all([
+          reminderApi.list(trip.id, token, signal),
+          travelPlanApi.reminders(trip.id, token, signal),
+        ]);
+        return {
+          reminders: [...normal.reminders, ...travel.reminders],
+          labels: travel.labels,
+        };
+      }),
     );
+    const labels = Object.assign(
+      {},
+      ...lists.map((list) => list.labels),
+    ) as Record<string, string>;
     if (!isCurrent()) return "Notification refresh interrupted.";
     const reminders = lists
-      .flat()
+      .flatMap((list) => list.reminders)
       .filter(
         (r) => r.ownerMemberId === memberId && !r.dismissed && !r.needsReview,
       );
@@ -230,7 +242,10 @@ export function synchronizeNotifications(
             identifier,
             content: {
               title: "Travel Companion",
-              body: "A preparation reminder needs your attention. Open Travel Companion.",
+              body:
+                labels[r.id] ??
+                "A preparation reminder needs your attention. Open Travel Companion.",
+              data: { tripId: r.tripId, reminderId: r.id },
             },
             trigger: {
               type: Notifications.SchedulableTriggerInputTypes.DATE,
@@ -257,15 +272,9 @@ export function synchronizeNotifications(
     if (!projectId)
       return "Device reminders are scheduled. Remote notifications need app setup.";
     try {
-      const push = await Promise.race([
+      const push = await withinRequest(signal, 8000, () =>
         Notifications.getExpoPushTokenAsync({ projectId }),
-        new Promise<never>((_, reject) =>
-          setTimeout(
-            () => reject(new Error("Push registration timed out")),
-            8000,
-          ),
-        ),
-      ]);
+      );
       if (!isCurrent()) return "Notification refresh interrupted.";
       const localSchedules = preferences.deadlines ? acknowledged : [];
       // Batches fit the existing 8 KiB HTTP boundary. Server acknowledgements

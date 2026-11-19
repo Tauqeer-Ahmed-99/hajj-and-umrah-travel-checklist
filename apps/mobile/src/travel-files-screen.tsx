@@ -126,7 +126,12 @@ export function TravelFilesScreen({
       </Copy>
       <Copy>These files need a connection to open.</Copy>
       {saved && <Notice>Saved</Notice>}
-      {!data && !api.error && <Loading message="Loading permitted files…" />}
+      {!data && !api.error && (
+        <Loading
+          kind={target.kind === "bag_photo" ? "bagPhoto" : "files"}
+          message="Loading permitted files…"
+        />
+      )}
       <RequestFeedback request={api} hasData={!!data} onRetry={() => load()} />
       {visibility && (
         <GuideSection>

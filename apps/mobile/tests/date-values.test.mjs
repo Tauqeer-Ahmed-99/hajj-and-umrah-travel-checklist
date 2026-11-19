@@ -10,7 +10,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const compiled = await build({
   stdin: {
     contents:
-      "export * from './src/date-values'; export {zonedDateTime} from '@nmt/contracts';",
+      "export * from './src/date-values'; export * from './src/checklist-presentation'; export {zonedDateTime} from '@nmt/contracts';",
     resolveDir: fileURLToPath(new URL("../", import.meta.url)),
   },
   bundle: true,
@@ -23,6 +23,8 @@ await writeFile(path, compiled.outputFiles[0].text);
 after(() => unlink(path));
 const {
   calendarValue,
+  checklistDateDefaults,
+  checklistStage,
   pickerDate,
   zonedChoices,
   zonedDateTime,
@@ -131,4 +133,51 @@ test("an invalid named zone is rejected before a schedule can be updated", () =>
     () => zonedChoices(pickerDate("2026-11-20T12:00"), "Invalid/Zone"),
     RangeError,
   );
+});
+
+test("new checklist defaults use the prior calendar day, including leap days, and today's local review date", () => {
+  const now = new Date(2026, 10, 19, 23, 45);
+  assert.deepEqual(checklistDateDefaults("2028-03-01", now), {
+    dueDate: "2028-02-29",
+    lastReviewedOn: "2026-11-19",
+  });
+  assert.equal(checklistDateDefaults("2027-01-01", now).dueDate, "2026-12-31");
+  assert.equal(checklistDateDefaults(undefined, now).dueDate, null);
+});
+
+test("checklist lifecycle labels distinguish physical readiness from orders and partial stock", () => {
+  const item = {
+    kind: "item",
+    taskStatus: null,
+    requiredQuantity: 2,
+    acquisition: null,
+  };
+  assert.equal(checklistStage(item).key, "needed");
+  assert.equal(
+    checklistStage({
+      ...item,
+      acquisition: { available: 0, awaitingReceipt: 2 },
+    }).key,
+    "waiting",
+  );
+  assert.equal(
+    checklistStage({
+      ...item,
+      acquisition: { available: 1, awaitingReceipt: 1 },
+    }).label,
+    "Partly ready",
+  );
+  assert.equal(
+    checklistStage({ ...item, acquisition: { available: 2 } }).key,
+    "ready",
+  );
+  assert.equal(
+    checklistStage({
+      ...item,
+      acquisition: { available: 0, notNeededReason: "Not taking it" },
+    }).key,
+    "inactive",
+  );
+  for (const status of ["to_do", "in_progress", "done", "not_needed"])
+    assert.ok(checklistStage({ kind: "task", taskStatus: status }).label);
 });

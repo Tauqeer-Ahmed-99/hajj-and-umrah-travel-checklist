@@ -1,3 +1,4 @@
+import { readinessAfterResponse } from "./trip-updates";
 import { sql } from "drizzle-orm";
 import type { DatabaseTransaction } from "./database";
 import type { DepartureCheck, PackingMove } from "@nmt/contracts";
@@ -31,8 +32,15 @@ export async function recordPacking(
       ]),
   );
   if (!Object.keys(changes).length) return;
-  await db.execute(sql`INSERT INTO packing_history (family_id, leg, bag_ids, action, actor, changes, entry_id, command, undoes, id)
-    SELECT ${sql.param(familyId)},${sql.param(details.leg ?? "outbound")},${sql.param(bagIds)},${sql.param(action)},jsonb_build_object('id',id,'firstName',first_name,'lastName',last_name,'username',username),${sql.param(JSON.stringify(changes))},${sql.param(details.entryId ?? null)},${sql.param(details.command ? JSON.stringify(details.command) : null)},${sql.param(details.undoes ?? null)},coalesce(${sql.param(details.id ?? null)}::uuid,gen_random_uuid()) FROM members WHERE id = ${sql.param(memberId)}`);
+  const recorded = await db.execute<{
+    id: string;
+  }>(sql`INSERT INTO packing_history (family_id, leg, bag_ids, action, actor, changes, entry_id, command, undoes, id)
+    SELECT ${sql.param(familyId)},${sql.param(details.leg ?? "outbound")},${sql.param(bagIds)},${sql.param(action)},jsonb_build_object('id',id,'firstName',first_name,'lastName',last_name,'username',username),${sql.param(JSON.stringify(changes))},${sql.param(details.entryId ?? null)},${sql.param(details.command ? JSON.stringify(details.command) : null)},${sql.param(details.undoes ?? null)},coalesce(${sql.param(details.id ?? null)}::uuid,gen_random_uuid()) FROM members WHERE id = ${sql.param(memberId)} RETURNING id`);
+  if (recorded.rows[0])
+    readinessAfterResponse(familyId, {
+      kind: "packing",
+      id: recorded.rows[0].id,
+    });
 }
 export const checkColumns = `id, leg, label, entry_id AS "entryId", checked, to_char(checked_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "checkedAt", checked_by AS "checkedBy",
   CASE WHEN bag_id IS NOT NULL THEN jsonb_build_object('kind','bag','id',bag_id) WHEN traveler_id IS NOT NULL THEN jsonb_build_object('kind','traveler','id',traveler_id) ELSE NULL END AS location`;

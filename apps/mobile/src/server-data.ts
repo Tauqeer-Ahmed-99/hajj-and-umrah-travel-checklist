@@ -165,6 +165,7 @@ export function serverStaleTime(path: string) {
   // Reconnect/share checks and file-version checks must use current access.
   if (
     /\/summary(?:\?|$)/.test(path) ||
+    /\/travel-reminders(?:\?|$)/.test(path) ||
     /\/checklist\/entries\?requestId=/.test(path) ||
     /\/guides\/[a-f0-9-]{36}(?:\/|\?|$)/.test(path) ||
     /\/travel-files(?:\/|\?|$)/.test(path)
@@ -177,7 +178,7 @@ export function serverStaleTime(path: string) {
     return 30_000;
   if (/\/(history|activity)(?:\?|$|\/)/.test(path)) return 60_000;
   if (
-    /\/(checklist|packing|acquisition|return-preparation|overview|shared|reminders|notifications|travelers)(?:\?|$|\/)/.test(
+    /\/(checklist|packing|acquisition|return-preparation|overview|shared|reminders|notifications|travelers|travel-steps|updates)(?:\?|$|\/)/.test(
       path,
     )
   )

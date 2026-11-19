@@ -5,6 +5,7 @@ import {
   pgTable,
   primaryKey,
   unique,
+  uniqueIndex,
   foreignKey,
   check,
   index,
@@ -1288,11 +1289,28 @@ export const reminders = pgTable(
     version: integer("version")
       .default(sql`1`)
       .notNull(),
+    transportStepId: uuid("transport_step_id").references(
+      () => tripTransportSteps.id,
+      { onDelete: "cascade" },
+    ),
+    transportOffsetMinutes: integer("transport_offset_minutes"),
+    transportStepVersion: integer("transport_step_version"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .default(sql`clock_timestamp()`)
       .notNull(),
   },
   (table): PgTableExtraConfigValue[] => [
+    check(
+      "reminders_transport_check",
+      sql`(${table.transportStepId} IS NULL AND ${table.transportOffsetMinutes} IS NULL AND ${table.transportStepVersion} IS NULL) OR (${table.transportStepId} IS NOT NULL AND ${table.transportOffsetMinutes} IS NOT NULL AND ${table.transportStepVersion} IS NOT NULL AND ${table.transportOffsetMinutes} IN (60,30,15,10,5,0) AND ${table.transportStepVersion}>0)`,
+    ),
+    uniqueIndex("reminders_transport_unique_idx")
+      .on(
+        table.transportStepId,
+        table.ownerMemberId,
+        table.transportOffsetMinutes,
+      )
+      .where(sql`${table.transportStepId} IS NOT NULL`),
     check(
       "reminders_category_check",
       sql`(category = ANY (ARRAY['assignment'::text, 'expected_delivery'::text, 'departure_preparation'::text, 'return_packing'::text]))`,
@@ -1887,5 +1905,148 @@ export const trips = pgTable(
       sql`((length(btrim(name)) >= 1) AND (length(btrim(name)) <= 120))`,
     ),
     primaryKey({ name: "trips_pkey", columns: [table.id] }),
+  ],
+);
+
+export const tripTransportSteps = pgTable(
+  "trip_transport_steps",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tripId: uuid("trip_id")
+      .notNull()
+      .references(() => trips.id, { onDelete: "cascade" }),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => members.id),
+    leg: text("leg").notNull(),
+    mode: text("mode").notNull(),
+    title: text("title").notNull(),
+    origin: text("origin").notNull().default(""),
+    destination: text("destination").notNull().default(""),
+    startsAt: jsonb("starts_at")
+      .$type<{ dateTime: string; timeZone: string }>()
+      .notNull(),
+    endsAt: jsonb("ends_at").$type<{
+      dateTime: string;
+      timeZone: string;
+    } | null>(),
+    reference: text("reference").notNull().default(""),
+    notes: text("notes").notNull().default(""),
+    position: integer("position").notNull(),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("trip_transport_steps_order_idx").on(
+      table.tripId,
+      table.leg,
+      table.position,
+      table.id,
+    ),
+    check(
+      "trip_transport_steps_leg_check",
+      sql`${table.leg} IN ('outbound','return')`,
+    ),
+    check(
+      "trip_transport_steps_mode_check",
+      sql`${table.mode} IN ('train','metro','flight','bus','taxi','car','walk','ferry','arrival','other')`,
+    ),
+    check(
+      "trip_transport_steps_title_check",
+      sql`length(btrim(${table.title})) BETWEEN 1 AND 120`,
+    ),
+    check(
+      "trip_transport_steps_origin_check",
+      sql`length(${table.origin}) <= 200`,
+    ),
+    check(
+      "trip_transport_steps_destination_check",
+      sql`length(${table.destination}) <= 200`,
+    ),
+    check(
+      "trip_transport_steps_reference_check",
+      sql`length(${table.reference}) <= 120`,
+    ),
+    check(
+      "trip_transport_steps_notes_check",
+      sql`length(${table.notes}) <= 800`,
+    ),
+    check("trip_transport_steps_version_check", sql`${table.version}>0`),
+  ],
+);
+export const tripTravelPreferences = pgTable(
+  "trip_travel_preferences",
+  {
+    tripId: uuid("trip_id").notNull(),
+    memberId: uuid("member_id").notNull(),
+    boardingEnabled: boolean("boarding_enabled").notNull().default(true),
+  },
+  (table) => [
+    primaryKey({ columns: [table.tripId, table.memberId] }),
+    foreignKey({
+      columns: [table.tripId, table.memberId],
+      foreignColumns: [tripMembers.tripId, tripMembers.memberId],
+    }).onDelete("cascade"),
+  ],
+);
+export const tripTips = pgTable(
+  "trip_tips",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tripId: uuid("trip_id")
+      .notNull()
+      .references(() => trips.id, { onDelete: "cascade" }),
+    authorId: uuid("author_id")
+      .notNull()
+      .references(() => members.id),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    sourceUrl: text("source_url").notNull().default(""),
+    removedAt: timestamp("removed_at", { withTimezone: true, mode: "string" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("trip_tips_trip_idx").on(table.tripId, table.createdAt.desc()),
+    check(
+      "trip_tips_title_check",
+      sql`length(btrim(${table.title})) BETWEEN 1 AND 120`,
+    ),
+    check(
+      "trip_tips_body_check",
+      sql`length(btrim(${table.body})) BETWEEN 1 AND 1200`,
+    ),
+    check("trip_tips_source_url_check", sql`length(${table.sourceUrl})<=800`),
+  ],
+);
+export const familyReadiness = pgTable(
+  "family_readiness",
+  {
+    familyId: uuid("family_id")
+      .notNull()
+      .references(() => families.id, { onDelete: "cascade" }),
+    leg: text("leg").notNull(),
+    ready: boolean("ready").notNull().default(false),
+    version: integer("version").notNull().default(0),
+    readyAt: timestamp("ready_at", { withTimezone: true, mode: "string" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.familyId, table.leg] }),
+    check(
+      "family_readiness_leg_check",
+      sql`${table.leg} IN ('outbound','return')`,
+    ),
   ],
 );

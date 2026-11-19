@@ -1,3 +1,4 @@
+import { contentShapes } from "./content-shapes";
 import { ChoiceField } from "./controls";
 import { useScreenBackEffect } from "./screen-back";
 import { Text } from "./typography";
@@ -43,10 +44,8 @@ export function AccessSection({
   return (
     <View
       style={{
-        borderTopWidth: 1,
+        ...contentShapes.accessSection,
         borderColor: colors.border,
-        paddingTop: 20,
-        gap: 12,
       }}
     >
       <Text

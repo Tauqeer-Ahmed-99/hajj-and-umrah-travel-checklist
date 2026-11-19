@@ -1,4 +1,6 @@
 import { RequestFeedback } from "./request-feedback";
+import { checklistStage, checklistTints } from "./checklist-presentation";
+import { useTheme } from "./theme";
 import {
   CompactAction,
   FloatingAction,
@@ -40,6 +42,7 @@ import {
   type Family,
   type Traveler,
   type AcquisitionViews,
+  type Trip,
 } from "@nmt/contracts";
 import { Action, Copy, Heading, Loading, Notice, Screen } from "./ui";
 import { checklistApi, type ChecklistScope } from "./checklist-api";
@@ -91,6 +94,7 @@ export function ChecklistDestination({
   );
 }
 type Data = {
+  trip: Trip;
   checklist: Checklist;
   family: Family;
   travelers: Traveler[];
@@ -206,6 +210,9 @@ function ChecklistItemRow({
     (m) => m.id === entry.responsibleMemberId,
   );
   const isItem = entry.kind === "item";
+  const { dark } = useTheme();
+  const stage = checklistStage(entry);
+  const tint = checklistTints[dark ? "dark" : "light"][stage.key];
   const subtitle = isItem
     ? entry.acquisition?.notNeededReason
       ? "Not needed"
@@ -219,7 +226,12 @@ function ChecklistItemRow({
   return (
     <RecordRow
       title={entry.title}
-      subtitle={subtitle}
+      subtitle={
+        isItem && stage.key !== "inactive"
+          ? `${stage.label} · ${subtitle}`
+          : subtitle
+      }
+      tint={{ background: tint[0], border: tint[1] }}
       initiallyOpen={selected}
       action={
         data.checklist.canEdit && (
@@ -451,6 +463,7 @@ export function ChecklistScreen({
       return family
         ? {
             checklist,
+            trip: detail.trip,
             family,
             travelers: roster.travelers,
             members: members.members,
@@ -550,6 +563,7 @@ export function ChecklistScreen({
       <ChecklistEntryForm
         {...props}
         defaultLeg={defaultLeg}
+        tripDates={data.trip}
         initial={editor.initial}
         kind={editor.kind}
         checklist={data.checklist}
@@ -577,7 +591,10 @@ export function ChecklistScreen({
             : "Recent checklist changes"}
         </Heading>
         {!data && !api.error && (
-          <Loading message="Checking current family access…" />
+          <Loading
+            kind="checklistHistory"
+            message="Checking current family access…"
+          />
         )}
         <RequestFeedback
           request={api}
@@ -668,44 +685,44 @@ export function ChecklistScreen({
     <ListHeader
       title="Checklist"
       subtitle={data?.family.name}
+      subtitleLoading={!data && !api.error}
       onBack={onBack}
       actions={
-        data && (
-          <OptionsMenu
-            title="Checklist options"
-            actions={[
-              { label: "Refresh checklist", onPress: () => refresh() },
-              ...(data.checklist.canEdit
-                ? [
-                    {
-                      label: "Use starter suggestions",
-                      onPress: () => edit({ mode: "starter" }),
-                    },
-                    {
-                      label: "Manage people / categories",
-                      onPress: () => setManage(true),
-                    },
-                    {
-                      label: "Select and delete",
-                      destructive: true,
-                      onPress: () =>
-                        edit({
-                          mode: "bulkRemoval",
-                          initialGroup: effectiveKind,
-                        }),
-                    },
-                  ]
-                : []),
-              {
-                label: "Recent activity",
-                onPress: () => edit({ mode: "history" }),
-              },
-            ]}
-          />
-        )
+        <OptionsMenu
+          title="Checklist options"
+          disabled={!data}
+          actions={[
+            { label: "Refresh checklist", onPress: () => refresh() },
+            ...(data?.checklist.canEdit
+              ? [
+                  {
+                    label: "Use starter suggestions",
+                    onPress: () => edit({ mode: "starter" }),
+                  },
+                  {
+                    label: "Manage people / categories",
+                    onPress: () => setManage(true),
+                  },
+                  {
+                    label: "Select and delete",
+                    destructive: true,
+                    onPress: () =>
+                      edit({
+                        mode: "bulkRemoval",
+                        initialGroup: effectiveKind,
+                      }),
+                  },
+                ]
+              : []),
+            {
+              label: "Recent activity",
+              onPress: () => edit({ mode: "history" }),
+            },
+          ]}
+        />
       }
     >
-      {data && (
+      {
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <View style={{ flex: 1 }}>
             <SegmentedControl
@@ -758,7 +775,7 @@ export function ChecklistScreen({
             />
           )}
         </View>
-      )}
+      }
       {view !== "all" && (
         <CompactAction
           label="Clear item filter"
@@ -789,7 +806,9 @@ export function ChecklistScreen({
       }
     >
       {saved && <Notice>Saved</Notice>}
-      {!data && !api.error && <Loading message="Loading checklist" />}
+      {!data && !api.error && (
+        <Loading kind="checklist" message="Loading checklist" />
+      )}
       <RequestFeedback
         request={api}
         hasData={!!data}

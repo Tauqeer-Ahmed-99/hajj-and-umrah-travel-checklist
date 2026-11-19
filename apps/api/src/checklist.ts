@@ -1,3 +1,4 @@
+import { readinessAfterResponse } from "./trip-updates";
 import { and, eq, sql } from "drizzle-orm";
 import { checklistEntries } from "./schema";
 import type { DatabaseTransaction } from "./database";
@@ -137,6 +138,11 @@ async function history(
     id: string;
   }>(sql`INSERT INTO checklist_history (family_id, entity_type, entity_id, action, actor, changes)
     SELECT ${sql.param(familyId)},${sql.param(entityType)},${sql.param(entityId)},${sql.param(action)},jsonb_build_object('id', id, 'firstName', first_name, 'lastName', last_name, 'username', username),${sql.param(JSON.stringify(changes))}::jsonb FROM members WHERE id = ${sql.param(memberId)} RETURNING id`);
+  if (recorded.rows[0] && (entityType === "entry" || action === "removed"))
+    readinessAfterResponse(familyId, {
+      kind: "checklist",
+      id: recorded.rows[0].id,
+    });
   if (entityType === "entry" && recorded.rows[0])
     await assignmentChanged(
       db,

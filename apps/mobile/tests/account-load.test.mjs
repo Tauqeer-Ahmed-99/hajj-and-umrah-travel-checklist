@@ -11,19 +11,17 @@ for (const stalledResponse of [false, true])
     const server = createServer((_req, res) => {
       reads++;
       if (stalledResponse && reads === 1) return;
-      res
-        .writeHead(200, { "Content-Type": "application/json" })
-        .end(
-          JSON.stringify({
-            email: "owned@example.test",
-            profile: {
-              id: "11111111-1111-4111-8111-111111111111",
-              firstName: "Test",
-              lastName: "Member",
-              username: "owned_member",
-            },
-          }),
-        );
+      res.writeHead(200, { "Content-Type": "application/json" }).end(
+        JSON.stringify({
+          email: "owned@example.test",
+          profile: {
+            id: "11111111-1111-4111-8111-111111111111",
+            firstName: "Test",
+            lastName: "Member",
+            username: "owned_member",
+          },
+        }),
+      );
     });
     server.listen(0, "127.0.0.1");
     await once(server, "listening");

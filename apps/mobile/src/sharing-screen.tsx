@@ -255,7 +255,18 @@ export function SharedScreen({
         for all its beneficiaries.
       </Copy>
       {saved && <Notice>Saved</Notice>}
-      {!data && !api.error && <Loading message="Loading shared content…" />}
+      {!data && !api.error && (
+        <Loading
+          kind={
+            view === "activity"
+              ? "sharedActivity"
+              : view === "bags"
+                ? "sharedBags"
+                : "sharedItems"
+          }
+          message="Loading shared content…"
+        />
+      )}
       <RequestFeedback request={api} hasData={!!data} onRetry={() => load()} />
       {data && (
         <>

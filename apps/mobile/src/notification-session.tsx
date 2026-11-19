@@ -20,7 +20,7 @@ export function useNotificationSession(memberId: string | null) {
     const read = async () => {
       const controller = new AbortController();
       controllers.add(controller);
-      const timeout = setTimeout(() => controller.abort(), 15000);
+      const timeout = setTimeout(() => controller.abort(), 35000);
       try {
         const token = await requestToken(getToken, controller.signal);
         if (active && !controller.signal.aborted && token && sessionId)
@@ -44,13 +44,21 @@ export function useNotificationSession(memberId: string | null) {
       }
     };
     let flight: Promise<void> | null = null;
-    const refresh = () => {
-      if (flight) return flight;
+    let changedDuringRefresh = false;
+    const refresh = (acceptedChange = false): Promise<void> => {
+      if (flight) {
+        if (acceptedChange) changedDuringRefresh = true;
+        return flight;
+      }
       const next = read();
       flight = next;
       void next
         .finally(() => {
           if (flight === next) flight = null;
+          if (active && changedDuringRefresh) {
+            changedDuringRefresh = false;
+            void refresh();
+          }
         })
         .catch(() => {});
       return next;
@@ -60,7 +68,7 @@ export function useNotificationSession(memberId: string | null) {
       if (state === "active") void refresh();
     });
     const unsubscribe = onAcceptedTravelChange(() => {
-      void refresh();
+      void refresh(true);
     });
     return () => {
       active = false;

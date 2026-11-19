@@ -1,3 +1,4 @@
+import { contentShapes } from "./content-shapes";
 import { useButtonAction } from "./use-button-action";
 import { Skeleton, type SkeletonKind } from "./skeleton";
 import { useState, type ReactNode } from "react";
@@ -418,25 +419,8 @@ const styles = StyleSheet.create({
     fontFamily: "Urbanist_400Regular",
     textAlignVertical: "center",
   },
-  button: {
-    minHeight: 50,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 26,
-    borderWidth: 1,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-  },
-  buttonText: {
-    fontSize: 14,
-    lineHeight: 22,
-    fontWeight: "600",
-    textAlign: "center",
-    flexShrink: 1,
-  },
+  button: contentShapes.action,
+  buttonText: contentShapes.actionLabel,
   appearance: { paddingVertical: 20, gap: 12 },
   options: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   option: {

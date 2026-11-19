@@ -31,11 +31,12 @@ type Validator<T> = {
         error: { issues: { path: PropertyKey[]; message: string }[] };
       };
 };
-function useSave<T>(
+export function useSave<T>(
   schema: Validator<T>,
   operation: (value: T, token: string, signal: AbortSignal) => Promise<unknown>,
   onSaved: () => void,
   onCancel: () => void,
+  subject = "itinerary",
 ) {
   const api = useTripRequest();
   const [pending, setPending] = useState<T | null>(null);
@@ -68,14 +69,14 @@ function useSave<T>(
   const cancel = () => {
     if (api.busy) return;
     Alert.alert(
-      uncertain ? "Check the saved itinerary?" : "Leave this form?",
+      uncertain ? `Check the saved ${subject}?` : "Leave this form?",
       uncertain
         ? "This change may already be saved. Refresh before starting another change. Nothing is queued."
         : "Unsaved details will be cleared.",
       [
         { text: "Keep editing", style: "cancel" },
         {
-          text: uncertain ? "Check saved itinerary" : "Leave form",
+          text: uncertain ? `Check saved ${subject}` : "Leave form",
           onPress: onCancel,
         },
       ],
@@ -90,6 +91,7 @@ function useSave<T>(
   }, [api.busy, uncertain, onCancel]);
   return {
     ...api,
+    subject,
     uncertain,
     locked: api.busy || uncertain,
     fields: { ...api.error?.fields, ...validation },
@@ -98,7 +100,7 @@ function useSave<T>(
   };
 }
 
-function SaveActions({
+export function SaveActions({
   save,
   title,
   onSave,
@@ -114,7 +116,7 @@ function SaveActions({
       {save.uncertain && (
         <Notice>
           We could not confirm the change. Retry the same details, or check the
-          saved itinerary.
+          saved {save.subject}.
         </Notice>
       )}
       <Action
@@ -126,7 +128,7 @@ function SaveActions({
         onPress={onSave}
       />
       <Action
-        title={save.uncertain ? "Check saved itinerary" : "Cancel"}
+        title={save.uncertain ? `Check saved ${save.subject}` : "Cancel"}
         secondary
         disabled={save.busy}
         onPress={save.cancel}

@@ -77,7 +77,7 @@ export function readReminders(actor: string, tripId: string) {
   return transaction(async (db) => {
     await requireTripAccess(db, actor, tripId);
     const result = await db.execute<Reminder>(
-      sql`SELECT ${sql.raw(columns)} FROM reminders WHERE trip_id = ${sql.param(tripId)} AND (owner_member_id = ${sql.param(actor)} OR created_by = ${sql.param(actor)}) ORDER BY created_at, id`,
+      sql`SELECT ${sql.raw(columns)} FROM reminders WHERE transport_step_id IS NULL AND trip_id = ${sql.param(tripId)} AND (owner_member_id = ${sql.param(actor)} OR created_by = ${sql.param(actor)}) ORDER BY created_at, id`,
     );
     const reminders: Reminder[] = [];
     for (const row of result.rows) {
@@ -103,7 +103,7 @@ export function patchReminder(
     resourceId(id);
     const current = (
       await db.execute<Reminder>(
-        sql`SELECT ${sql.raw(columns)} FROM reminders WHERE id = ${sql.param(id)} AND trip_id = ${sql.param(tripId)} AND owner_member_id = ${sql.param(actor)} FOR UPDATE`,
+        sql`SELECT ${sql.raw(columns)} FROM reminders WHERE id = ${sql.param(id)} AND trip_id = ${sql.param(tripId)} AND owner_member_id = ${sql.param(actor)} AND transport_step_id IS NULL FOR UPDATE`,
       )
     ).rows[0];
     if (!current)

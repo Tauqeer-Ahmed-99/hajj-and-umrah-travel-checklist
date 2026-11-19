@@ -462,8 +462,9 @@ export function SummaryScreen({
       )}
       {localError && <Notice error>{localError}</Notice>}
       {notice && <Notice>{notice}</Notice>}
-      {api.busy && (
+      {api.busy && !choices && !preview && (
         <Loading
+          kind="selection"
           message={
             preview
               ? "Checking current access and contents…"

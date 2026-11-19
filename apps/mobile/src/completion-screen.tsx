@@ -341,15 +341,19 @@ export function CompletionScreen({
       <Heading>Completion and archive</Heading>
       {!!message && <Notice>{message}</Notice>}
       <RequestFeedback request={api} hasData={!!data} onRetry={() => load()} />
-      {!data && !api.error && (
-        <Loading message="Loading completion and permitted arrival records…" />
-      )}
+
       <Action
         title="Refresh completion"
         secondary
 
         onPress={() => load()}
       />
+      {!data && !api.error && (
+        <Loading
+          kind="completion"
+          message="Loading completion and permitted arrival records…"
+        />
+      )}
       {data && (
         <>
           <CompletionRead value={data.completion} />
@@ -472,13 +476,16 @@ export function ArchivesScreen({
         hasData={!!archives}
         onRetry={() => load()}
       />
-      {!archives && !api.error && <Loading message="Finding your archives…" />}
+
       <Action
         title="Refresh archives"
         secondary
 
         onPress={() => load()}
       />
+      {!archives && !api.error && (
+        <Loading kind="archives" message="Finding your archives…" />
+      )}
       {archives?.length === 0 && (
         <Copy>No archived trips are available to this account.</Copy>
       )}

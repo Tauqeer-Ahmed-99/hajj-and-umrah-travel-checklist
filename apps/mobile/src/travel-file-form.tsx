@@ -289,12 +289,7 @@ export function TravelFileForm({
           retry; nothing is queued.
         </Notice>
       )}
-      {api.busy && (
-        <Loading
-          kind="inline"
-          message={phase || "Checking incomplete uploads"}
-        />
-      )}
+
       <Action
         requiresConnection
         title={body ? "Retry same upload" : "Upload and finish"}

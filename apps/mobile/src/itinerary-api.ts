@@ -11,7 +11,7 @@ import { apiOrigin } from "./api";
 import { travelFetch } from "./server-data";
 import { TripError } from "./trip-api";
 
-async function request<T>(
+export async function itineraryRequest<T>(
   tripId: string,
   path: string,
   token: string,
@@ -23,18 +23,15 @@ async function request<T>(
   const origin = apiOrigin();
   if (!origin)
     throw new TripError("This build could not connect to Travel Companion.");
-  const response = await travelFetch(
-    `${origin}/api/trips/${tripId}/itinerary${path}`,
-    {
-      method,
-      signal,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        ...(body ? { "Content-Type": "application/json" } : {}),
-      },
-      ...(body ? { body: JSON.stringify(body) } : {}),
+  const response = await travelFetch(`${origin}/api/trips/${tripId}${path}`, {
+    method,
+    signal,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(body ? { "Content-Type": "application/json" } : {}),
     },
-  );
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
   if (!response.ok) {
     let error: ApiError | undefined;
     try {
@@ -59,22 +56,31 @@ async function request<T>(
 }
 export const itineraryApi = {
   read: (tripId: string, token: string, signal: AbortSignal) =>
-    request(tripId, "", token, signal, itineraryResponse),
+    itineraryRequest(tripId, "/itinerary", token, signal, itineraryResponse),
   patch: (
     tripId: string,
     body: ItineraryPatch,
     token: string,
     signal: AbortSignal,
-  ) => request(tripId, "", token, signal, itineraryResponse, "PATCH", body),
+  ) =>
+    itineraryRequest(
+      tripId,
+      "/itinerary",
+      token,
+      signal,
+      itineraryResponse,
+      "PATCH",
+      body,
+    ),
   create: (
     tripId: string,
     body: ItineraryEntryInput,
     token: string,
     signal: AbortSignal,
   ) =>
-    request(
+    itineraryRequest(
       tripId,
-      "/entries",
+      "/itinerary/entries",
       token,
       signal,
       itineraryEntryResponse,
@@ -88,9 +94,9 @@ export const itineraryApi = {
     token: string,
     signal: AbortSignal,
   ) =>
-    request(
+    itineraryRequest(
       tripId,
-      `/entries/${entryId}`,
+      `/itinerary/entries/${entryId}`,
       token,
       signal,
       itineraryEntryResponse,
@@ -103,18 +109,26 @@ export const itineraryApi = {
     token: string,
     signal: AbortSignal,
   ) =>
-    request(tripId, "/order", token, signal, itineraryResponse, "PUT", {
-      entryIds,
-    }),
+    itineraryRequest(
+      tripId,
+      "/itinerary/order",
+      token,
+      signal,
+      itineraryResponse,
+      "PUT",
+      {
+        entryIds,
+      },
+    ),
   remove: (
     tripId: string,
     entryId: string,
     token: string,
     signal: AbortSignal,
   ) =>
-    request(
+    itineraryRequest(
       tripId,
-      `/entries/${entryId}`,
+      `/itinerary/entries/${entryId}`,
       token,
       signal,
       itineraryResponse,

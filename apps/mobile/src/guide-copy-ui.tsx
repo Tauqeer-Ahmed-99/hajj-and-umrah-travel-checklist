@@ -52,7 +52,7 @@ function Progress({ value }: { value: CopyProgress | null }) {
       />
     </View>
   ) : (
-    <Loading kind="inline" message={value.phase} />
+    <Loading kind="progress" message={value.phase} />
   );
 }
 function useCopies(tripId?: string) {
@@ -489,7 +489,9 @@ export function PrepareGuidesScreen({
         Choose only the notes and ready files you want. Nothing is selected by
         default. Links are connectivity-dependent and cannot be saved websites.
       </Copy>
-      {!guides && !api.error && <Loading message="Loading guide choices…" />}
+      {!guides && !api.error && (
+        <Loading kind="guideChoices" message="Loading guide choices…" />
+      )}
       <RequestFeedback
         request={api}
         hasData={!!guides}

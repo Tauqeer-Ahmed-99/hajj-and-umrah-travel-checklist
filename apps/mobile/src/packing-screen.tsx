@@ -466,7 +466,24 @@ export function PackingScreen({
           onPress={() => setSelectedId(undefined)}
         />
       )}
-      {!data && !api.error && <Loading message="Loading family packing…" />}
+      {!data && !api.error && (
+        <Loading
+          kind={
+            view === "bags"
+              ? "bags"
+              : view === "items"
+                ? "packItems"
+                : view === "review"
+                  ? "returnReview"
+                  : view === "checkout"
+                    ? "roomChecks"
+                    : view === "history"
+                      ? "packingHistory"
+                      : "checks"
+          }
+          message="Loading family packing…"
+        />
+      )}
       <RequestFeedback
         request={api}
         hasData={!!data}

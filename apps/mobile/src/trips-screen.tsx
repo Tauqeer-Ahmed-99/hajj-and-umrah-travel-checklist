@@ -343,7 +343,7 @@ export function TripsScreen({
   if (!route)
     return (
       <Screen>
-        <Loading message="Restoring your last view…" />
+        <Loading kind="journey" message="Restoring your last view…" />
       </Screen>
     );
   if (route.screen === "new-trip")
@@ -490,6 +490,9 @@ export function TripsScreen({
   if (route.screen === "itinerary")
     return (
       <ItineraryScreen
+        onReminders={() =>
+          setRoute({ screen: "reminders", tripId: route.tripId })
+        }
         key={route.tripId}
         tripId={route.tripId}
         onEditTrip={(trip) =>
@@ -801,7 +804,9 @@ function TripList({
     >
       <PageHeader title="Your trips" />
       {preferenceError && <Notice error>{preferenceError}</Notice>}
-      {!trips && !error && <Loading message="Loading your trips…" />}
+      {!trips && !error && (
+        <Loading kind="tripCards" message="Loading your trips…" />
+      )}
       {error && (
         <Surface>
           <Notice error>{error}</Notice>
@@ -919,7 +924,9 @@ function TripHome({
         </View>
       </View>
       {preferenceError && <Notice error>{preferenceError}</Notice>}
-      {!detail && !api.error && <Loading message="Opening journey" />}
+      {!detail && !api.error && (
+        <Loading kind="journey" message="Opening journey" />
+      )}
       <RequestFeedback
         request={api}
         hasData={!!detail}

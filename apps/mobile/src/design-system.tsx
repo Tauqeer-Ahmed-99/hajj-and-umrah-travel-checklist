@@ -1,3 +1,5 @@
+import { Skeleton } from "./skeleton";
+import { contentShapes } from "./content-shapes";
 import { useButtonAction } from "./use-button-action";
 import { useState, type ReactNode } from "react";
 import {
@@ -21,12 +23,14 @@ import { Text } from "./typography";
 export function ListHeader({
   title,
   subtitle,
+  subtitleLoading,
   onBack,
   actions,
   children,
 }: {
   title: string;
   subtitle?: string;
+  subtitleLoading?: boolean;
   onBack?(): void;
   actions?: ReactNode;
   children?: ReactNode;
@@ -50,13 +54,17 @@ export function ListHeader({
           >
             {title}
           </Text>
-          {!!subtitle && (
-            <Text
-              numberOfLines={1}
-              style={{ fontSize: 12, lineHeight: 18, color: colors.muted }}
-            >
-              {subtitle}
-            </Text>
+          {subtitleLoading ? (
+            <Skeleton kind="subtitle" label="Loading family name" />
+          ) : (
+            !!subtitle && (
+              <Text
+                numberOfLines={1}
+                style={{ fontSize: 12, lineHeight: 18, color: colors.muted }}
+              >
+                {subtitle}
+              </Text>
+            )
           )}
         </View>
         {actions}
@@ -116,11 +124,8 @@ export function Metric({ value, label }: { value: string; label: string }) {
   return (
     <View
       style={{
-        flex: 1,
-        padding: 14,
+        ...contentShapes.metric,
         backgroundColor: colors.tint,
-        borderRadius: 16,
-        gap: 4,
       }}
     >
       <Text
@@ -180,11 +185,8 @@ export function DocumentCard({
       accessibilityLabel={`Read ${title}`}
       onPress={onPress}
       style={({ pressed }) => ({
+        ...contentShapes.document,
         flexBasis: wide ? "100%" : "46%",
-        flexGrow: 1,
-        padding: 14,
-        borderRadius: 20,
-        borderWidth: StyleSheet.hairlineWidth,
         borderColor: colors.border,
         backgroundColor: colors.surface,
         gap: 10,
@@ -264,10 +266,12 @@ export function IconButton({
 export function PageHeader({
   title,
   subtitle,
+  subtitleLoading,
   action,
 }: {
   title: string;
   subtitle?: string;
+  subtitleLoading?: boolean;
   action?: ReactNode;
 }) {
   const { colors } = useTheme();
@@ -280,8 +284,12 @@ export function PageHeader({
         >
           {title}
         </Text>
-        {subtitle && (
-          <Text style={[s.body, { color: colors.muted }]}>{subtitle}</Text>
+        {subtitleLoading ? (
+          <Skeleton kind="pageSubtitle" label="Loading journey name" />
+        ) : (
+          subtitle && (
+            <Text style={[s.body, { color: colors.muted }]}>{subtitle}</Text>
+          )
         )}
       </View>
       {action}
@@ -494,12 +502,7 @@ export function Pill({
   );
 }
 const s = StyleSheet.create({
-  surface: {
-    padding: 16,
-    borderRadius: 22,
-    borderWidth: StyleSheet.hairlineWidth,
-    gap: 10,
-  },
+  surface: contentShapes.surface,
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -528,13 +531,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  row: {
-    minHeight: 64,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 9,
-  },
+  row: contentShapes.listRow,
   rowIcon: {
     width: 40,
     height: 40,
@@ -560,13 +557,7 @@ const s = StyleSheet.create({
     fontWeight: "500",
     textAlign: "center",
   },
-  feature: {
-    borderRadius: 24,
-    padding: 22,
-    minHeight: 183,
-    overflow: "hidden",
-    gap: 16,
-  },
+  feature: contentShapes.feature,
   eyebrow: { fontSize: 10, lineHeight: 16, color: "#E0E6FF", letterSpacing: 1 },
   featureTitle: {
     fontSize: 26,

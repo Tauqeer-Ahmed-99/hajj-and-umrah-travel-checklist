@@ -192,7 +192,9 @@ export function RemindersScreen({
       </Copy>
       {notice !== "" && <Notice>{notice}</Notice>}
       <RequestFeedback request={api} hasData={!!data} onRetry={() => load()} />
-      {!data && !api.error && <Loading message="Opening reminders…" />}
+      {!data && !api.error && (
+        <Loading kind="reminders" message="Opening reminders…" />
+      )}
       {data && (
         <>
           {data.reminders.length === 0 && (
@@ -268,7 +270,7 @@ export function RemindersScreen({
               [
                 ["assignments", "Important assignments"],
                 ["deadlines", "Reminders and deadlines"],
-                ["tripChanges", "Trip changes"],
+                ["tripChanges", "Trip updates, ready families & tips"],
               ] as const
             ).map(([key, label]) => (
               <ToggleRow

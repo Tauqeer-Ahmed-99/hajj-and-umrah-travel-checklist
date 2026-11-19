@@ -321,12 +321,7 @@ export function GuideFileForm({
       />
       {!!validation && <Notice error>{validation}</Notice>}
       {api.error && <Notice error>{api.error.message}</Notice>}
-      {api.busy && (
-        <Loading
-          kind="inline"
-          message={phase || "Checking incomplete uploads"}
-        />
-      )}
+
       <Action
         requiresConnection
         title={body ? "Retry same upload" : "Upload and finish"}

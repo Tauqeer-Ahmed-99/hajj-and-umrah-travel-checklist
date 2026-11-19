@@ -1,3 +1,4 @@
+import { TravelPlanScreen, TripUpdatesScreen } from "./travel-plan-screen";
 import { RequestFeedback } from "./request-feedback";
 import { useViewState } from "./use-view-state";
 import { FloatingAction } from "./controls";
@@ -116,7 +117,9 @@ export function ItineraryOverview({
   return (
     <Section title="Trip phase">
       {phase && <Copy>{tripPhaseLabels[phase]}</Copy>}
-      {!phase && !api.error && <Loading message="Loading the trip phase…" />}
+      {!phase && !api.error && (
+        <Loading kind="inline" message="Loading the trip phase…" />
+      )}
       <RequestFeedback request={api} hasData={!!phase} onRetry={() => load()} />
       <Action title="Itinerary and travel details" secondary onPress={onOpen} />
     </Section>
@@ -124,6 +127,8 @@ export function ItineraryOverview({
 }
 
 type Editor =
+  | { mode: "travelSteps" }
+  | { mode: "updates" }
   | { mode: "files"; entryId?: string }
   | { mode: "phase" }
   | { mode: "references" }
@@ -138,11 +143,13 @@ export function ItineraryScreen({
   onBack,
   onCompletion,
   onEditTrip,
+  onReminders,
 }: {
   tripId: string;
   onBack: () => void;
   onCompletion: () => void;
   onEditTrip?: (trip: Trip) => void;
+  onReminders?: () => void;
 }) {
   const [editor, setEditor] = useState<Editor | null>(null);
   const [saved, setSaved] = useState(false);
@@ -181,6 +188,16 @@ export function ItineraryScreen({
     setEditor(null);
   };
   if (data && editor) {
+    if (editor.mode === "travelSteps")
+      return (
+        <TravelPlanScreen
+          tripId={tripId}
+          onBack={onCancel}
+          onReminders={onReminders}
+        />
+      );
+    if (editor.mode === "updates")
+      return <TripUpdatesScreen tripId={tripId} onBack={onCancel} />;
     if (editor.mode === "files")
       return (
         <TravelFilesScreen
@@ -239,6 +256,7 @@ export function ItineraryScreen({
       <PageHeader
         title="Journey details"
         subtitle={data?.trip.name}
+        subtitleLoading={!data && !api.error}
         action={
           data?.itinerary.canEdit && (
             <OptionsMenu
@@ -279,7 +297,9 @@ export function ItineraryScreen({
         }
       />
       {saved && <Notice>Saved</Notice>}
-      {!data && !api.error && <Loading message="Loading journey details" />}
+      {!data && !api.error && (
+        <Loading kind="itinerary" message="Loading journey details" />
+      )}
       <RequestFeedback
         request={api}
         hasData={!!data}
@@ -298,7 +318,19 @@ export function ItineraryScreen({
             </Copy>
             <Copy muted>{tripPhaseLabels[data.itinerary.phase]}</Copy>
           </Surface>
-          <SectionLabel>Travel plan</SectionLabel>
+          <Surface>
+            <ListRow
+              title="Travel steps"
+              subtitle="Trains, flights and other transport for both legs"
+              onPress={() => setEditor({ mode: "travelSteps" })}
+            />
+            <ListRow
+              title="Packing together"
+              subtitle="Families ready and tips from trip members"
+              onPress={() => setEditor({ mode: "updates" })}
+            />
+          </Surface>
+          <SectionLabel>Stops & milestones</SectionLabel>
           <Surface>
             {data.itinerary.entries.length === 0 && (
               <Copy muted>Add your stops so everyone knows where to go.</Copy>

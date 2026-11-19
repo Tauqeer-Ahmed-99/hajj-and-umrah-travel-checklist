@@ -255,7 +255,7 @@ function HomePage({
         <JourneyMascot size={92} />
       </View>
       {!catalog.trips && !catalog.error && (
-        <Loading message="Finding your journeys…" />
+        <Loading kind="homeCard" message="Finding your journeys…" />
       )}
       <RequestFeedback
         request={catalog.request}
@@ -377,10 +377,11 @@ function LibrariesPage({
         hasData={!!catalog.trips}
         onRetry={() => catalog.refresh()}
       />
-      {!catalog.trips && !catalog.error && (
-        <Loading message="Loading libraries…" />
-      )}
       <Surface>
+        {!catalog.trips && !catalog.error && (
+          <Loading kind="libraryRows" message="Loading libraries…" />
+        )}
+
         {catalog.trips?.map((trip) => (
           <ListRow
             key={trip.id}

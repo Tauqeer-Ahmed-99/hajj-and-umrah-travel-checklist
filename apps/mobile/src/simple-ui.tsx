@@ -1,3 +1,4 @@
+import { contentShapes } from "./content-shapes";
 import { useState, type ReactNode } from "react";
 import {
   Keyboard,
@@ -289,19 +290,30 @@ export function RecordRow({
   initiallyOpen = false,
   children,
   action,
+  tint,
 }: {
   title: string;
   subtitle: string;
   initiallyOpen?: boolean;
   children: ReactNode;
   action?: ReactNode;
+  tint?: { background: string; border: string };
 }) {
   const [open, setOpen] = useState(initiallyOpen);
   const { colors } = useTheme();
   const reduced = useReducedMotion();
   return (
     <>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+      <View
+        style={[
+          { flexDirection: "row", alignItems: "center", gap: 8 },
+          tint && {
+            backgroundColor: tint.background,
+            ...contentShapes.tintedRecord,
+            borderStartColor: tint.border,
+          },
+        ]}
+      >
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`${title}, ${subtitle}`}
@@ -395,12 +407,5 @@ const styles = StyleSheet.create({
     gap: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  record: {
-    minHeight: 76,
-    paddingVertical: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
+  record: contentShapes.record,
 });

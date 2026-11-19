@@ -101,7 +101,9 @@ export function FamilyScreen({
           onPress={() => refresh()}
         />
       </View>
-      {!travelers && !api.error && <Loading message="Loading family" />}
+      {!travelers && !api.error && (
+        <Loading kind="family" message="Loading family" />
+      )}
       <RequestFeedback
         request={api}
         hasData={!!api.data}

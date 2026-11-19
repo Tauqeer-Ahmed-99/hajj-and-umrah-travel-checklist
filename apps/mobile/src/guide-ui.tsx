@@ -1,3 +1,4 @@
+import { contentShapes } from "./content-shapes";
 import { ChoiceField } from "./controls";
 import { Text } from "./typography";
 import { Pressable, StyleSheet, View } from "react-native";
@@ -113,12 +114,7 @@ export function GuideMetadata({ guide }: { guide: GuideRecord }) {
   );
 }
 const styles = StyleSheet.create({
-  section: {
-    gap: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 16,
-    borderRadius: 22,
-  },
+  section: contentShapes.guideSection,
   choices: { gap: 8 },
   choice: { minHeight: 48, padding: 14, borderWidth: 1, borderRadius: 26 },
   reading: { gap: 8, paddingVertical: 12 },

@@ -183,7 +183,10 @@ export function OverviewSummary({
         onRetry={() => load()}
       />
       {!data && !error && (
-        <Loading message="Loading permitted responsibilities…" />
+        <Loading
+          kind="overview"
+          message="Loading permitted responsibilities…"
+        />
       )}
       {data && (
         <>
@@ -350,7 +353,9 @@ function Activity({
         hasData={!!data}
         onRetry={() => setAttempt((value) => value + 1)}
       />
-      {!data && !error && <Loading message="Checking item activity…" />}
+      {!data && !error && (
+        <Loading kind="activity" message="Checking item activity…" />
+      )}
       {data?.history.length === 0 && (
         <Notice>
           No permitted activity is recorded for this item in this leg.
@@ -564,7 +569,9 @@ export function OverviewScreen({
         hasData={!!data}
         onRetry={() => load()}
       />
-      {!data && !error && <Loading message="Finding permitted records…" />}
+      {!data && !error && (
+        <Loading kind="results" message="Finding permitted records…" />
+      )}
       {data && (
         <>
           <Copy>Active phase: {tripPhaseLabels[data.phase]}</Copy>

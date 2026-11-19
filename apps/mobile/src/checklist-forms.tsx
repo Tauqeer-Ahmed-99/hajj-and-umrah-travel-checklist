@@ -1,4 +1,5 @@
 import { DateField } from "./date-field";
+import { checklistDateDefaults } from "./checklist-presentation";
 import { useScreenBackEffect } from "./screen-back";
 import { useEffect, useState } from "react";
 import { Alert, BackHandler } from "react-native";
@@ -205,9 +206,11 @@ export function ChecklistEntryForm(
     members: AccessMember[];
     memberId: string;
     defaultLeg?: "outbound" | "return";
+    tripDates?: { startDate: string; endDate: string };
   },
 ) {
   const [requestId] = useState(randomUUID);
+  const [dueDateChanged, setDueDateChanged] = useState(false);
   const [value, setValue] = useState<ChecklistEntryInput>(() => {
     if (props.initial) {
       const { id, familyId, acquisition, ...fields } = props.initial;
@@ -222,11 +225,15 @@ export function ChecklistEntryForm(
       beneficiaries: { kind: "family" },
       responsibleMemberId: props.memberId,
       priority: "normal",
-      dueDate: null,
+      dueDate: checklistDateDefaults(
+        props.defaultLeg === "return"
+          ? props.tripDates?.endDate
+          : props.tripDates?.startDate,
+      ).dueDate,
       notes: "",
       leg: props.defaultLeg ?? "outbound",
       source: "",
-      lastReviewedOn: null,
+      lastReviewedOn: checklistDateDefaults().lastReviewedOn,
       taskStatus: props.kind === "task" ? "to_do" : null,
     };
   });
@@ -479,7 +486,18 @@ export function ChecklistEntryForm(
                     : "Outbound",
             }))}
             value={value.leg}
-            onChange={(next) => update("leg", next)}
+            onChange={(next) => {
+              update("leg", next);
+              if (!props.initial && !dueDateChanged)
+                update(
+                  "dueDate",
+                  checklistDateDefaults(
+                    next === "return"
+                      ? props.tripDates?.endDate
+                      : props.tripDates?.startDate,
+                  ).dueDate,
+                );
+            }}
             locked={save.locked}
           />
         </>
@@ -489,7 +507,10 @@ export function ChecklistEntryForm(
           <DateField
             label="Due date"
             value={value.dueDate ?? ""}
-            onChangeText={(next) => update("dueDate", next || null)}
+            onChangeText={(next) => {
+              setDueDateChanged(true);
+              update("dueDate", next || null);
+            }}
             editable={!save.locked}
             error={save.fields.dueDate}
             optional

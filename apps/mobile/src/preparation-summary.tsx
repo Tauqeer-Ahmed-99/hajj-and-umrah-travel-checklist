@@ -80,7 +80,7 @@ export function PreparationSummary({
         Preparation · {leg === "return" ? "Journey home" : "Outbound"}
       </SectionLabel>
       {!progress && !api.error && (
-        <Loading kind="inline" message="Loading preparation summary" />
+        <Loading kind="summary" message="Loading preparation summary" />
       )}
       {progress && (
         <>
