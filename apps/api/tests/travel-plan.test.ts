@@ -212,7 +212,7 @@ test("travel and tip endpoints verify JWTs, current membership, role, and crosse
     404,
   );
 });
-test("six boarding offsets update safely and respect trip/global preferences and deletion", async () => {
+test("ten boarding offsets update safely and respect trip/global preferences and deletion", async () => {
   const j = await setup("travel_alerts");
   await check(
     "/api/notifications",
@@ -220,7 +220,7 @@ test("six boarding offsets update safely and respect trip/global preferences and
     { deadlines: true },
     "PATCH",
   );
-  const departure = zonedInstant(Date.now() + 86_400_000, "Asia/Kolkata");
+  const departure = zonedInstant(Date.now() + 2 * 86_400_000, "Asia/Kolkata");
   const saved = await check(
     `${j.path}/travel-steps`,
     j.owner.token,
@@ -231,7 +231,7 @@ test("six boarding offsets update safely and respect trip/global preferences and
   let result = travelRemindersResponse.parse(
     (await fixture.request(`${j.path}/travel-reminders`, j.owner.token)).data,
   );
-  assert.equal(result.reminders.length, 6);
+  assert.equal(result.reminders.length, 10);
   for (const column of ["transport_offset_minutes", "transport_step_version"])
     await assert.rejects(
       pool.query(`UPDATE reminders SET ${column}=NULL WHERE id=$1`, [
@@ -245,7 +245,26 @@ test("six boarding offsets update safely and respect trip/global preferences and
     result.reminders
       .map((r) => (start - Date.parse(r.dueAt.dateTime)) / 60000)
       .sort((a, b) => b - a),
-    [60, 30, 15, 10, 5, 0],
+    [1440, 600, 300, 120, 60, 30, 15, 10, 5, 0],
+  );
+  assert.deepEqual(
+    result.reminders
+      .sort(
+        (a, b) => Date.parse(a.dueAt.dateTime) - Date.parse(b.dueAt.dateTime),
+      )
+      .map((r) => result.labels[r.id]),
+    [
+      "Train boarding in 24 hours.",
+      "Train boarding in 10 hours.",
+      "Train boarding in 5 hours.",
+      "Train boarding in 2 hours.",
+      "Train boarding in 1 hour.",
+      "Train boarding in 30 minutes.",
+      "Train boarding in 15 minutes.",
+      "Train boarding in 10 minutes.",
+      "Train boarding in 5 minutes.",
+      "Train boarding now.",
+    ],
   );
   assert.ok(
     result.reminders.every(
@@ -259,6 +278,22 @@ test("six boarding offsets update safely and respect trip/global preferences and
     0,
   );
   const before = new Map(result.reminders.map((r) => [r.id, r.version]));
+  // An existing step acquires only the four new offsets on its next sync.
+  await pool.query(
+    "DELETE FROM reminders WHERE trip_id=$1 AND transport_offset_minutes>60",
+    [j.id],
+  );
+  const expanded = travelRemindersResponse.parse(
+    (await fixture.request(`${j.path}/travel-reminders`, j.owner.token)).data,
+  );
+  assert.equal(expanded.reminders.length, 10);
+  assert.ok(
+    expanded.reminders
+      .filter((r) => before.has(r.id))
+      .every((r) => r.version === before.get(r.id)),
+    "Adding earlier offsets cannot replay existing alerts",
+  );
+  for (const r of expanded.reminders) before.set(r.id, r.version);
   await check(
     `${j.path}/travel-steps/${saved.step.id}`,
     j.owner.token,

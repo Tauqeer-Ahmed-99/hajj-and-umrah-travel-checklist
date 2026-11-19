@@ -240,7 +240,13 @@ export function boardingLabel(mode: string, offset: number) {
       : mode === "walk"
         ? "Walk starts"
         : `${transportModeLabels[mode as keyof typeof transportModeLabels]} boarding`;
-  return `${start} ${offset === 0 ? "now" : offset === 60 ? "in 1 hour" : `in ${offset} minutes`}.`;
+  const when =
+    offset === 0
+      ? "now"
+      : offset >= 60
+        ? `in ${offset / 60} ${offset === 60 ? "hour" : "hours"}`
+        : `in ${offset} minutes`;
+  return `${start} ${when}.`;
 }
 export async function synchronizeTravelReminders(
   db: DatabaseTransaction,

@@ -1302,7 +1302,7 @@ export const reminders = pgTable(
   (table): PgTableExtraConfigValue[] => [
     check(
       "reminders_transport_check",
-      sql`(${table.transportStepId} IS NULL AND ${table.transportOffsetMinutes} IS NULL AND ${table.transportStepVersion} IS NULL) OR (${table.transportStepId} IS NOT NULL AND ${table.transportOffsetMinutes} IS NOT NULL AND ${table.transportStepVersion} IS NOT NULL AND ${table.transportOffsetMinutes} IN (60,30,15,10,5,0) AND ${table.transportStepVersion}>0)`,
+      sql`(${table.transportStepId} IS NULL AND ${table.transportOffsetMinutes} IS NULL AND ${table.transportStepVersion} IS NULL) OR (${table.transportStepId} IS NOT NULL AND ${table.transportOffsetMinutes} IS NOT NULL AND ${table.transportStepVersion} IS NOT NULL AND ${table.transportOffsetMinutes} IN (1440,600,300,120,60,30,15,10,5,0) AND ${table.transportStepVersion}>0)`,
     ),
     uniqueIndex("reminders_transport_unique_idx")
       .on(

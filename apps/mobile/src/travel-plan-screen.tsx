@@ -5,6 +5,7 @@ import { ArrowLeft, RefreshCw } from "lucide-react-native";
 import {
   travelStepInput,
   transportModeLabels,
+  boardingScheduleLabel,
   type TravelStep,
   type TravelStepInput,
   tripTipInput,
@@ -176,7 +177,7 @@ export function TravelPlanScreen({
                   void api.refresh();
               }}
             />
-            <Copy muted>1 hr · 30, 15, 10, 5 min · At departure</Copy>
+            <Copy muted>{boardingScheduleLabel}</Copy>
           </Surface>
           {!steps.length && (
             <Surface>

@@ -30,7 +30,11 @@ export const transportModeLabels: Record<
   arrival: "Arrival",
   other: "Other",
 };
-export const boardingOffsets = [60, 30, 15, 10, 5, 0] as const;
+export const boardingOffsets = [
+  1440, 600, 300, 120, 60, 30, 15, 10, 5, 0,
+] as const;
+export const boardingScheduleLabel =
+  "24, 10, 5, 2, 1 hr\n30, 15, 10, 5 min \u00b7 At departure";
 const fields = z.strictObject({
   leg: travelLeg,
   mode: transportMode,

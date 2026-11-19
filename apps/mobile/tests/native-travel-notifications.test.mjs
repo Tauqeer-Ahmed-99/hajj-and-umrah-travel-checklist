@@ -50,12 +50,13 @@ async function fixture(t) {
   t.after(() => unlink(path));
   return import(pathToFileURL(path).href);
 }
-test("native boarding alerts use six current zoned instants, avoid replay, replace edited schedules, and cancel on preference/session changes", async (t) => {
+test("native boarding alerts add four earlier instants without replaying existing alerts, replace edits, and cancel on preference/session changes", async (t) => {
   const app = await fixture(t),
     state = app.state,
-    departure = Date.now() + 2 * 3600000;
-  state.reminders = [60, 30, 15, 10, 5, 0].map((offset, index) => ({
-    id: `step-${index}`,
+    departure = Date.now() + 48 * 3600000;
+  const offsets = [1440, 600, 300, 120, 60, 30, 15, 10, 5, 0];
+  const allReminders = offsets.map((offset) => ({
+    id: `step-${offset}`,
     tripId: "trip",
     ownerMemberId: "member",
     dismissed: false,
@@ -66,10 +67,11 @@ test("native boarding alerts use six current zoned instants, avoid replay, repla
       timeZone: "Asia/Kolkata",
     },
   }));
+  state.reminders = allReminders.slice(4);
   state.labels = Object.fromEntries(
-    state.reminders.map((r, i) => [
+    allReminders.map((r, i) => [
       r.id,
-      `Train boarding ${i === 5 ? "now" : `in ${[60, 30, 15, 10, 5][i]} minutes`}.`,
+      `Train boarding ${offsets[i] === 0 ? "now" : offsets[i] >= 60 ? `in ${offsets[i] / 60} ${offsets[i] === 60 ? "hour" : "hours"}` : `in ${offsets[i]} minutes`}.`,
     ]),
   );
   app.setNotificationSession("member", "session");
@@ -96,6 +98,15 @@ test("native boarding alerts use six current zoned instants, avoid replay, repla
   );
   await sync();
   assert.equal(state.calls.length, 6, "Refreshing cannot schedule duplicates");
+  state.reminders = allReminders;
+  await sync();
+  assert.equal(state.calls.length, 10, "Only the four new alerts are added");
+  assert.deepEqual(
+    state.calls.slice(6).map((c) => c.trigger.date.getTime()),
+    allReminders.slice(0, 4).map((r) => Date.parse(r.dueAt.dateTime)),
+  );
+  await sync();
+  assert.equal(state.calls.length, 10, "A repeated sync cannot replay alerts");
   state.reminders = state.reminders.map((r) => ({
     ...r,
     version: 2,
@@ -105,8 +116,8 @@ test("native boarding alerts use six current zoned instants, avoid replay, repla
     },
   }));
   await sync();
-  assert.equal(state.calls.length, 12);
-  assert.equal(state.cancelled.length, 6);
+  assert.equal(state.calls.length, 20);
+  assert.equal(state.cancelled.length, 10);
   assert.ok(
     state.registrations.at(-1).localSchedules.every((s) => s.version === 2),
   );
@@ -115,7 +126,7 @@ test("native boarding alerts use six current zoned instants, avoid replay, repla
   assert.equal(state.scheduled.length, 0);
   state.deadlines = true;
   await sync();
-  assert.equal(state.scheduled.length, 6);
+  assert.equal(state.scheduled.length, 10);
   app.setNotificationSession(null, null);
   await app.clearNotifications();
   assert.equal(state.scheduled.length, 0);

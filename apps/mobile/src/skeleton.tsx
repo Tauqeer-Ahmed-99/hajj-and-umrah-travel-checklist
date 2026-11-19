@@ -17,6 +17,7 @@ import Animated, {
 import { Text } from "./typography";
 import { useTheme } from "./theme";
 import { contentShapes as shape } from "./content-shapes";
+import { boardingScheduleLabel } from "@nmt/contracts";
 export type SkeletonKind =
   | "screen"
   | "profile"
@@ -685,7 +686,15 @@ export function Skeleton({
                 <View style={{ flex: 1 }}>{line("70%", 22, 14)}</View>
                 {block(50, 30, 18)}
               </View>
-              {line("90%", 22, 14)}
+              <View>
+                <Text style={{ fontSize: 14, lineHeight: 22, opacity: 0 }}>
+                  {boardingScheduleLabel}
+                </Text>
+                <View style={{ position: "absolute", inset: 0 }}>
+                  {line("60%", 22, 14)}
+                  {line("90%", 22, 14)}
+                </View>
+              </View>
             </>,
           )}
           {rows(4, { record: true })}
