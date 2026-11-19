@@ -5,6 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, AppState, BackHandler, StyleSheet, View } from "react-native";
 import { useClerk } from "@clerk/expo";
 import { useSessionAuth } from "./session-auth";
+import { requestToken } from "./request-deadline";
+import { TripError } from "./request-error";
 import {
   addNetworkStateListener,
   getNetworkStateAsync,
@@ -160,22 +162,7 @@ export function AccountScreen() {
       }
     }, 35_000);
     try {
-      const token = await Promise.race([
-        getToken(),
-        new Promise<never>((_, reject) => {
-          const aborted = () =>
-            reject(
-              new AccountError(
-                "Your account could not refresh. Try again, or open the files saved on this device.",
-              ),
-            );
-          if (controller.signal.aborted) aborted();
-          else
-            controller.signal.addEventListener("abort", aborted, {
-              once: true,
-            });
-        }),
-      ]);
+      const token = await requestToken(getToken, controller.signal);
       if (!token)
         throw new AccountError(
           "Connect to refresh sign-in. Previously saved guides remain available for this restored account.",
@@ -202,15 +189,10 @@ export function AccountScreen() {
           rememberCopyProfile(copies, result.profile);
           setOfflineProfile(result.profile);
           // Metadata checks only. No object downloads, exports or save retries.
-          const copyToken = await getToken();
-          if (
-            copyToken &&
-            current === generation.current &&
-            !controller.signal.aborted
-          )
+          if (current === generation.current && !controller.signal.aborted)
             void refreshSavedGuideAccess(
               copies,
-              copyToken,
+              token,
               controller.signal,
             ).catch(() => {
               if (copies.controller.signal.aborted) {
@@ -253,8 +235,10 @@ export function AccountScreen() {
       }
       if (current === generation.current) {
         setLoadFailure(
-          error instanceof AccountError &&
-            [401, 403, 404].includes(error.status)
+          (error instanceof TripError &&
+            error.code === "session_refresh_failed") ||
+            (error instanceof AccountError &&
+              [401, 403, 404].includes(error.status))
             ? "session"
             : error instanceof AccountError && error.status >= 500
               ? "server"
@@ -263,7 +247,7 @@ export function AccountScreen() {
                 : "server",
         );
         setError(
-          error instanceof AccountError
+          error instanceof AccountError || error instanceof TripError
             ? error.message
             : "Could not load your profile. Check your connection, then try again.",
         );
@@ -406,7 +390,7 @@ export function AccountScreen() {
       }
     }, 15_000);
     try {
-      const token = await getToken();
+      const token = await requestToken(getToken, controller.signal);
       if (!token)
         throw new AccountError(
           "Your session has ended. Sign out, then sign in again.",
@@ -494,7 +478,7 @@ export function AccountScreen() {
             const current = ++generation.current;
             const timer = setTimeout(() => controller.abort(), 15_000);
             try {
-              const token = await getToken();
+              const token = await requestToken(getToken, controller.signal);
               if (!token || controller.signal.aborted) return;
               const status = await accountRemovalRequest(
                 `Bearer ${token}`,

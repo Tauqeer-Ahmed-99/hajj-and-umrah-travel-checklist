@@ -79,13 +79,13 @@ export async function requestToken(
   signal: AbortSignal,
 ) {
   try {
-    return await withinRequest(signal, 6_000, () => getToken());
+    return await withinRequest(signal, 5_000, () => getToken());
   } catch (error) {
     if (signal.aborted) throw error;
     // Clerk's cached token resolver can itself be stuck retrying. A second
     // normal cache lookup would wait on that same promise, so refresh once.
     try {
-      return await withinRequest(signal, 6_000, () =>
+      return await withinRequest(signal, 5_000, () =>
         getToken({ skipCache: true }),
       );
     } catch (refreshError) {
