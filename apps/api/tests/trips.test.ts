@@ -131,7 +131,7 @@ test("metadata edits enforce organizer and family coordinator authority and reje
         "PATCH",
       )
     ).status,
-    404,
+    200,
   );
   assert.equal(
     (
@@ -494,7 +494,7 @@ async function access(
   }
 }
 
-test("organizing a trip never grants access to another family's private roster; members and viewers stay scoped", async () => {
+test("organizers manage all family rosters while members and viewers stay scoped", async () => {
   const owner = await member("scope_owner");
   const other = await member("scope_other");
   const viewer = await member("scope_viewer");
@@ -531,9 +531,9 @@ test("organizing a trip never grants access to another family's private roster; 
     (await fixture.request(path, owner.token)).data.families.map(
       (f: { id: string }) => f.id,
     ),
-    [familyId],
+    [familyId, otherFamily.data.family.id],
   );
-  assert.equal((await fixture.request(otherRoster, owner.token)).status, 404);
+  assert.equal((await fixture.request(otherRoster, owner.token)).status, 200);
   assert.equal(
     (
       await fixture.request(
@@ -543,7 +543,7 @@ test("organizing a trip never grants access to another family's private roster; 
         "POST",
       )
     ).status,
-    404,
+    201,
   );
   await access(tripId, viewer.id, "viewer", familyId, "viewer");
   await access(tripId, editor.id, "member", familyId, "editor");

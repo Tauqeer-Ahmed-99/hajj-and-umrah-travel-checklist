@@ -252,7 +252,7 @@ test("file operations reauthorize actual current trip/family grants, version aud
     );
     return { token, id: profile.data.profile.id };
   }
-  const organizer = await admit("file_organizer", "organizer");
+  const organizer = await admit("file_ungranted_member", "member");
   const viewer = await admit("file_viewer", "viewer", "viewer");
   const editor = await admit("file_editor", "member", "editor");
   const pending = await startUpload(
@@ -356,7 +356,7 @@ test("file operations reauthorize actual current trip/family grants, version aud
       422,
     );
   }
-  // After sharing, an ungranted organizer can open only shared versions.
+  // After sharing, an ungranted member can open only shared versions.
   assert.equal(
     (
       await fixture.request(

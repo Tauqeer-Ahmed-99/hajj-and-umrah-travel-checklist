@@ -113,32 +113,34 @@ async function saveEntry(
     try {
       const saved = await withinRequest(signal, 10_000, async (checkSignal) => {
         const path = `/entries?${new URLSearchParams({ requestId: body.requestId!, operation, ...(entryId ? { entryId } : {}) })}`;
-        let result = await request(
-          scope,
-          path,
-          token,
-          checkSignal,
-          checklistSaveResponse,
-        );
-        assertAccount();
-        // A timed-out write may still be committing. Give that exact receipt a
-        // short, bounded read-only confirmation window; never resend the write.
-        if (error instanceof RequestDeadlineError) {
-          for (const pause of [750, 1_500, 2_500, 3_500]) {
-            if (result.entry) break;
-            await waitForRequest(checkSignal, pause);
-            assertAccount();
-            result = await request(
-              scope,
-              path,
-              token,
-              checkSignal,
-              checklistSaveResponse,
+        let result: ReturnType<typeof checklistSaveResponse.parse> | undefined;
+        let lastFailure: unknown;
+        // Receipt reads bypass the query cache. Bound each individual connection
+        // too, so one stalled confirmation cannot consume the whole recovery window.
+        for (const pause of [0, 750, 1_500, 2_500, 3_500]) {
+          if (pause) await waitForRequest(checkSignal, pause);
+          assertAccount();
+          try {
+            result = await withinRequest(checkSignal, 3_000, (attemptSignal) =>
+              request(scope, path, token, attemptSignal, checklistSaveResponse),
             );
             assertAccount();
+            if (result.entry || !(error instanceof RequestDeadlineError))
+              return result;
+          } catch (checkError) {
+            assertAccount();
+            if (
+              checkSignal.aborted ||
+              (checkError instanceof TripError &&
+                (checkError.code === "request_cancelled" ||
+                  (checkError.status > 0 && checkError.status < 500)))
+            )
+              throw checkError;
+            lastFailure = checkError;
           }
         }
-        return result;
+        if (result) return result;
+        throw lastFailure;
       });
       if (saved.entry) {
         acceptedTravelChange();

@@ -371,7 +371,7 @@ test("item search and activity expose only the permitted confirmed leg and actor
   );
 });
 
-test("multi-family filters deduplicate shared IDs, keep organizing separate, and recheck grants and removed trip access", async () => {
+test("multi-family filters deduplicate shared IDs, include organiser family access, and recheck grants and removed trip access", async () => {
   const j = await setup("overview_roles");
   const organizer = await admit(j, "overview_organizer", "organizer");
   const editor = await admit(j, "overview_editor", "member", "editor");
@@ -410,7 +410,11 @@ test("multi-family filters deduplicate shared IDs, keep organizing separate, and
     assert.equal(overviewResponse.safeParse(all.data).success, true);
     assert.deepEqual(
       new Set(all.data.records.map((r: { id: string }) => r.id)),
-      new Set([own, shared, publicOther]),
+      new Set(
+        person === j.owner
+          ? [own, shared, secret, publicOther]
+          : [own, shared, publicOther],
+      ),
     );
     assert.equal(
       all.data.records.filter((r: { id: string }) => r.id === shared).length,
@@ -422,7 +426,9 @@ test("multi-family filters deduplicate shared IDs, keep organizing separate, and
     );
     assert.deepEqual(
       new Set(family.data.records.map((r: { id: string }) => r.id)),
-      new Set([own, shared]),
+      new Set(
+        person === j.owner ? [own, shared, secret, publicOther] : [own, shared],
+      ),
     );
     const tripShared = await fixture.request(
       `${j.trip}/overview?scope=shared`,
@@ -439,7 +445,7 @@ test("multi-family filters deduplicate shared IDs, keep organizing separate, and
           person.token,
         )
       ).status,
-      404,
+      person === j.owner ? 200 : 404,
     );
     assert.equal(
       (
@@ -448,7 +454,7 @@ test("multi-family filters deduplicate shared IDs, keep organizing separate, and
           person.token,
         )
       ).status,
-      404,
+      person === j.owner ? 200 : 404,
     );
   }
   const mine = await fixture.request(
@@ -465,7 +471,7 @@ test("multi-family filters deduplicate shared IDs, keep organizing separate, and
     [],
   );
   const org = await fixture.request(`${j.trip}/overview`, organizer.token);
-  assert.ok(!JSON.stringify(org.data).includes(own));
+  assert.ok(JSON.stringify(org.data).includes(own));
   assert.ok(org.data.records.some((r: { id: string }) => r.id === secret));
   assert.equal(
     (await fixture.request(`${j.trip}/overview`, outsider.token)).status,

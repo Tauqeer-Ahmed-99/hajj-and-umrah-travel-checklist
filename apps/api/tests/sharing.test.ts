@@ -135,7 +135,7 @@ test("only owning coordinators publish canonical items; trip editors edit and vi
   const empty = await fixture.request(shared, other.token);
   assert.equal(empty.status, 200, fixture.logs());
   assert.deepEqual(empty.data.items, []);
-  for (const person of [other, viewer, organizer, editor])
+  for (const person of [other, viewer, editor])
     assert.ok(
       [403, 404].includes(
         (await fixture.request(path, person.token, visibility("trip"), "POST"))
@@ -163,7 +163,7 @@ test("only owning coordinators publish canonical items; trip editors edit and vi
     assert.ok(!encoded.includes(secret), secret);
   assert.equal(
     (await fixture.request(`${j.family}/packing`, organizer.token)).status,
-    404,
+    200,
   );
   assert.equal(
     (
@@ -759,6 +759,32 @@ test("racing visibility and packing serialize on current content and coordinator
   );
   assert.equal(
     (await fixture.request(itemPath, j.owner.token, request, "POST")).status,
+    200,
+  );
+  assert.equal(
+    (
+      await fixture.request(
+        `${j.trip}/members/${coordinator.id}`,
+        j.owner.token,
+        { role: "organizer" },
+        "PUT",
+      )
+    ).status,
+    200,
+  );
+  assert.equal(
+    (
+      await fixture.request(
+        `${j.trip}/members/${j.owner.id}`,
+        coordinator.token,
+        { role: "member" },
+        "PUT",
+      )
+    ).status,
+    200,
+  );
+  assert.equal(
+    (await fixture.request(itemPath, j.owner.token, request, "POST")).status,
     403,
   );
 });
@@ -766,7 +792,7 @@ test("racing visibility and packing serialize on current content and coordinator
 test("summary readers without a family grant can select shared canonical items while private records and all private fields remain excluded", async () => {
   const j = await setup("sharing_summary");
   const viewer = await admit(j, "sharing_summary_viewer", "viewer");
-  const organizer = await admit(j, "sharing_summary_organizer", "organizer");
+  const ungranted = await admit(j, "sharing_summary_member", "member");
   const id = await item(j, "One canonical adapter supply");
   const hidden = await item(j, "Hidden medicine title");
   const b = await bag(j, "Secret summary bag");
@@ -796,7 +822,7 @@ test("summary readers without a family grant can select shared canonical items w
     includePreparation: true,
     includeTaskProgress: false,
   };
-  for (const person of [viewer, organizer]) {
+  for (const person of [viewer, ungranted]) {
     const choices = await fixture.request(`${j.trip}/summary`, person.token);
     assert.equal(choices.status, 200, fixture.logs());
     assert.equal(choices.data.families.length, 1);

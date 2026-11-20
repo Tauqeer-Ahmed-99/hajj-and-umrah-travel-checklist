@@ -20,8 +20,11 @@ export async function listMembers(
     else await requireTripAccess(db, memberId, tripId);
     const people = await db.execute<AccessMember>(
       familyId
-        ? sql`SELECT m.id, m.first_name AS "firstName", m.last_name AS "lastName", m.username, fm.role
-         FROM family_members fm JOIN members m ON m.id = fm.member_id WHERE fm.trip_id = ${sql.param(tripId)} AND fm.family_id = ${sql.param(familyId)} ORDER BY m.username`
+        ? sql`SELECT m.id, m.first_name AS "firstName", m.last_name AS "lastName", m.username,
+            CASE WHEN tm.role='organizer' THEN 'coordinator' ELSE fm.role END AS role
+          FROM trip_members tm JOIN members m ON m.id=tm.member_id
+          LEFT JOIN family_members fm ON fm.trip_id=tm.trip_id AND fm.member_id=tm.member_id AND fm.family_id=${familyId}
+          WHERE tm.trip_id=${tripId} AND (tm.role='organizer' OR fm.member_id IS NOT NULL) ORDER BY m.username`
         : sql`SELECT m.id, m.first_name AS "firstName", m.last_name AS "lastName", m.username, tm.role
          FROM trip_members tm JOIN members m ON m.id = tm.member_id WHERE tm.trip_id = ${sql.param(tripId)} ORDER BY m.username`,
     );
@@ -107,9 +110,10 @@ export async function updateTripMember(
     await db.execute(
       sql`UPDATE invitations SET trip_approved_by = NULL WHERE trip_id = ${sql.param(tripId)} AND trip_approved_by = ${sql.param(target)} AND consumed_at IS NULL`,
     );
-  if (!role || role === "viewer")
+  if (role !== "organizer")
     await db.execute(
-      sql`UPDATE invitations SET family_approved_by = NULL WHERE trip_id = ${sql.param(tripId)} AND family_approved_by = ${sql.param(target)} AND consumed_at IS NULL`,
+      sql`UPDATE invitations i SET family_approved_by = NULL WHERE i.trip_id = ${tripId} AND i.family_approved_by = ${target} AND i.consumed_at IS NULL
+        AND (${role ?? null}::text IS NULL OR ${role ?? null}::text='viewer' OR NOT EXISTS(SELECT 1 FROM family_members fm WHERE fm.family_id=i.family_id AND fm.member_id=${target} AND fm.role='coordinator'))`,
     );
   return { saved: true };
 }
@@ -273,8 +277,8 @@ export async function deleteOwnedGroup(
       const families = await db.execute<{ id: string }>(
         sql`SELECT id FROM families WHERE trip_id=${sql.param(tripId)} ORDER BY id`,
       );
-      // Trip administration does not imply ownership of other families. Deleting
-      // a whole trip requires explicit effective coordination of every family.
+      // Resolve current family administration for every group before deletion.
+      // Organisers derive this authority from their locked trip membership.
       for (const family of families.rows)
         await requireFamilyAccess(db, actor, tripId, family.id, "coordinate");
       await db.execute(sql`DELETE FROM trips WHERE id=${sql.param(tripId)}`);

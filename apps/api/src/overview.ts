@@ -13,7 +13,11 @@ import {
   type ItineraryEntry,
 } from "@nmt/contracts";
 import { transaction } from "./trips";
-import { requireFamilyAccess, requireTripAccess } from "./permissions";
+import {
+  requireFamilyAccess,
+  requireTripAccess,
+  listAccessibleFamilies,
+} from "./permissions";
 import { sharedState } from "./sharing";
 import { entryColumns } from "./checklist";
 import { bagColumns, packingItems } from "./packing";
@@ -168,15 +172,13 @@ export function readOverview(
     );
     // The central projection holds stable family locks and redacts private locations/history.
     const shared = await sharedState(db, memberId, tripId, query.leg);
-    const own = await db.execute<{ id: string }>(
-      sql`SELECT family_id AS id FROM family_members WHERE trip_id = ${sql.param(tripId)} AND member_id = ${sql.param(memberId)} ORDER BY family_id`,
-    );
+    const own = await listAccessibleFamilies(db, memberId, trip);
     if (query.familyId)
       await requireFamilyAccess(db, memberId, tripId, query.familyId);
     const sharedIds = new Set(shared.items.map((v) => v.entry.id));
     const sharedBagIds = new Set(shared.bags.map((v) => v.id));
     const records = new Map<string, OverviewRecord>();
-    for (const candidate of own.rows) {
+    for (const candidate of own) {
       const family = await requireFamilyAccess(
         db,
         memberId,

@@ -52,10 +52,10 @@ async function view(
       i.trip_role AS "tripRole", i.family_role AS "familyRole",
       EXISTS (SELECT 1 FROM trip_members a WHERE a.trip_id = i.trip_id
         AND a.member_id = i.trip_approved_by AND a.role = 'organizer') AS "tripApproved",
-      (i.family_id IS NULL OR EXISTS (SELECT 1 FROM family_members a JOIN trip_members b
-        ON b.trip_id = a.trip_id AND b.member_id = a.member_id
-        WHERE a.family_id = i.family_id AND a.member_id = i.family_approved_by
-        AND a.role = 'coordinator' AND b.role <> 'viewer')) AS "familyApproved",
+      (i.family_id IS NULL OR EXISTS (SELECT 1 FROM trip_members b
+        LEFT JOIN family_members a ON a.trip_id=b.trip_id AND a.member_id=b.member_id AND a.family_id=i.family_id
+        WHERE b.trip_id=i.trip_id AND b.member_id=i.family_approved_by
+        AND (b.role='organizer' OR (a.role='coordinator' AND b.role<>'viewer')))) AS "familyApproved",
       to_char(i.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "createdAt",
       to_char(i.expires_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "expiresAt",
       CASE WHEN i.consumed_at IS NOT NULL THEN 'accepted' WHEN i.revoked_at IS NOT NULL THEN 'revoked'

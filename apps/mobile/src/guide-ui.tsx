@@ -96,7 +96,9 @@ export function GuideMetadata({ guide }: { guide: GuideRecord }) {
           <Copy>Upload incomplete · Cannot open yet</Copy>
         ))}
       <Copy>
-        {guide.audience === "family" ? "Family only" : "Shared with trip"}
+        {guide.audience === "family"
+          ? "Family & organisers"
+          : "Shared with trip"}
         {guide.pinned ? " · Pinned" : ""}
       </Copy>
       {!!guide.description && <Copy>{guide.description}</Copy>}

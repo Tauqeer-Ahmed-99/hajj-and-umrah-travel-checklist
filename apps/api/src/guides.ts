@@ -186,13 +186,13 @@ export function listGuides(
   query: GuideQuery,
 ) {
   return transaction(async (db) => {
-    await requireTripAccess(db, memberId, tripId);
+    const trip = await requireTripAccess(db, memberId, tripId);
     // Retain actual grants until commit, including concurrent removal/downgrade.
     await db.execute(
       sql`SELECT family_id FROM family_members WHERE trip_id = ${sql.param(tripId)} AND member_id = ${sql.param(memberId)} FOR SHARE`,
     );
     const result = await db.execute<Row>(
-      sql`SELECT ${sql.raw(columns)} FROM guides g WHERE g.trip_id = ${sql.param(tripId)} AND (g.audience = 'trip' OR EXISTS (SELECT 1 FROM family_members fm WHERE fm.trip_id = g.trip_id AND fm.family_id = g.family_id AND fm.member_id = ${sql.param(memberId)})) ORDER BY g.pinned DESC, g.updated_at DESC, g.id`,
+      sql`SELECT ${sql.raw(columns)} FROM guides g WHERE g.trip_id = ${sql.param(tripId)} AND (${trip.role}='organizer' OR g.audience = 'trip' OR EXISTS (SELECT 1 FROM family_members fm WHERE fm.trip_id = g.trip_id AND fm.family_id = g.family_id AND fm.member_id = ${sql.param(memberId)})) ORDER BY g.pinned DESC, g.updated_at DESC, g.id`,
     );
     // Search only accessible metadata. Substring matching treats % and _ literally.
     const matches = result.rows.map(record).filter((value) => {
@@ -228,9 +228,10 @@ export function guideHistory(
   guideId: string,
 ) {
   return transaction(async (db) => {
+    const trip = await requireTripAccess(db, memberId, tripId);
     const current = await readGuideInTransaction(db, memberId, tripId, guideId);
     const result = await db.execute(
-      sql`SELECT snapshot AS guide, changed_fields AS "changedFields" FROM guide_versions v WHERE guide_id = ${sql.param(guideId)} AND (snapshot->>'audience' = 'trip' OR EXISTS (SELECT 1 FROM family_members fm WHERE fm.trip_id = ${sql.param(tripId)} AND fm.family_id = ${sql.param(current.familyId)} AND fm.member_id = ${sql.param(memberId)})) ORDER BY version DESC`,
+      sql`SELECT snapshot AS guide, changed_fields AS "changedFields" FROM guide_versions v WHERE guide_id = ${sql.param(guideId)} AND (${trip.role}='organizer' OR snapshot->>'audience' = 'trip' OR EXISTS (SELECT 1 FROM family_members fm WHERE fm.trip_id = ${sql.param(tripId)} AND fm.family_id = ${sql.param(current.familyId)} AND fm.member_id = ${sql.param(memberId)})) ORDER BY version DESC`,
     );
     return { versions: result.rows };
   });

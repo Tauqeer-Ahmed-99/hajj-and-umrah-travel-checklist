@@ -90,6 +90,21 @@ export async function requireFamilyAccess(
 ): Promise<Family> {
   const trip = await requireTripAccess(db, memberId, tripId);
   resourceId(familyId);
+  if (trip.role === "organizer") {
+    // Authority is derived from the current, locked trip membership. Never
+    // materialize family grants that would survive a later organiser demotion.
+    const result = await db.execute<Family>(sql`
+      SELECT id, trip_id AS "tripId", name, 'coordinator' AS role,
+        true AS "canEdit", true AS "canCoordinate"
+      FROM families WHERE trip_id=${tripId} AND id=${familyId}`);
+    if (!result.rows[0])
+      throw new HttpError(
+        404,
+        "not_found",
+        "This trip or family is not available to you.",
+      );
+    return result.rows[0];
+  }
   const result = await db.execute<Family>(sql`
     SELECT f.id, f.trip_id AS "tripId", f.name, fm.role,
       (fm.role <> 'viewer' AND ${sql.param(trip.role)} <> 'viewer') AS "canEdit",
@@ -113,4 +128,20 @@ export async function requireFamilyAccess(
       "Your family access does not allow this change.",
     );
   return family;
+}
+
+export async function listAccessibleFamilies(
+  db: PermissionDatabase,
+  memberId: string,
+  trip: Trip,
+) {
+  const result = await db.execute<Family>(sql`
+    SELECT f.id, f.trip_id AS "tripId", f.name,
+      CASE WHEN ${trip.role}='organizer' THEN 'coordinator' ELSE fm.role END AS role,
+      (${trip.role}='organizer' OR (fm.role<>'viewer' AND ${trip.role}<>'viewer')) AS "canEdit",
+      (${trip.role}='organizer' OR (fm.role='coordinator' AND ${trip.role}<>'viewer')) AS "canCoordinate"
+    FROM families f LEFT JOIN family_members fm ON fm.family_id=f.id AND fm.member_id=${memberId}
+    WHERE f.trip_id=${trip.id} AND (${trip.role}='organizer' OR fm.member_id IS NOT NULL)
+    ORDER BY f.created_at,f.id`);
+  return result.rows;
 }

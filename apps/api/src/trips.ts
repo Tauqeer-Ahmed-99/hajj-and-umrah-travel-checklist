@@ -12,6 +12,7 @@ import { randomUUID } from "node:crypto";
 import { database, type DatabaseTransaction } from "./database";
 import {
   requireFamilyAccess,
+  listAccessibleFamilies,
   requireTripAccess,
   tripColumns,
   type PermissionDatabase,
@@ -69,14 +70,7 @@ export async function readTrip(
   tripId: string,
 ): Promise<TripDetail> {
   const trip = await requireTripAccess(db, memberId, tripId);
-  // Organizer authority never widens this family audience.
-  const families = await db.execute<Family>(sql`
-    SELECT f.id, f.trip_id AS "tripId", f.name, fm.role,
-      (fm.role <> 'viewer' AND ${sql.param(trip.role)} <> 'viewer') AS "canEdit",
-      (fm.role = 'coordinator' AND ${sql.param(trip.role)} <> 'viewer') AS "canCoordinate"
-    FROM families f JOIN family_members fm ON fm.family_id = f.id
-    WHERE f.trip_id = ${sql.param(tripId)} AND fm.member_id = ${sql.param(memberId)} ORDER BY f.created_at, f.id`);
-  return { trip, families: families.rows };
+  return { trip, families: await listAccessibleFamilies(db, memberId, trip) };
 }
 
 export async function createTrip(memberId: string, input: TripInput) {

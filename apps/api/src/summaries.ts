@@ -44,7 +44,7 @@ async function familyReadAccess(
 }
 export function readSummaryChoices(memberId: string, tripId: string) {
   return transaction(async (db) => {
-    await requireTripAccess(db, memberId, tripId);
+    const trip = await requireTripAccess(db, memberId, tripId);
     const entries = await db.execute<
       SummaryChoices["itineraryEntries"][number]
     >(
@@ -53,7 +53,7 @@ export function readSummaryChoices(memberId: string, tripId: string) {
     const candidates = await db.execute<{
       id: string;
     }>(sql`SELECT f.id FROM families f WHERE f.trip_id = ${sql.param(tripId)}
-      AND (EXISTS (SELECT 1 FROM family_members fm WHERE fm.family_id = f.id AND fm.member_id = ${sql.param(memberId)})
+      AND (${trip.role}='organizer' OR EXISTS (SELECT 1 FROM family_members fm WHERE fm.family_id = f.id AND fm.member_id = ${sql.param(memberId)})
         OR EXISTS (SELECT 1 FROM checklist_entries e WHERE e.family_id = f.id AND e.audience = 'trip' AND e.removed_at IS NULL)) ORDER BY f.id`);
     const families: SummaryChoices["families"] = [];
     for (const candidate of candidates.rows) {

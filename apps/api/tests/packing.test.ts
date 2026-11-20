@@ -754,7 +754,7 @@ async function admit(
     fixture.logs(),
   );
 }
-test("packing reads, history, all writes and receipt retries retain current family, viewer, organizer and revocation boundaries", async () => {
+test("packing reads, history, all writes and receipt retries retain current family, viewer, demoted organizer and revocation boundaries", async () => {
   const journey = await setup("packing_private_owner");
   const editor = await member("packing_private_editor"),
     viewer = await member("packing_private_viewer"),
@@ -770,6 +770,18 @@ test("packing reads, history, all writes and receipt retries retain current fami
         journey.owner.token,
         undefined,
         "DELETE",
+      )
+    ).status,
+    200,
+  );
+  // Removing an explicit grant cannot override an active organiser role.
+  assert.equal(
+    (
+      await fixture.request(
+        `${journey.trip}/members/${organizer.id}`,
+        journey.owner.token,
+        { role: "member" },
+        "PUT",
       )
     ).status,
     200,

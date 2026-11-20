@@ -9,7 +9,7 @@ A planned Hajj or Umrah journey with its travelers and preparation for outbound 
 _Avoid_: Using family group to mean the entire trip.
 
 **Family group**:
-A group of travelers within a trip whose preparation is organized together. The family's checklists, bags, and guides are accessible within that family by default unless explicitly shared with the trip.
+A group of travelers within a trip whose preparation is organized together. The family's checklists, bags, and guides are accessible to its members and trip organizers unless explicitly shared with the trip.
 _Avoid_: Family account, shared login.
 
 **Traveler**:
@@ -21,7 +21,7 @@ A person with an account who has access to a specific trip. Membership is separa
 _Avoid_: Traveler when referring specifically to account access.
 
 **Trip organizer**:
-A trip member responsible for trip details and trip invitations. Organizing a trip does not automatically grant access to another family's private content.
+A trip member responsible for trip details and invitations who can manage every family and its content within that trip. This access lasts only while the member is an organizer.
 _Avoid_: Family coordinator when referring to trip administration.
 
 **Family coordinator**:
@@ -29,11 +29,11 @@ A member responsible for a family's membership, access grants, and content shari
 _Avoid_: Trip organizer when referring to family access decisions.
 
 **Family content**:
-Checklist entries, bags, or guides belonging to one family group and available within that family by default. A trip organizer from another family also needs explicit family permission to access this content.
+Checklist entries, bags, or guides belonging to one family group and available within that family by default. Trip organizers can also manage this content; other trip members need family permission.
 _Avoid_: Treating trip membership as access to every family's content.
 
 **Trip-shared content**:
-Content explicitly shared with trip members, editable by members with edit access, and with visibility controlled by the owning family's coordinators. This audience excludes people who have merely signed up for the app.
+Content explicitly shared with trip members, editable by members with edit access, and with visibility controlled by the owning family's coordinators and trip organizers. This audience excludes people who have merely signed up for the app.
 _Avoid_: Public content, public trip data.
 
 **Trip-shared bag**:
@@ -45,7 +45,7 @@ The globally unique, case-insensitive handle identifying a member's account. It 
 _Avoid_: Display name, family name, email address.
 
 **Invitation**:
-A recipient-specific offer of access addressed to a verified email or an existing username. Trip admission requires organizer approval, and family access requires that family's coordinator approval.
+A recipient-specific offer of access addressed to a verified email or an existing username. Trip admission requires organizer approval, and family access requires approval from a family coordinator or trip organizer.
 _Avoid_: Public join pass, unrestricted invite link.
 
 **Guide**:

@@ -374,7 +374,7 @@ test("revoked and expired invitations cannot be accepted; concurrent acceptance 
   );
 });
 
-test("shared-trip identities keep emails private; family grants and removal remain scoped to coordinators", async () => {
+test("shared-trip identities keep emails private; family coordinators and organisers manage grants without exposing emails", async () => {
   const owner = await member("grant_owner");
   const second = await member("grant_organizer");
   const target = await member("grant_target");
@@ -399,7 +399,7 @@ test("shared-trip identities keep emails private; family grants and removal rema
   const familyPath = `${journey.path}/families/${journey.familyId}`;
   assert.equal(
     (await fixture.request(`${familyPath}/travelers`, second.token)).status,
-    404,
+    200,
   );
   assert.equal(
     (
@@ -410,7 +410,7 @@ test("shared-trip identities keep emails private; family grants and removal rema
         "PUT",
       )
     ).status,
-    404,
+    200,
   );
   assert.equal(
     (
@@ -560,8 +560,8 @@ test("last organizer and coordinator protection survives simultaneous departures
     roster.data.members.filter(
       (m: { role: string }) => m.role === "coordinator",
     ).length,
-    1,
-  );
+    2,
+  ); // Both are still organisers; an explicit family departure does not remove that access.
   const denied = await fixture.request(
     `${journey.path}/members/${survivor.id}`,
     survivor.token,
@@ -595,15 +595,16 @@ test("last organizer and coordinator protection survives simultaneous departures
   );
 });
 
-test("organizer approval cannot substitute for coordinator approval and lost authority requires fresh approval", async () => {
-  const owner = await member("separate_owner");
-  const coordinator = await member("separate_coordinator");
-  const target = await member("separate_target");
-  const journey = await trip(owner);
-  const familyPath = `${journey.path}/families/${journey.familyId}/members`;
+test("organisers approve family access without a grant; lost authority requires fresh approvals", async () => {
+  const owner = await member("separate_owner"),
+    coordinator = await member("separate_coordinator"),
+    target = await member("separate_target");
+  const journey = await trip(owner),
+    familyPath = `${journey.path}/families/${journey.familyId}/members`;
   await accept(
     (
       await invite(journey, owner, coordinator, {
+        tripRole: "organizer",
         familyId: journey.familyId,
         familyRole: "coordinator",
       })
@@ -626,8 +627,24 @@ test("organizer approval cannot substitute for coordinator approval and lost aut
     familyRole: "editor",
   });
   assert.equal(proposed.tripApproved, true);
-  assert.equal(proposed.familyApproved, false);
+  assert.equal(proposed.familyApproved, true);
   const approval = `${journey.path}/invitations/${proposed.id}/approve`;
+  assert.equal(
+    (
+      await fixture.request(
+        `${journey.path}/members/${owner.id}`,
+        coordinator.token,
+        { role: "member" },
+        "PUT",
+      )
+    ).status,
+    200,
+  );
+  let current = (
+    await fixture.request(`/api/invitations/${proposed.id}`, target.token)
+  ).data.invitation;
+  assert.equal(current.tripApproved, false);
+  assert.equal(current.familyApproved, false);
   assert.equal(
     (await fixture.request(approval, owner.token, { scope: "family" }, "POST"))
       .status,
@@ -647,75 +664,24 @@ test("organizer approval cannot substitute for coordinator approval and lost aut
   assert.equal(
     (
       await fixture.request(
-        approval,
+        `${journey.path}/members/${owner.id}`,
         coordinator.token,
-        { scope: "family" },
-        "POST",
-      )
-    ).status,
-    200,
-  );
-  // Restore another coordinator, then revoke and regrant the approver's role.
-  assert.equal(
-    (
-      await fixture.request(
-        `${familyPath}/${owner.id}`,
-        coordinator.token,
-        { role: "coordinator" },
+        { role: "organizer" },
         "PUT",
       )
     ).status,
     200,
   );
-  assert.equal(
-    (
-      await fixture.request(
-        `${familyPath}/${coordinator.id}`,
-        owner.token,
-        { role: "editor" },
-        "PUT",
-      )
-    ).status,
-    200,
-  );
-  assert.equal(
-    (
-      await fixture.request(
-        `${familyPath}/${coordinator.id}`,
-        owner.token,
-        { role: "coordinator" },
-        "PUT",
-      )
-    ).status,
-    200,
-  );
-  assert.equal(
-    (await fixture.request(`/api/invitations/${proposed.id}`, target.token))
-      .data.invitation.familyApproved,
-    false,
-  );
-  assert.equal(
-    (
-      await fixture.request(
-        `/api/invitations/${proposed.id}/accept`,
-        target.token,
-        {},
-        "POST",
-      )
-    ).status,
-    409,
-  );
-  assert.equal(
-    (
-      await fixture.request(
-        approval,
-        coordinator.token,
-        { scope: "family" },
-        "POST",
-      )
-    ).status,
-    200,
-  );
+  current = (
+    await fixture.request(`/api/invitations/${proposed.id}`, target.token)
+  ).data.invitation;
+  assert.equal(current.tripApproved, false);
+  assert.equal(current.familyApproved, false);
+  for (const scope of ["trip", "family"])
+    assert.equal(
+      (await fixture.request(approval, owner.token, { scope }, "POST")).status,
+      200,
+    );
   const spoof = await fixture.request(
     `/api/invitations/${proposed.id}/accept`,
     target.token,

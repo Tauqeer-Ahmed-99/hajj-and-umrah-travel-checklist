@@ -967,7 +967,11 @@ function TripHome({
           )}
           {destination === "Overview" ? (
             <>
-              <SectionLabel>Your families</SectionLabel>
+              <SectionLabel>
+                {detail.trip.role === "organizer"
+                  ? "Families"
+                  : "Your families"}
+              </SectionLabel>
               <Surface>
                 {detail.families.map((family) => (
                   <ListRow

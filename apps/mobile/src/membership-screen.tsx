@@ -105,6 +105,10 @@ export function MembershipScreen({
   const canManage = familyId
     ? !!family?.canCoordinate
     : data?.detail.trip.role === "organizer";
+  const isOrganiser = (id: string) =>
+    !!data?.tripMembers.some(
+      (member) => member.id === id && member.role === "organizer",
+    );
   const memberPath = `/trips/${tripId}${familyId ? `/families/${familyId}` : ""}/members`;
   const perform = async (change: AccessChange, invitation = false) => {
     setPending(true);
@@ -191,7 +195,7 @@ export function MembershipScreen({
       </Heading>
       <Copy muted>
         {familyId
-          ? "Choose who can view or change this family's private records."
+          ? "Organisers can manage every family. Choose additional family access for other trip members."
           : "Invite people to this trip and manage their trip access."}
       </Copy>
       {saved && <Notice>{saved}</Notice>}
@@ -232,6 +236,12 @@ export function MembershipScreen({
             Names and usernames are visible within this trip. Emails stay
             private.
           </Copy>
+          {familyId && (
+            <Copy muted>
+              Organisers manage all families. Change organiser access in Trip
+              members.
+            </Copy>
+          )}
           <Notice>
             Assign another organizer or coordinator before removing the last
             responsible member. Trip viewers cannot edit family content.
@@ -250,7 +260,7 @@ export function MembershipScreen({
                 onPress={() => setResponsibility("transfer")}
               />
               <Action
-                title={familyId ? "Delete owned family" : "Delete owned trip"}
+                title={familyId ? "Delete family" : "Delete trip"}
                 secondary
                 requiresConnection
                 disabled={pending || api.busy}
@@ -296,9 +306,10 @@ export function MembershipScreen({
                     title={`${m.firstName} ${m.lastName}`}
                   >
                     <Copy>
-                      @{m.username} · {m.role}
+                      @{m.username} ·{" "}
+                      {familyId && isOrganiser(m.id) ? "organizer" : m.role}
                     </Copy>
-                    {canManage && (
+                    {canManage && !(familyId && isOrganiser(m.id)) && (
                       <Action
                         title={`Manage @${m.username}`}
                         secondary
@@ -310,21 +321,22 @@ export function MembershipScreen({
                         }}
                       />
                     )}
-                    {(canManage || m.id === profile.id) && (
-                      <Action
-                        requiresConnection
-                        title={
-                          m.id === profile.id
-                            ? familyId
-                              ? "Leave family"
-                              : "Leave trip"
-                            : `Remove @${m.username}`
-                        }
-                        secondary
-                        disabled={pending || api.busy}
-                        onPress={() => remove(m)}
-                      />
-                    )}
+                    {(canManage || m.id === profile.id) &&
+                      !(familyId && isOrganiser(m.id)) && (
+                        <Action
+                          requiresConnection
+                          title={
+                            m.id === profile.id
+                              ? familyId
+                                ? "Leave family"
+                                : "Leave trip"
+                              : `Remove @${m.username}`
+                          }
+                          secondary
+                          disabled={pending || api.busy}
+                          onPress={() => remove(m)}
+                        />
+                      )}
                   </AccessSection>
                 ))}
               </AccessSection>
@@ -335,7 +347,11 @@ export function MembershipScreen({
                     a family role before saving their access.
                   </Copy>
                   {data.tripMembers
-                    .filter((m) => !data.members.some((f) => f.id === m.id))
+                    .filter(
+                      (m) =>
+                        m.role !== "organizer" &&
+                        !data.members.some((f) => f.id === m.id),
+                    )
                     .map((m) => (
                       <Action
                         key={m.id}

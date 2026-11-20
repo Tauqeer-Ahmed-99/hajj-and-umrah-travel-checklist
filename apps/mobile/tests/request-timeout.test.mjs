@@ -70,7 +70,13 @@ test("a stalled first session-token read recovers inside the original Save attem
   assert.equal(tokenCalls, 2);
 });
 
-for (const scenario of ["committed", "late-committing", "account-changed"])
+for (const scenario of [
+  "committed",
+  "late-committing",
+  "account-changed",
+  "confirmation-stalled",
+  "confirmation-revoked",
+])
   test(`a stalled save handles the ${scenario} outcome without another write`, async (t) => {
     const lateCommit = scenario === "late-committing";
     let posts = 0,
@@ -108,10 +114,24 @@ for (const scenario of ["committed", "late-committing", "account-changed"])
     const server = createServer(async (req, res) => {
       for await (const _ of req) {
       }
-      if (req.method === "POST") {
+      if (req.method !== "GET") {
         posts++;
         if (posts === 1) return; // Save committed; the original connection never replies.
-      } else checks++;
+      } else {
+        checks++;
+        if (scenario.startsWith("confirmation-") && checks === 1) return;
+        if (scenario === "confirmation-revoked") {
+          res.writeHead(403, { "Content-Type": "application/json" }).end(
+            JSON.stringify({
+              error: {
+                code: "family_forbidden",
+                message: "Your family access changed.",
+              },
+            }),
+          );
+          return;
+        }
+      }
       res
         .writeHead(200, { "Content-Type": "application/json" })
         .end(
@@ -142,7 +162,15 @@ for (const scenario of ["committed", "late-committing", "account-changed"])
     let save;
     await act(async () => {
       save = request.run((token, signal) =>
-        app.checklistApi.create(scope, body, token, signal),
+        scenario.startsWith("confirmation-")
+          ? app.checklistApi.edit(
+              scope,
+              entry.id,
+              { requestId, taskStatus: "done" },
+              token,
+              signal,
+            )
+          : app.checklistApi.create(scope, body, token, signal),
       );
     });
     for (let i = 0; i < 200 && posts === 0; i++)
@@ -166,7 +194,10 @@ for (const scenario of ["committed", "late-committing", "account-changed"])
     t.diagnostic(
       JSON.stringify({ error: request.error?.message, posts, checks }),
     );
-    if (scenario === "account-changed") {
+    if (scenario === "confirmation-revoked") {
+      assert.equal(result, undefined);
+      assert.equal(request.error?.status, 403);
+    } else if (scenario === "account-changed") {
       assert.equal(result, undefined);
       assert.equal(request.error?.code, "request_cancelled");
     } else {
@@ -176,7 +207,11 @@ for (const scenario of ["committed", "late-committing", "account-changed"])
     assert.equal(posts, 1);
     assert.equal(
       checks,
-      scenario === "account-changed" ? 0 : lateCommit ? 2 : 1,
+      scenario === "account-changed"
+        ? 0
+        : lateCommit || scenario.startsWith("confirmation-")
+          ? 2
+          : 1,
     );
   });
 

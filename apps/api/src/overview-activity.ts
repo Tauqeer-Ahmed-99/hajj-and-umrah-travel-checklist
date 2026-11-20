@@ -12,10 +12,10 @@ export function readOverviewActivity(
   leg: "outbound" | "return",
 ): Promise<OverviewActivity> {
   return transaction(async (db) => {
-    await requireTripAccess(db, memberId, tripId);
+    const trip = await requireTripAccess(db, memberId, tripId);
     const shared = await sharedState(db, memberId, tripId, leg, entryId);
     const result = await db.execute<{ familyId: string }>(
-      sql`SELECT e.family_id AS "familyId" FROM checklist_entries e JOIN families f ON f.id = e.family_id JOIN family_members fm ON fm.family_id = f.id AND fm.member_id = ${sql.param(memberId)} WHERE f.trip_id = ${sql.param(tripId)} AND e.id = ${sql.param(entryId)} AND e.removed_at IS NULL AND (e.leg IN (${sql.param(leg)}, 'both') OR (${sql.param(leg)}='return' AND e.kind='item' AND (e.not_needed_reason IS NULL OR EXISTS(SELECT 1 FROM return_items r WHERE r.entry_id=e.id))))`,
+      sql`SELECT e.family_id AS "familyId" FROM checklist_entries e JOIN families f ON f.id = e.family_id WHERE f.trip_id = ${sql.param(tripId)} AND (${trip.role}='organizer' OR EXISTS(SELECT 1 FROM family_members fm WHERE fm.family_id=f.id AND fm.member_id=${memberId})) AND e.id = ${sql.param(entryId)} AND e.removed_at IS NULL AND (e.leg IN (${sql.param(leg)}, 'both') OR (${sql.param(leg)}='return' AND e.kind='item' AND (e.not_needed_reason IS NULL OR EXISTS(SELECT 1 FROM return_items r WHERE r.entry_id=e.id))))`,
     );
     let history: OverviewActivity["history"];
     if (result.rows[0]) {

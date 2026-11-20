@@ -601,7 +601,7 @@ test("reassignment and concurrent field edits preserve one item; removal keeps h
   );
 });
 
-test("every checklist read and write uses explicit family grants, including viewers, organizers, revoked members and crossed IDs", async () => {
+test("every checklist read and write uses explicit family grants, including viewers, demoted organizers, revoked members and crossed IDs", async () => {
   const owner = await member("access_owner"),
     viewer = await member("access_viewer"),
     organizer = await member("access_organizer"),
@@ -622,6 +622,18 @@ test("every checklist read and write uses explicit family grants, including view
         owner.token,
         undefined,
         "DELETE",
+      )
+    ).status,
+    200,
+  );
+  // Removing an explicit grant cannot override an active organiser role.
+  assert.equal(
+    (
+      await fixture.request(
+        `${journey.path}/members/${organizer.id}`,
+        owner.token,
+        { role: "member" },
+        "PUT",
       )
     ).status,
     200,

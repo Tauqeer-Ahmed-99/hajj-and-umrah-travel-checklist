@@ -58,7 +58,7 @@ export function VisibilityForm(
       <ChecklistChoices<"family" | "trip">
         label="Choose visibility"
         options={[
-          { value: "family", label: "Family only" },
+          { value: "family", label: "Family & organisers" },
           { value: "trip", label: "Shared with trip" },
         ]}
         value={audience ? audience : []}

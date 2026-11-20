@@ -25,7 +25,11 @@ import {
   type QuantityPatch,
 } from "./acquisition";
 import { randomUUID } from "node:crypto";
-import { requireFamilyAccess, resourceId } from "./permissions";
+import {
+  requireFamilyAccess,
+  requireTripAccess,
+  resourceId,
+} from "./permissions";
 import { createOnce, transaction } from "./trips";
 import { HttpError } from "./response";
 import { preservePacking } from "./packing-invariants";
@@ -68,13 +72,22 @@ async function entryReferences(
       );
   }
   if (input.responsibleMemberId) {
-    const responsible = await db.execute(
-      shared
-        ? sql`SELECT member_id FROM trip_members WHERE trip_id = ${sql.param(tripId)} AND member_id = ${sql.param(input.responsibleMemberId)} FOR SHARE`
-        : sql`SELECT fm.member_id FROM family_members fm JOIN trip_members tm ON tm.trip_id = fm.trip_id AND tm.member_id = fm.member_id
-    WHERE fm.trip_id = ${sql.param(tripId)} AND fm.family_id = ${sql.param(familyId)} AND fm.member_id = ${sql.param(input.responsibleMemberId)} FOR SHARE OF fm, tm`,
-    );
-    if (!responsible.rowCount)
+    let hasAccess = true;
+    try {
+      if (shared)
+        await requireTripAccess(db, input.responsibleMemberId, tripId);
+      else
+        await requireFamilyAccess(
+          db,
+          input.responsibleMemberId,
+          tripId,
+          familyId,
+        );
+    } catch (error) {
+      if (!(error instanceof HttpError && error.status === 404)) throw error;
+      hasAccess = false;
+    }
+    if (!hasAccess)
       throw new HttpError(
         422,
         "invalid_checklist",

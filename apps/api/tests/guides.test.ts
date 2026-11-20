@@ -487,7 +487,7 @@ test("partial edits retain competing fields, accepted order wins, and uncertain 
   );
 });
 
-test("organizing a trip cannot reveal another family's private guides, counts, search or history without a current grant", async () => {
+test("a demoted organizer loses private guides, counts, search and history without a current grant", async () => {
   const organizer = await member("isolated_organizer");
   const coordinator = await member("isolated_coordinator");
   const journey = await trip(organizer);
@@ -515,6 +515,28 @@ test("organizing a trip cannot reveal another family's private guides, counts, s
         organizer.token,
         undefined,
         "DELETE",
+      )
+    ).status,
+    200,
+  );
+  assert.equal(
+    (
+      await fixture.request(
+        `${journey.path}/members/${coordinator.id}`,
+        organizer.token,
+        { role: "organizer" },
+        "PUT",
+      )
+    ).status,
+    200,
+  );
+  assert.equal(
+    (
+      await fixture.request(
+        `${journey.path}/members/${organizer.id}`,
+        coordinator.token,
+        { role: "member" },
+        "PUT",
       )
     ).status,
     200,
@@ -605,7 +627,7 @@ test("organizing a trip cannot reveal another family's private guides, counts, s
     (
       await fixture.request(
         `${journey.path}/members/${coordinator.id}`,
-        organizer.token,
+        coordinator.token,
         { role: "organizer" },
       )
     ).status,

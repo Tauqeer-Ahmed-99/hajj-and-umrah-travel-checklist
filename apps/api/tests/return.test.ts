@@ -806,7 +806,7 @@ async function admit(
     200,
   );
 }
-test("return reads, commands, locations and retries retain family, viewer, organizer and revocation boundaries", async () => {
+test("return reads, commands, locations and retries retain family, viewer, demoted organizer and revocation boundaries", async () => {
   const j = await setup("return_private_owner");
   const s = await supply(j, 3, 3);
   const b = await bag(j);
@@ -825,6 +825,17 @@ test("return reads, commands, locations and retries retain family, viewer, organ
         j.owner.token,
         undefined,
         "DELETE",
+      )
+    ).status,
+    200,
+  );
+  assert.equal(
+    (
+      await fixture.request(
+        `${j.trip}/members/${organizer.id}`,
+        j.owner.token,
+        { role: "member" },
+        "PUT",
       )
     ).status,
     200,

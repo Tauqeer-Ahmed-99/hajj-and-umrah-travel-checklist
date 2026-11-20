@@ -247,8 +247,8 @@ export function TravelFileForm({
       )}
       <Copy>
         {target.kind === "bag_photo"
-          ? "Identification stays within the bag's family, including when the bag is shared."
-          : "New attachments are family only. An owning coordinator can share after saving."}
+          ? "Only the bag's family members and trip organisers can see identification photos."
+          : "Family members and organisers can access new attachments. Share with the trip after saving."}
       </Copy>
       {pending.map((item) => (
         <GuideSection key={item.id}>

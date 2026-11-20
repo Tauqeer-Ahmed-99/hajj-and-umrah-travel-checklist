@@ -780,6 +780,18 @@ test("acquisition routes keep family privacy, viewer restrictions and revocation
     ).status,
     200,
   );
+  // Removing an explicit grant cannot override an active organiser role.
+  assert.equal(
+    (
+      await fixture.request(
+        `${journey.path}/members/${organizer.id}`,
+        owner.token,
+        { role: "member" },
+        "PUT",
+      )
+    ).status,
+    200,
+  );
   const group = await category(journey.checklist, owner.token);
   const created = await fixture.request(
     `${journey.checklist}/entries`,

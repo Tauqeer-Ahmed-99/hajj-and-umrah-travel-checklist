@@ -89,7 +89,7 @@ export function AccessChoices<T extends string>({
 export const tripRoleChoices = [
   { value: "viewer", label: "Viewer · read only" },
   { value: "member", label: "Member · can edit" },
-  { value: "organizer", label: "Organizer · manages trip" },
+  { value: "organizer", label: "Organizer · manages trip and families" },
 ] as const;
 export const familyRoleChoices = [
   { value: "viewer", label: "Viewer · read only" },
@@ -108,12 +108,24 @@ export function InvitationDetails({
         Trip access:{" "}
         {i.tripRole === "member" ? "Member · can edit" : i.tripRole}
       </Copy>
-      <Copy>Family: {i.family?.name ?? "No family access"}</Copy>
-      {i.familyRole && <Copy>Family access: {i.familyRole}</Copy>}
+      <Copy>
+        Family:{" "}
+        {i.tripRole === "organizer"
+          ? "All families"
+          : (i.family?.name ?? "No family access")}
+      </Copy>
+      {i.familyRole && (
+        <Copy>
+          Family access:{" "}
+          {i.tripRole === "organizer"
+            ? "Can manage all families"
+            : i.familyRole}
+        </Copy>
+      )}
       <Copy>Organizer approval: {i.tripApproved ? "Approved" : "Waiting"}</Copy>
       {i.family && (
         <Copy>
-          Coordinator approval: {i.familyApproved ? "Approved" : "Waiting"}
+          Family approval: {i.familyApproved ? "Approved" : "Waiting"}
         </Copy>
       )}
       <Copy>Expires: {new Date(i.expiresAt).toLocaleString()}</Copy>

@@ -202,7 +202,8 @@ export function GuideForm({
       {!initial && (
         <>
           <Copy>
-            New guides are family only. A coordinator can share after saving.
+            Family members and organisers can access new guides. Share with the
+            trip after saving.
           </Copy>
           <GuideChoices
             label="Owning family"
@@ -348,7 +349,7 @@ export function GuideChangeForm({
             onChange={setAudience}
             locked={save.locked}
             options={[
-              { value: "family", label: "Family only" },
+              { value: "family", label: "Family & organisers" },
               { value: "trip", label: "Shared with trip" },
             ]}
           />

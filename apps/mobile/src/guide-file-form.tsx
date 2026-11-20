@@ -246,7 +246,8 @@ export function GuideFileForm({
             options={families.map((f) => ({ value: f.id, label: f.name }))}
           />
           <Copy>
-            New files are family only. A coordinator can share after saving.
+            Family members and organisers can access new files. Share with the
+            trip after saving.
           </Copy>
           <Field
             label="Guide title"

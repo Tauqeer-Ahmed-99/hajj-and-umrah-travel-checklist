@@ -213,6 +213,7 @@ test("review shows unverified home belongings only within the caller's family/sh
   const j = await setup("arrival_privacy");
   const b = await belongings(j);
   const organizer = await admit(j, "arrival_organizer", "organizer");
+  const limited = await admit(j, "arrival_limited", "member");
   const viewer = await admit(j, "arrival_viewer", "viewer");
   const first = await fixture.request(
     `${j.trip}/completion/review`,
@@ -226,13 +227,13 @@ test("review shows unverified home belongings only within the caller's family/sh
   assert.equal(first.data.items[0].possessionQuantity, null);
   const hidden = await fixture.request(
     `${j.trip}/completion/review`,
-    organizer.token,
+    limited.token,
   );
   assert.deepEqual(hidden.data.bags, []);
   assert.deepEqual(hidden.data.items, []);
   assert.equal("allComplete" in hidden.data, false);
   assert.equal(
-    (await fixture.request(`${j.family}/return-preparation`, organizer.token))
+    (await fixture.request(`${j.family}/return-preparation`, limited.token))
       .status,
     404,
   );
@@ -280,7 +281,7 @@ test("review shows unverified home belongings only within the caller's family/sh
   );
   const shared = await fixture.request(
     `${j.trip}/completion/review`,
-    organizer.token,
+    limited.token,
   );
   assert.equal(shared.data.items.length, 1);
   assert.equal(shared.data.items[0].entryId, b.entryId);
@@ -314,7 +315,9 @@ test("review shows unverified home belongings only within the caller's family/sh
     j,
     {
       kind: "complete",
-      reviewToken: shared.data.reviewToken,
+      reviewToken: (
+        await fixture.request(`${j.trip}/completion/review`, organizer.token)
+      ).data.reviewToken,
       travelConfirmed: true,
     },
     organizer.token,
@@ -504,11 +507,11 @@ test("lessons and archive survive restart with both leg histories and existing r
   );
   assert.equal(otherArchive.status, 200);
   assert.deepEqual(otherArchive.data.lessons, archived.data.lessons);
-  assert.equal((await fixture.request(guidePath, organizer.token)).status, 404);
+  assert.equal((await fixture.request(guidePath, organizer.token)).status, 200);
   assert.equal(
     (await fixture.request(`${j.family}/packing?leg=outbound`, organizer.token))
       .status,
-    404,
+    200,
   );
   assert.equal(
     (
